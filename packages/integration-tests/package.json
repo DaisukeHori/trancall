@@ -1,0 +1,25 @@
+{
+  "name": "@trancall/integration-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trancall/shared-kernel": "workspace:*",
+    "@trancall/auth": "workspace:*",
+    "@trancall/media": "workspace:*",
+    "@trancall/billing": "workspace:*",
+    "@trancall/contact": "workspace:*",
+    "@trancall/notification": "workspace:*",
+    "@trancall/transcript": "workspace:*",
+    "@trancall/translation": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.0",
+    "@types/node": "^22.10.0"
+  }
+}

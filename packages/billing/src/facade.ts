@@ -73,7 +73,7 @@ export interface BillingFacade {
     cmd: RecordUsageCommand,
   ): Promise<Result<SubscriptionState, AppError>>;
   canStartCall(userId: UserId): Promise<Result<true, AppError>>;
-  reserveMinutes(userId: UserId, minutes: number): Promise<Result<true, AppError>>;
+  reserveMinutes(userId: UserId, sessionId: TranslationSessionId, minutes: number): Promise<Result<true, AppError>>;
   reconcile(
     userId: UserId,
     sessionId: TranslationSessionId,
@@ -159,11 +159,10 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     // =========================================================================
     async reserveMinutes(
       userId: UserId,
+      sessionId: TranslationSessionId,
       minutes: number,
     ): Promise<Result<true, AppError>> {
-      // facade では sessionId を生成せず、userId + minutes で委譲
-      // billing-detail.md の reserveMinutes(userId, minutes) インターフェースに準拠
-      return reservationService.reserveMinutes(userId, minutes);
+      return reservationService.reserveMinutesWithSession(userId, sessionId, minutes);
     },
 
     // =========================================================================
