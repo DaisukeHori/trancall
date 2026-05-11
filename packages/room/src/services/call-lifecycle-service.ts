@@ -5,7 +5,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { Result, AppError, UserId, RoomId } from "@trancall/shared-kernel";
+import type { Result, UserId, RoomId } from "@trancall/shared-kernel";
 import { RoomIdSchema, UserIdSchema, err } from "@trancall/shared-kernel";
 import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
@@ -33,9 +33,9 @@ export interface CallLifecycleService {
     creatorId: UserId,
     inviteeIds: UserId[],
     opts: { translationEnabled: boolean },
-  ): Promise<Result<RoomState, AppError>>;
+  ): Promise<Result<RoomState>>;
 
-  endCall(roomId: RoomId): Promise<Result<RoomState, AppError>>;
+  endCall(roomId: RoomId): Promise<Result<RoomState>>;
 }
 
 export function createCallLifecycleService(

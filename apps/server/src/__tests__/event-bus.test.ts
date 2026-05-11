@@ -71,7 +71,7 @@ describe("EventBus", () => {
     const bus = createEventBus();
     const received: RoomCreatedEvent[] = [];
 
-    bus.subscribe("room.created", async (event) => {
+    bus.subscribe("room.created", (event) => {
       received.push(event);
     });
 

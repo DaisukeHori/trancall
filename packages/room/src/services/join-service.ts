@@ -4,7 +4,7 @@
  * docs/call-lifecycle.md Section 2 に準拠。
  */
 
-import type { Result, AppError, UserId, RoomId } from "@trancall/shared-kernel";
+import type { Result, UserId, RoomId } from "@trancall/shared-kernel";
 
 import type { RoomState } from "../schemas.js";
 import type { RoomRepository } from "../repositories/room-repository.js";
@@ -20,7 +20,7 @@ export interface JoinServiceDeps {
 }
 
 export interface JoinService {
-  joinCall(roomId: RoomId, userId: UserId): Promise<Result<RoomState, AppError>>;
+  joinCall(roomId: RoomId, userId: UserId): Promise<Result<RoomState>>;
 }
 
 export function createJoinService(deps: JoinServiceDeps): JoinService {

@@ -6,7 +6,6 @@
  */
 
 import type { Result } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 import type { TranslationSessionRecord } from "../schemas.js";
 
@@ -22,7 +21,7 @@ export interface TranslationSessionRepository {
       billableSeconds: null;
       reason: null;
     },
-  ) => Promise<Result<TranslationSessionRecord, AppError>>;
+  ) => Promise<Result<TranslationSessionRecord>>;
 
   /**
    * セッション終了を記録する。
@@ -36,12 +35,12 @@ export interface TranslationSessionRepository {
       billableSeconds: number;
       reason: TranslationSessionRecord["reason"];
     },
-  ) => Promise<Result<TranslationSessionRecord, AppError>>;
+  ) => Promise<Result<TranslationSessionRecord>>;
 
   /**
    * agentJobId でセッションを取得する。
    */
   findByAgentJobId: (
     agentJobId: string,
-  ) => Promise<Result<TranslationSessionRecord | null, AppError>>;
+  ) => Promise<Result<TranslationSessionRecord | null>>;
 }

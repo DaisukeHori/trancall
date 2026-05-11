@@ -8,7 +8,7 @@
  *        apps/translation-agent が担い、このモジュールは関与しない。
  */
 
-import type { Result, AppError } from "@trancall/shared-kernel";
+import type { Result } from "@trancall/shared-kernel";
 import { validate } from "@trancall/shared-kernel";
 
 import type { TranslationUsage } from "./schemas.js";
@@ -31,13 +31,13 @@ export interface TranslationFacade {
    * Agent からの event を Server 側で受け取り処理する。
    * HMAC 検証・冪等性チェックは呼び出し元（Server ハンドラ）が行う。
    */
-  handleAgentEvent: (event: unknown) => Promise<Result<true, AppError>>;
+  handleAgentEvent: (event: unknown) => Promise<Result<true>>;
 
   /**
    * 当該 session の利用量取得。
    * billing が translation.ended イベント購読時に使う。
    */
-  getUsage: (agentJobId: string) => Promise<Result<TranslationUsage, AppError>>;
+  getUsage: (agentJobId: string) => Promise<Result<TranslationUsage>>;
 
   /**
    * 同言語判定 utility。
@@ -51,7 +51,7 @@ export interface TranslationFacade {
   /**
    * LiveSubtitleDelta バリデーション（data channel 受信時）。
    */
-  validateLiveDelta: (rawDelta: unknown) => Result<LiveSubtitleDelta, AppError>;
+  validateLiveDelta: (rawDelta: unknown) => Result<LiveSubtitleDelta>;
 }
 
 export function createTranslationFacade(
