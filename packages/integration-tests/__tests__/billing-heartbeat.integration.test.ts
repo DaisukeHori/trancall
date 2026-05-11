@@ -231,11 +231,7 @@ describe("シナリオ 2: billing heartbeat", () => {
       subscriptions: [makeLightSubscriptionRow(userA)],
     });
 
-    // 注: BillingFacade.reserveMinutes(userId, minutes) は session-id を引数に取らない
-    // インターフェース設計上、reservation は facade の内部で session を生成することが
-    // 意図されているが、現実装では reservationRepo への INSERT が行われない
-    // → テストでは reservationRepo に直接予約を作成して reconcile を検証する
-    const createResult = await repos.reservationRepo.create(userA, sessionId, 5);
+    const createResult = await facades.billing.reserveMinutes(userA, sessionId, 5);
     expect(createResult.ok).toBe(true);
 
     // 7 分 = 14 window × 30 秒 の usage を記録

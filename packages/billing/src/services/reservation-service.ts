@@ -2,7 +2,7 @@
  * ReservationService — 通話開始時の分数予約と精算
  *
  * billing-detail.md の reservation → heartbeat → reconcile シーケンスに準拠:
- * - reserveMinutes: 残量チェック → usage_reservations INSERT (status='active')
+ * - reserveMinutesWithSession: 残量チェック → usage_reservations INSERT (status='active')
  * - reconcile: 実消費と予約の差分精算
  * - refundMinutes: 異常終了時の予約解放
  */
@@ -44,68 +44,6 @@ export function createReservationService(deps: ReservationServiceDeps) {
      * 1. 残量チェック（当期消費量と含有分を比較）
      * 2. remaining >= 1 なら予約作成（LEAST(5, remaining) 分）
      * 3. remaining < 1 なら BILLING_INSUFFICIENT_BALANCE
-     */
-    async reserveMinutes(
-      userId: UserId,
-      minutes: number,
-    ): Promise<Result<true, AppError>> {
-      const subResult = await subscriptionRepo.findByUserId(userId);
-      if (!subResult.ok) {
-        return err({
-          code: "BILLING_INSUFFICIENT_BALANCE",
-          message:
-            "翻訳分数が不足しています。プランをアップグレードしてください",
-          retryable: false,
-          httpStatus: 402,
-        });
-      }
-
-      const row = subResult.data;
-      const plan = PLAN_CONFIGS[row.plan_tier];
-
-      const usedSecondsResult = await subscriptionRepo.getUsedSecondsInPeriod(
-        userId,
-        row.current_period_start,
-        row.current_period_end,
-      );
-      if (!usedSecondsResult.ok) return usedSecondsResult;
-
-      const usedSeconds = usedSecondsResult.data;
-      const remainingMinutes = calcRemainingMinutes(plan, usedSeconds);
-
-      if (remainingMinutes < 1) {
-        // 超過課金ありのプランで支払い方法があれば許可
-        const hasPaymentMethod =
-          row.stripe_subscription_id !== null ||
-          row.iap_original_transaction_id !== null;
-        if (!(plan.overageRateYen > 0 && hasPaymentMethod)) {
-          return err({
-            code: "BILLING_INSUFFICIENT_BALANCE",
-            message:
-              "翻訳分数が不足しています。プランをアップグレードしてください",
-            retryable: false,
-            httpStatus: 402,
-          });
-        }
-      }
-
-      // session_id の型変換（minutes 引数と一緒に渡されるのが sessionId の想定）
-      // 実際は facade 経由で sessionId が渡されるが、ここでは userId + sessionId を切り分け
-      // reserveMinutes は facade から sessionId が来るので、ここでは dummy の sessionId を使う
-      // NOTE: 実際は facade から TranslationSessionId を受け取る必要がある設計が正しいが、
-      //       docs/schemas.ts のインターフェース定義 `reserveMinutes(userId, minutes)` に従い、
-      //       sessionId は facade 内で生成して渡す形にする
-
-      // minutes を LEAST(5, remaining) でクランプ（billing-detail.md より）
-      const toReserve = Math.min(minutes, Math.max(1, remainingMinutes));
-      void toReserve; // 実際の INSERT は facade で行う
-
-      return ok(true);
-    },
-
-    /**
-     * 通話開始時の分数予約（sessionId 付き版）。
-     * facade から呼び出される実際の実装。
      */
     async reserveMinutesWithSession(
       userId: UserId,
