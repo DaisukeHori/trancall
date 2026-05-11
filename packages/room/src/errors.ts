@@ -10,7 +10,6 @@ export const RoomErrorCode = {
   ROOM_ALREADY_ENDED: "ROOM_ALREADY_ENDED",
   ROOM_CREATE_FAILED: "ROOM_CREATE_FAILED",
   ROOM_MEDIA_CREATE_FAILED: "ROOM_MEDIA_CREATE_FAILED",
-  BILLING_INSUFFICIENT_BALANCE: "BILLING_INSUFFICIENT_BALANCE",
 } as const;
 
 export type RoomErrorCode = (typeof RoomErrorCode)[keyof typeof RoomErrorCode];

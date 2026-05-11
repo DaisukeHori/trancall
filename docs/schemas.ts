@@ -188,66 +188,74 @@ interface AuthFacade {
 // 5. room モジュール
 // =============================================================================
 
+// Sprint 1 Layer 2 で確定。詳細は docs/module-contracts.md Section 2.8 / packages/room/src/schemas.ts
 const RoomStatus = z.enum(["waiting", "active", "ended"]);
 
-const CreateRoomCommand = z.object({
-  creatorId: UserIdSchema,
-  inviteeIds: z.array(UserIdSchema).min(1).max(49),
-  roomType: z.enum(["audio", "video"]),
-  translationEnabled: z.boolean(),
-});
-type CreateRoomCommand = z.infer<typeof CreateRoomCommand>;
+const ParticipantRole = z.enum(["host", "member"]);
 
 const RoomParticipant = z.object({
-  participantId: ParticipantIdSchema,
+  id: ParticipantIdSchema,
   userId: UserIdSchema,
-  displayName: z.string(),
-  nativeLanguage: OutputLanguage,
-  joinedAt: z.string().datetime(),
-  role: z.enum(["host", "member"]),
+  role: ParticipantRole,
   isMuted: z.boolean(),
+  joinedAt: z.string().datetime(),
+  leftAt: z.string().datetime().nullable(),
 });
+type RoomParticipant = z.infer<typeof RoomParticipant>;
 
 const RoomState = z.object({
   roomId: RoomIdSchema,
   status: RoomStatus,
-  roomType: z.enum(["audio", "video"]),
   translationEnabled: z.boolean(),
-  participants: z.array(RoomParticipant),
+  createdBy: UserIdSchema,
   createdAt: z.string().datetime(),
   endedAt: z.string().datetime().nullable(),
+  participants: z.array(RoomParticipant),
 });
 type RoomState = z.infer<typeof RoomState>;
+
+// room_type ("audio"|"video") は DDL には存在するが Layer 2 範囲では使わない。
+// Phase 2/3 で video 対応時に CreateCallOpts / RoomState に追加予定。
 
 const RoomCreatedEvent = DomainEventBase.extend({
   type: z.literal("room.created"),
   payload: z.object({
     roomId: RoomIdSchema,
     creatorId: UserIdSchema,
-    roomType: z.enum(["audio", "video"]),
+    inviteeIds: z.array(UserIdSchema),
     translationEnabled: z.boolean(),
+    createdAt: z.string().datetime(),
   }),
 });
 
 const ParticipantJoinedEvent = DomainEventBase.extend({
   type: z.literal("room.participant_joined"),
-  payload: RoomParticipant,
+  payload: z.object({
+    roomId: RoomIdSchema,
+    userId: UserIdSchema,
+    role: ParticipantRole,
+    joinedAt: z.string().datetime(),
+  }),
 });
 
 const ParticipantLeftEvent = DomainEventBase.extend({
   type: z.literal("room.participant_left"),
   payload: z.object({
     roomId: RoomIdSchema,
-    participantId: ParticipantIdSchema,
-    reason: z.enum(["left", "disconnected", "kicked"]),
+    userId: UserIdSchema,
+    leftAt: z.string().datetime(),
   }),
 });
 
 interface RoomFacade {
-  create(cmd: CreateRoomCommand): Promise<ResultOf<typeof RoomState>>;
-  join(roomId: RoomId, userId: UserId): Promise<ResultOf<typeof RoomState>>;
-  leave(roomId: RoomId, participantId: ParticipantId): Promise<ResultOf<typeof RoomState>>;
-  getState(roomId: RoomId): Promise<ResultOf<typeof RoomState>>;
+  createCall(
+    creatorId: UserId,
+    inviteeIds: UserId[],
+    opts: { translationEnabled: boolean },
+  ): Promise<Result<RoomState, AppError>>;
+  joinCall(roomId: RoomId, userId: UserId): Promise<Result<RoomState, AppError>>;
+  endCall(roomId: RoomId): Promise<Result<RoomState, AppError>>;
+  getState(roomId: RoomId): Promise<Result<RoomState, AppError>>;
 }
 
 // =============================================================================
@@ -705,7 +713,7 @@ export {
   // Auth
   SignUpCommand, SignInCommand, UserProfile, AuthSession, UserRegisteredEvent,
   // Room
-  RoomStatus, CreateRoomCommand, RoomParticipant, RoomState,
+  RoomStatus, ParticipantRole, RoomParticipant, RoomState,
   RoomCreatedEvent, ParticipantJoinedEvent, ParticipantLeftEvent,
   // Media
   AudioFormatConfig, MediaTrackInfo, TrackPermissions,

@@ -49,13 +49,11 @@ export function createCallLifecycleService(
     // =========================================================================
     async createCall(creatorId, inviteeIds, opts) {
       // 1. billing.canStartCall → 残高チェック
+      // billing が返す AppError (BILLING_INSUFFICIENT_BALANCE 等) をそのまま pass-through。
+      // room module が billing owner のエラーコードを再定義しない。
       const canStart = await billing.canStartCall(creatorId);
       if (!canStart.ok) {
-        return err({
-          code: "BILLING_INSUFFICIENT_BALANCE",
-          message: canStart.error.message,
-          retryable: canStart.error.retryable,
-        });
+        return canStart;
       }
 
       // 2. rooms INSERT
