@@ -217,30 +217,35 @@ type RoomState = z.infer<typeof RoomState>;
 // room_type ("audio"|"video") は DDL には存在するが Layer 2 範囲では使わない。
 // Phase 2/3 で video 対応時に CreateCallOpts / RoomState に追加予定。
 
-// DomainEvent は実装 (`packages/*/src/events/*.ts`) でフラット構造を採用。
-// 旧 v0 設計の `payload: { ... }` ネストは廃止。canonical Section 0.2「コードが正」に従う。
+// DomainEvent はすべて `payload: {}` ネスト構造で統一 (auth / translation と同一規約)。
 const RoomCreatedEvent = DomainEventBase.extend({
   type: z.literal("room.created"),
-  roomId: RoomIdSchema,
-  creatorId: UserIdSchema,
-  inviteeIds: z.array(UserIdSchema),
-  translationEnabled: z.boolean(),
-  createdAt: z.string().datetime(),
+  payload: z.object({
+    roomId: RoomIdSchema,
+    creatorId: UserIdSchema,
+    inviteeIds: z.array(UserIdSchema),
+    translationEnabled: z.boolean(),
+    createdAt: z.string().datetime(),
+  }),
 });
 
 const ParticipantJoinedEvent = DomainEventBase.extend({
   type: z.literal("room.participant_joined"),
-  roomId: RoomIdSchema,
-  userId: UserIdSchema,
-  role: ParticipantRole,
-  joinedAt: z.string().datetime(),
+  payload: z.object({
+    roomId: RoomIdSchema,
+    userId: UserIdSchema,
+    role: ParticipantRole,
+    joinedAt: z.string().datetime(),
+  }),
 });
 
 const ParticipantLeftEvent = DomainEventBase.extend({
   type: z.literal("room.participant_left"),
-  roomId: RoomIdSchema,
-  userId: UserIdSchema,
-  leftAt: z.string().datetime(),
+  payload: z.object({
+    roomId: RoomIdSchema,
+    userId: UserIdSchema,
+    leftAt: z.string().datetime(),
+  }),
 });
 
 interface RoomFacade {
