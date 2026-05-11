@@ -38,13 +38,12 @@ export interface CreateCheckoutResult {
 
 // Stripe Checkout Session 作成時のメタデータスキーマ（検証用）
 const CheckoutMetadataSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   tier: z.enum(["free", "light", "standard", "business"]),
   channel: z.enum(["stripe_web", "storekit_external"]),
 });
 
 export function createStripeAdapter(config: StripeAdapterConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- adapters/* 内は許可
   const stripe = new Stripe(config.secretKey, {
     apiVersion: "2025-02-24.acacia",
   });
@@ -60,7 +59,7 @@ export function createStripeAdapter(config: StripeAdapterConfig) {
       customerEmail?: string;
       successUrl?: string;
       cancelUrl?: string;
-    }): Promise<Result<CreateCheckoutResult, AppError>> {
+    }): Promise<Result<CreateCheckoutResult>> {
       if (params.tier === "free") {
         return err({
           code: "VALIDATION_ERROR",
@@ -120,7 +119,7 @@ export function createStripeAdapter(config: StripeAdapterConfig) {
     async verifyWebhook(
       rawBody: string,
       signature: string,
-    ): Promise<Result<Stripe.Event, AppError>> {
+    ): Promise<Result<Stripe.Event>> {
       try {
         const event = stripe.webhooks.constructEvent(
           rawBody,

@@ -5,7 +5,7 @@
  * DB 操作は DeviceTokenRepository インターフェース経由で行う。
  */
 
-import type { Result, AppError, UserId } from "@trancall/shared-kernel";
+import type { Result, UserId } from "@trancall/shared-kernel";
 import { err } from "@trancall/shared-kernel";
 
 import type { DeviceTokenRow, NotificationTarget } from "../schemas.js";
@@ -21,7 +21,7 @@ export interface DeviceTokenService {
   register(
     userId: UserId,
     rawTarget: unknown,
-  ): Promise<Result<DeviceTokenRow, AppError>>;
+  ): Promise<Result<DeviceTokenRow>>;
 
   /**
    * ユーザーの有効なデバイストークンを取得する。
@@ -29,7 +29,7 @@ export interface DeviceTokenService {
   getActiveTokens(
     userId: UserId,
     platform?: "ios" | "android",
-  ): Promise<Result<DeviceTokenRow[], AppError>>;
+  ): Promise<Result<DeviceTokenRow[]>>;
 
   /**
    * トークンを無効化する（APNs 410 / FCM UNREGISTERED 受信後に呼ぶ）。
@@ -37,7 +37,7 @@ export interface DeviceTokenService {
   revoke(
     platform: "ios" | "android",
     token: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * トークンを削除する（ログアウト時など）。
@@ -46,7 +46,7 @@ export interface DeviceTokenService {
     userId: UserId,
     platform: "ios" | "android",
     token: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 }
 
 export function createDeviceTokenService(repo: DeviceTokenRepository): DeviceTokenService {

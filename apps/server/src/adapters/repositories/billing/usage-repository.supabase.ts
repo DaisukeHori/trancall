@@ -8,7 +8,6 @@ import type { UsageRepository } from "@trancall/billing";
 import { UsageWindow } from "@trancall/billing";
 import type { UsageWindowType, RecordUsageCommandType } from "@trancall/billing";
 import { type Result, type UserId, type TranslationSessionId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 export function createUsageRepository(
   supabase: SupabaseClient,
@@ -17,7 +16,7 @@ export function createUsageRepository(
     async insertWindowIdempotent(
       cmd: RecordUsageCommandType,
       amountYen: number,
-    ): Promise<Result<UsageWindowType, AppError>> {
+    ): Promise<Result<UsageWindowType>> {
       // ON CONFLICT (idempotency_key) DO NOTHING
       const { error } = await supabase
         .schema("trancall_billing")
@@ -74,7 +73,7 @@ export function createUsageRepository(
 
     async findBySessionId(
       sessionId: TranslationSessionId,
-    ): Promise<Result<UsageWindowType[], AppError>> {
+    ): Promise<Result<UsageWindowType[]>> {
       const { data, error } = await supabase
         .schema("trancall_billing")
         .from("usage_windows")
@@ -110,7 +109,7 @@ export function createUsageRepository(
       userId: UserId,
       periodStart: string,
       periodEnd: string,
-    ): Promise<Result<number, AppError>> {
+    ): Promise<Result<number>> {
       const { data, error } = await supabase
         .schema("trancall_billing")
         .from("usage_windows")

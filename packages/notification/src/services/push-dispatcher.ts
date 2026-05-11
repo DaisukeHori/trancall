@@ -30,9 +30,9 @@ const BASE_DELAY_MS = 500;
  * retryable = false の場合は即座に失敗を返す。
  */
 async function withRetry<T>(
-  fn: () => Promise<Result<T, AppError>>,
+  fn: () => Promise<Result<T>>,
   delayFn: (attempt: number) => Promise<void> = defaultDelay,
-): Promise<Result<T, AppError>> {
+): Promise<Result<T>> {
   let lastError: AppError = {
     code: "NOTIFICATION_PUSH_DELIVERY_FAILED",
     message: "未実行",
@@ -79,13 +79,13 @@ export interface PushDispatcher {
     targetUserId: UserId,
     notification: IncomingCallNotification,
     tokens: DeviceTokenRow[],
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   sendMissedCall(
     targetUserId: UserId,
     payload: MissedCallPayload,
     tokens: DeviceTokenRow[],
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 }
 
 export function createPushDispatcher(deps: PushDispatcherDeps): PushDispatcher {
@@ -93,11 +93,11 @@ export function createPushDispatcher(deps: PushDispatcherDeps): PushDispatcher {
 
   async function dispatchToToken(
     token: DeviceTokenRow,
-    sendFn: () => Promise<Result<unknown, AppError>>,
+    sendFn: () => Promise<Result<unknown>>,
     notificationType: "incoming_call" | "missed_call",
     targetUserId: UserId,
     roomId: IncomingCallNotification["roomId"] | null,
-  ): Promise<Result<true, AppError>> {
+  ): Promise<Result<true>> {
     const result = await withRetry(sendFn, delay);
 
     if (result.ok) {

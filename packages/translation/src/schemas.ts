@@ -41,15 +41,15 @@ export type LiveSubtitleDelta = z.infer<typeof LiveSubtitleDeltaSchema>;
 
 export const TranslationSessionRecordSchema = z.object({
   /** PK: translation_sessions.id */
-  id: z.string().uuid(),
+  id: z.uuid(),
   /** LiveKit Job ID (Agent 側から受け取る) */
-  agentJobId: z.string().uuid(),
+  agentJobId: z.uuid(),
   roomId: RoomIdSchema,
   sourceParticipantId: ParticipantIdSchema,
   targetParticipantId: ParticipantIdSchema,
   outputLanguage: OutputLanguage,
-  startedAt: z.string().datetime(),
-  endedAt: z.string().datetime().nullable(),
+  startedAt: z.iso.datetime(),
+  endedAt: z.iso.datetime().nullable(),
   /** セッション合計ミリ秒（endedAt - startedAt） */
   durationMs: z.number().int().nonnegative().nullable(),
   /** OpenAI 課金単位（秒）= ceil(durationMs / 1000） */
@@ -61,7 +61,7 @@ export const TranslationSessionRecordSchema = z.object({
     "openai_fatal_error",
     "client_requested",
   ]).nullable(),
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
 });
 
 export type TranslationSessionRecord = z.infer<typeof TranslationSessionRecordSchema>;
@@ -73,8 +73,8 @@ export type TranslationSessionRecord = z.infer<typeof TranslationSessionRecordSc
 const LatencyArraySchema = z.array(z.number().nonnegative());
 
 export const AgentMetricsRecordSchema = z.object({
-  id: z.string().uuid(),
-  agentJobId: z.string().uuid(),
+  id: z.uuid(),
+  agentJobId: z.uuid(),
   roomId: RoomIdSchema,
   latencyMs: z.object({
     captureToAgent: LatencyArraySchema,
@@ -84,8 +84,8 @@ export const AgentMetricsRecordSchema = z.object({
     totalEndToEnd: LatencyArraySchema,
   }),
   memoryRssBytes: z.number().int().nonnegative(),
-  collectedAt: z.string().datetime(),
-  createdAt: z.string().datetime(),
+  collectedAt: z.iso.datetime(),
+  createdAt: z.iso.datetime(),
 });
 
 export type AgentMetricsRecord = z.infer<typeof AgentMetricsRecordSchema>;
@@ -96,22 +96,22 @@ export type AgentMetricsRecord = z.infer<typeof AgentMetricsRecordSchema>;
 
 export const SessionStartedPayloadSchema = z.object({
   type: z.literal("translation.session_started"),
-  agentJobId: z.string().uuid(),
-  roomId: z.string().uuid(),
-  sourceParticipantId: z.string().uuid(),
-  targetParticipantId: z.string().uuid(),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
+  sourceParticipantId: z.uuid(),
+  targetParticipantId: z.uuid(),
   outputLanguage: z.string(),
-  startedAt: z.string().datetime(),
+  startedAt: z.iso.datetime(),
 });
 export type SessionStartedPayload = z.infer<typeof SessionStartedPayloadSchema>;
 
 export const SessionEndedPayloadSchema = z.object({
   type: z.literal("translation.session_ended"),
-  agentJobId: z.string().uuid(),
-  roomId: z.string().uuid(),
-  sourceParticipantId: z.string().uuid(),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
+  sourceParticipantId: z.uuid(),
   outputLanguage: z.string(),
-  endedAt: z.string().datetime(),
+  endedAt: z.iso.datetime(),
   durationMs: z.number().int().nonnegative(),
   billableSeconds: z.number().int().nonnegative(),
   reason: z.enum([
@@ -125,21 +125,21 @@ export type SessionEndedPayload = z.infer<typeof SessionEndedPayloadSchema>;
 
 export const TranscriptDeltaPayloadSchema = z.object({
   type: z.literal("transcript.delta"),
-  agentJobId: z.string().uuid(),
-  roomId: z.string().uuid(),
-  sourceParticipantId: z.string().uuid(),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
+  sourceParticipantId: z.uuid(),
   outputLanguage: z.string(),
   sequenceNo: z.number().int().nonnegative(),
   text: z.string(),
   isFinal: z.boolean(),
-  spokenAt: z.string().datetime(),
+  spokenAt: z.iso.datetime(),
 });
 export type TranscriptDeltaPayload = z.infer<typeof TranscriptDeltaPayloadSchema>;
 
 export const AgentMetricsPayloadSchema = z.object({
   type: z.literal("agent.metrics"),
-  agentJobId: z.string().uuid(),
-  roomId: z.string().uuid(),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
   latencyMs: z.object({
     captureToAgent: z.array(z.number().nonnegative()),
     agentToOpenAI: z.array(z.number().nonnegative()),
@@ -148,7 +148,7 @@ export const AgentMetricsPayloadSchema = z.object({
     totalEndToEnd: z.array(z.number().nonnegative()),
   }),
   memoryRssBytes: z.number().int().nonnegative(),
-  collectedAt: z.string().datetime(),
+  collectedAt: z.iso.datetime(),
 });
 export type AgentMetricsPayload = z.infer<typeof AgentMetricsPayloadSchema>;
 
@@ -169,15 +169,15 @@ export type AgentEvent = z.infer<typeof AgentEventSchema>;
 // =============================================================================
 
 export const TranslationUsageSchema = z.object({
-  sessionId: z.string().uuid(),
+  sessionId: z.uuid(),
   roomId: RoomIdSchema,
   sourceParticipantId: ParticipantIdSchema,
   outputLanguage: OutputLanguage,
   durationMs: z.number().int().nonnegative(),
   /** OpenAI 課金単位（秒）= ceil(durationMs / 1000） */
   billableSeconds: z.number().int().nonnegative(),
-  startedAt: z.string().datetime(),
-  endedAt: z.string().datetime(),
+  startedAt: z.iso.datetime(),
+  endedAt: z.iso.datetime(),
   reason: z.enum([
     "participant_left",
     "agent_shutdown",

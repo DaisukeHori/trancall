@@ -7,13 +7,12 @@ import type { SubscriptionRepository } from "@trancall/billing";
 import { SubscriptionRow, PLAN_CONFIGS } from "@trancall/billing";
 import type { SubscriptionRowType, PlanTierType, PurchaseChannelType } from "@trancall/billing";
 import { type Result, type UserId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 export function createSubscriptionRepository(
   supabase: SupabaseClient,
 ): SubscriptionRepository {
   return {
-    async findByUserId(userId: UserId): Promise<Result<SubscriptionRowType, AppError>> {
+    async findByUserId(userId: UserId): Promise<Result<SubscriptionRowType>> {
       const { data, error } = await supabase
         .schema("trancall_billing")
         .from("subscriptions")
@@ -46,7 +45,7 @@ export function createSubscriptionRepository(
     async upsert(
       userId: UserId,
       data: Partial<Omit<SubscriptionRowType, "id" | "user_id" | "created_at">>,
-    ): Promise<Result<SubscriptionRowType, AppError>> {
+    ): Promise<Result<SubscriptionRowType>> {
       const tier: PlanTierType = data["plan_tier"] ?? "free";
       const planConfig = PLAN_CONFIGS[tier];
       const now = new Date().toISOString();
@@ -98,7 +97,7 @@ export function createSubscriptionRepository(
         currentPeriodEnd?: string;
         cancelAtPeriodEnd?: boolean;
       },
-    ): Promise<Result<SubscriptionRowType, AppError>> {
+    ): Promise<Result<SubscriptionRowType>> {
       const planConfig = PLAN_CONFIGS[params.planTier];
       const { data, error } = await supabase
         .schema("trancall_billing")
@@ -136,7 +135,7 @@ export function createSubscriptionRepository(
       userId: UserId,
       periodStart: string,
       periodEnd: string,
-    ): Promise<Result<number, AppError>> {
+    ): Promise<Result<number>> {
       const { data, error } = await supabase
         .schema("trancall_billing")
         .from("usage_windows")

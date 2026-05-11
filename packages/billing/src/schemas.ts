@@ -86,8 +86,8 @@ export const PLAN_CONFIGS: Record<PlanTier, PlanConfig> = {
 export const SubscriptionState = z.object({
   userId: UserIdSchema,
   plan: PlanConfig,
-  currentPeriodStart: z.string().datetime(),
-  currentPeriodEnd: z.string().datetime(),
+  currentPeriodStart: z.iso.datetime(),
+  currentPeriodEnd: z.iso.datetime(),
   usedMinutes: z.number().nonnegative(),
   remainingMinutes: z.number().nonnegative(),
   cancelAtPeriodEnd: z.boolean(),
@@ -103,17 +103,17 @@ export type SubscriptionState = z.infer<typeof SubscriptionState>;
 // =============================================================================
 
 export const UsageWindow = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   userId: UserIdSchema,
   sessionId: TranslationSessionIdSchema,
   roomId: RoomIdSchema,
-  windowStart: z.string().datetime(),
-  windowEnd: z.string().datetime(),
+  windowStart: z.iso.datetime(),
+  windowEnd: z.iso.datetime(),
   durationSeconds: z.number().int().nonnegative(),
   languagePair: z.string(),
   amountYen: z.number().int().nonnegative(),
   idempotencyKey: z.string(),
-  recordedAt: z.string().datetime(),
+  recordedAt: z.iso.datetime(),
 });
 export type UsageWindow = z.infer<typeof UsageWindow>;
 
@@ -125,8 +125,8 @@ export const RecordUsageCommand = z.object({
   userId: UserIdSchema,
   sessionId: TranslationSessionIdSchema,
   roomId: RoomIdSchema,
-  windowStart: z.string().datetime(),
-  windowEnd: z.string().datetime(),
+  windowStart: z.iso.datetime(),
+  windowEnd: z.iso.datetime(),
   durationSeconds: z.number().nonnegative(),
   languagePair: z.string(),
   idempotencyKey: z.string(),
@@ -138,14 +138,14 @@ export type RecordUsageCommand = z.infer<typeof RecordUsageCommand>;
 // =============================================================================
 
 export const UsageReservation = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   userId: UserIdSchema,
   sessionId: TranslationSessionIdSchema,
   reservedMinutes: z.number().int().positive(),
   consumedMinutes: z.number().int().nonnegative(),
   status: z.enum(["active", "reconciled", "expired"]),
-  createdAt: z.string().datetime(),
-  reconciledAt: z.string().datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  reconciledAt: z.iso.datetime().nullable(),
 });
 export type UsageReservation = z.infer<typeof UsageReservation>;
 
@@ -162,14 +162,14 @@ export const WebhookProvider = z.enum([
 export type WebhookProvider = z.infer<typeof WebhookProvider>;
 
 export const WebhookEvent = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   provider: WebhookProvider,
   externalEventId: z.string(),
   eventType: z.string(),
   payload: z.record(z.string(), z.unknown()),
-  processedAt: z.string().datetime().nullable(),
+  processedAt: z.iso.datetime().nullable(),
   processingError: z.string().nullable(),
-  receivedAt: z.string().datetime(),
+  receivedAt: z.iso.datetime(),
 });
 export type WebhookEvent = z.infer<typeof WebhookEvent>;
 
@@ -181,8 +181,8 @@ export const CreateCheckoutSessionCommand = z.object({
   userId: UserIdSchema,
   tier: PlanTier,
   channel: z.enum(["stripe_web", "storekit_external"]),
-  successUrl: z.string().url().optional(),
-  cancelUrl: z.string().url().optional(),
+  successUrl: z.url().optional(),
+  cancelUrl: z.url().optional(),
 });
 export type CreateCheckoutSessionCommand = z.infer<
   typeof CreateCheckoutSessionCommand
@@ -193,8 +193,8 @@ export type CreateCheckoutSessionCommand = z.infer<
 // =============================================================================
 
 export const SubscriptionRow = z.object({
-  id: z.string().uuid(),
-  user_id: z.string().uuid(),
+  id: z.uuid(),
+  user_id: z.uuid(),
   plan_tier: PlanTier,
   included_minutes: z.number().int(),
   overage_rate_yen: z.number().int(),

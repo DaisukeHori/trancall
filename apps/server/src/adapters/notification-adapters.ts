@@ -9,17 +9,17 @@ import type { ApnsAdapter, FcmAdapter } from "@trancall/notification";
 import { createApnsAdapter, createFcmAdapter } from "@trancall/notification";
 import type { Config } from "../config.js";
 import { logger } from "../logger.js";
-import type { Result, AppError } from "@trancall/shared-kernel";
+import type { Result} from "@trancall/shared-kernel";
 import { ok } from "@trancall/shared-kernel";
 
 /** APNs 未設定時の no-op スタブ */
 function createStubApnsAdapter(): ApnsAdapter {
   return {
-    async sendVoipPush(): Promise<Result<{ apnsId: string | undefined }, AppError>> {
+    async sendVoipPush(): Promise<Result<{ apnsId: string | undefined }>> {
       logger.warn("APNs adapter is not configured (stub)");
       return ok({ apnsId: undefined });
     },
-    async sendNormalPush(): Promise<Result<{ apnsId: string | undefined }, AppError>> {
+    async sendNormalPush(): Promise<Result<{ apnsId: string | undefined }>> {
       logger.warn("APNs adapter is not configured (stub)");
       return ok({ apnsId: undefined });
     },
@@ -29,7 +29,7 @@ function createStubApnsAdapter(): ApnsAdapter {
 /** FCM 未設定時の no-op スタブ */
 function createStubFcmAdapter(): FcmAdapter {
   return {
-    async sendData(): Promise<Result<{ messageId: string }, AppError>> {
+    async sendData(): Promise<Result<{ messageId: string }>> {
       logger.warn("FCM adapter is not configured (stub)");
       return ok({ messageId: "stub" });
     },

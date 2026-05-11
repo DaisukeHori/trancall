@@ -5,7 +5,7 @@
  * 他モジュールはこのファサード経由でしか room に触れない。
  */
 
-import type { Result, AppError, UserId, RoomId } from "@trancall/shared-kernel";
+import type { Result, UserId, RoomId } from "@trancall/shared-kernel";
 import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade } from "@trancall/notification";
@@ -27,13 +27,13 @@ export interface RoomFacade {
     creatorId: UserId,
     inviteeIds: UserId[],
     opts: { translationEnabled: boolean },
-  ): Promise<Result<RoomState, AppError>>;
+  ): Promise<Result<RoomState>>;
 
-  joinCall(roomId: RoomId, userId: UserId): Promise<Result<RoomState, AppError>>;
+  joinCall(roomId: RoomId, userId: UserId): Promise<Result<RoomState>>;
 
-  endCall(roomId: RoomId): Promise<Result<RoomState, AppError>>;
+  endCall(roomId: RoomId): Promise<Result<RoomState>>;
 
-  getState(roomId: RoomId): Promise<Result<RoomState, AppError>>;
+  getState(roomId: RoomId): Promise<Result<RoomState>>;
 }
 
 // =============================================================================

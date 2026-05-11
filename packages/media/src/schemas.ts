@@ -28,7 +28,7 @@ export const ParticipantMetadataSchema = z.object({
    * Token 発行時刻（ISO 8601）
    * Token expiry とは別に、metadata の鮮度を確認するために含める
    */
-  issuedAt: z.string().datetime(),
+  issuedAt: z.iso.datetime(),
 });
 export type ParticipantMetadata = z.infer<typeof ParticipantMetadataSchema>;
 
@@ -55,10 +55,10 @@ export const IssueAccessTokenResponseSchema = z.object({
   /** JWT 形式の LiveKit Access Token */
   token: z.string().min(1),
   /** LiveKit Server の WSS URL（環境変数から） */
-  livekitUrl: z.string().url(),
+  livekitUrl: z.url(),
   /** Token に焼き込まれた metadata（クライアント側で参照用） */
   metadata: ParticipantMetadataSchema,
   /** Token expiry (ISO 8601) */
-  expiresAt: z.string().datetime(),
+  expiresAt: z.iso.datetime(),
 });
 export type IssueAccessTokenResponse = z.infer<typeof IssueAccessTokenResponseSchema>;

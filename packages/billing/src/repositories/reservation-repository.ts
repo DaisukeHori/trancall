@@ -5,7 +5,7 @@
  * 実装は apps/server 側（Supabase）。
  */
 
-import type { Result, AppError, UserId } from "@trancall/shared-kernel";
+import type { Result, UserId } from "@trancall/shared-kernel";
 import type { TranslationSessionId } from "@trancall/shared-kernel";
 import type { UsageReservation } from "../schemas.js";
 
@@ -17,14 +17,14 @@ export interface ReservationRepository {
     userId: UserId,
     sessionId: TranslationSessionId,
     reservedMinutes: number,
-  ): Promise<Result<UsageReservation, AppError>>;
+  ): Promise<Result<UsageReservation>>;
 
   /**
    * セッション ID でアクティブな予約を取得する。
    */
   findActiveBySessionId(
     sessionId: TranslationSessionId,
-  ): Promise<Result<UsageReservation | null, AppError>>;
+  ): Promise<Result<UsageReservation | null>>;
 
   /**
    * 予約を reconciled 状態に更新し、実消費分数を記録する。
@@ -32,12 +32,12 @@ export interface ReservationRepository {
   reconcile(
     sessionId: TranslationSessionId,
     consumedMinutes: number,
-  ): Promise<Result<UsageReservation, AppError>>;
+  ): Promise<Result<UsageReservation>>;
 
   /**
    * 異常終了時の予約を expired 状態にする（refundMinutes 用）。
    */
   expire(
     sessionId: TranslationSessionId,
-  ): Promise<Result<UsageReservation | null, AppError>>;
+  ): Promise<Result<UsageReservation | null>>;
 }

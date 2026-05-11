@@ -4,7 +4,6 @@
 
 import {
   type Result,
-  type AppError,
   type UserId,
   err,
 } from "@trancall/shared-kernel";
@@ -17,19 +16,19 @@ export interface ContactService {
   addContact(
     userId: UserId,
     contactUserId: UserId,
-  ): Promise<Result<ContactEntry, AppError>>;
+  ): Promise<Result<ContactEntry>>;
 
   removeContact(
     userId: UserId,
     contactId: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   listContacts(userId: UserId): Promise<ContactEntry[]>;
 
   toggleFavorite(
     userId: UserId,
     contactId: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 }
 
 export function createContactService(
@@ -40,7 +39,7 @@ export function createContactService(
     addContact: async (
       userId: UserId,
       contactUserId: UserId,
-    ): Promise<Result<ContactEntry, AppError>> => {
+    ): Promise<Result<ContactEntry>> => {
       // 自分自身は追加不可
       if (userId === contactUserId) {
         return err({
@@ -79,7 +78,7 @@ export function createContactService(
     removeContact: async (
       userId: UserId,
       contactId: string,
-    ): Promise<Result<true, AppError>> => {
+    ): Promise<Result<true>> => {
       return contactRepo.remove(userId, contactId);
     },
 
@@ -90,7 +89,7 @@ export function createContactService(
     toggleFavorite: async (
       userId: UserId,
       contactId: string,
-    ): Promise<Result<true, AppError>> => {
+    ): Promise<Result<true>> => {
       return contactRepo.toggleFavorite(userId, contactId);
     },
   };

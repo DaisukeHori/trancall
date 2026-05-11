@@ -6,7 +6,7 @@
  * EventBus に投げる前に永続化し、AT-LEAST-ONCE 配信を保証する。
  */
 
-import type { Result, AppError } from "@trancall/shared-kernel";
+import type { Result } from "@trancall/shared-kernel";
 
 export interface OutboxRecord {
   id: string;
@@ -23,16 +23,16 @@ export interface TranslationEventOutboxRepository {
    */
   insert: (
     record: Omit<OutboxRecord, "id" | "createdAt" | "processedAt">,
-  ) => Promise<Result<OutboxRecord, AppError>>;
+  ) => Promise<Result<OutboxRecord>>;
 
   /**
    * 未処理イベントを取得する。
    * outbox worker が定期的にポーリングして EventBus に投げる。
    */
-  findUnprocessed: (limit: number) => Promise<Result<OutboxRecord[], AppError>>;
+  findUnprocessed: (limit: number) => Promise<Result<OutboxRecord[]>>;
 
   /**
    * 処理済みにマークする。
    */
-  markProcessed: (id: string) => Promise<Result<void, AppError>>;
+  markProcessed: (id: string) => Promise<Result<void>>;
 }

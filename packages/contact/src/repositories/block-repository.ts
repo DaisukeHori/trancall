@@ -2,7 +2,7 @@
  * BlockRepository — ブロックリストデータアクセスインターフェース
  */
 
-import type { Result, AppError, UserId } from "@trancall/shared-kernel";
+import type { Result, UserId } from "@trancall/shared-kernel";
 
 export interface BlockRepository {
   /**
@@ -12,7 +12,7 @@ export interface BlockRepository {
     userId: UserId,
     blockedUserId: UserId,
     reason?: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * ブロックを解除する。
@@ -20,7 +20,7 @@ export interface BlockRepository {
   unblock(
     userId: UserId,
     blockedUserId: UserId,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * ブロック済みかどうか確認する（双方向）。

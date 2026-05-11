@@ -15,21 +15,21 @@ import type { AuthFacade } from "@trancall/auth";
 import { getHttpStatus } from "../middleware/error-handler.js";
 
 const SignupSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(8),
   displayName: z.string().min(1).max(100),
   nativeLanguage: z.string().min(2).max(10),
 });
 
 const SigninSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(1),
 });
 
 const UpdateProfileSchema = z.object({
   displayName: z.string().min(1).max(100).optional(),
   nativeLanguage: z.string().optional(),
-  avatarUrl: z.string().url().optional(),
+  avatarUrl: z.url().optional(),
 });
 
 const ConsentSchema = z.object({

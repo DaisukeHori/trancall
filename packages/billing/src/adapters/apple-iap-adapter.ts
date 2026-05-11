@@ -72,7 +72,7 @@ export function createAppleIapAdapter() {
      */
     parseWebhookPayload(
       payload: unknown,
-    ): Result<AppleIapWebhookResult, AppError> {
+    ): Result<AppleIapWebhookResult> {
       const parsed = AppleNotificationPayloadSchema.safeParse(payload);
       if (!parsed.success) {
         return err({

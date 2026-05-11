@@ -5,11 +5,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BlockRepository } from "@trancall/contact";
 import { type Result, type UserId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 export function createBlockRepository(supabase: SupabaseClient): BlockRepository {
   return {
-    async block(userId: UserId, blockedUserId: UserId, reason?: string): Promise<Result<true, AppError>> {
+    async block(userId: UserId, blockedUserId: UserId, reason?: string): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_contact")
         .from("block_list")
@@ -29,7 +28,7 @@ export function createBlockRepository(supabase: SupabaseClient): BlockRepository
       return ok(true);
     },
 
-    async unblock(userId: UserId, blockedUserId: UserId): Promise<Result<true, AppError>> {
+    async unblock(userId: UserId, blockedUserId: UserId): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_contact")
         .from("block_list")

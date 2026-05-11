@@ -7,7 +7,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RoomRepository } from "@trancall/room";
 import type { RoomFacade } from "@trancall/room";
 import { type Result, type RoomId, type UserId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 // packages/room/src/schemas.ts と同等のローカル型定義
 // RoomRowSchema / InsertRoomCommand は room パッケージから export されていないため
@@ -33,15 +32,15 @@ type InsertRoomCommand = {
   createdAt: string;
 };
 
-function parseRow(row: Record<string, unknown>): Result<RoomRow, AppError> {
+function parseRow(row: Record<string, unknown>): Result<RoomRow> {
   const parsed = z.object({
-    room_id: z.string().uuid(),
+    room_id: z.uuid(),
     status: RoomStatusSchema,
     room_type: z.enum(["audio", "video"]),
     translation_enabled: z.boolean(),
-    created_by: z.string().uuid(),
-    created_at: z.string().datetime(),
-    ended_at: z.string().datetime().nullable(),
+    created_by: z.uuid(),
+    created_at: z.iso.datetime(),
+    ended_at: z.iso.datetime().nullable(),
   }).safeParse({
     room_id: row["room_id"],
     status: row["status"],
@@ -59,7 +58,7 @@ function parseRow(row: Record<string, unknown>): Result<RoomRow, AppError> {
 
 export function createRoomRepository(supabase: SupabaseClient): RoomRepository {
   return {
-    async insert(cmd: InsertRoomCommand): Promise<Result<RoomRow, AppError>> {
+    async insert(cmd: InsertRoomCommand): Promise<Result<RoomRow>> {
       const { data, error } = await supabase
         .schema("trancall_room")
         .from("rooms")
@@ -81,7 +80,7 @@ export function createRoomRepository(supabase: SupabaseClient): RoomRepository {
       return parseRow(data as Record<string, unknown>);
     },
 
-    async findById(roomId: RoomId): Promise<Result<RoomRow, AppError>> {
+    async findById(roomId: RoomId): Promise<Result<RoomRow>> {
       const { data, error } = await supabase
         .schema("trancall_room")
         .from("rooms")
@@ -102,7 +101,7 @@ export function createRoomRepository(supabase: SupabaseClient): RoomRepository {
       roomId: RoomId,
       status: "active" | "ended",
       endedAt?: string,
-    ): Promise<Result<RoomRow, AppError>> {
+    ): Promise<Result<RoomRow>> {
       const update: Record<string, unknown> = { status };
       if (endedAt) update["ended_at"] = endedAt;
 

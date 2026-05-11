@@ -13,7 +13,6 @@
 import {
   type Result,
   type UserId,
-  type AppError,
   ok,
   err,
 } from "@trancall/shared-kernel";
@@ -25,11 +24,11 @@ import { type Profile, ProfileSchema } from "./schemas.js";
  * 本番では Supabase REST/RPC、テストでは in-memory が入る。
  */
 export interface ProfileRepository {
-  findByUserId: (userId: UserId) => Promise<Result<Profile, AppError>>;
+  findByUserId: (userId: UserId) => Promise<Result<Profile>>;
 }
 
 export interface AuthFacade {
-  getProfile: (userId: UserId) => Promise<Result<Profile, AppError>>;
+  getProfile: (userId: UserId) => Promise<Result<Profile>>;
 }
 
 export function createAuthFacade(repo: ProfileRepository): AuthFacade {

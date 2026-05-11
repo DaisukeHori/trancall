@@ -6,7 +6,6 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { InviteRepository } from "@trancall/contact";
 import { type Result, type UserId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 // InviteLink 型はリポジトリインターフェース側で定義されている
 type InviteLink = {
@@ -35,7 +34,7 @@ function parseRow(row: Record<string, unknown>): InviteLink {
 
 export function createInviteRepository(supabase: SupabaseClient): InviteRepository {
   return {
-    async create(userId: UserId, token: string, expiresAt: Date): Promise<Result<InviteLink, AppError>> {
+    async create(userId: UserId, token: string, expiresAt: Date): Promise<Result<InviteLink>> {
       const { data, error } = await supabase
         .schema("trancall_contact")
         .from("invite_links")
@@ -70,7 +69,7 @@ export function createInviteRepository(supabase: SupabaseClient): InviteReposito
       return parseRow(data as Record<string, unknown>);
     },
 
-    async markUsed(token: string, usedBy: UserId): Promise<Result<true, AppError>> {
+    async markUsed(token: string, usedBy: UserId): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_contact")
         .from("invite_links")

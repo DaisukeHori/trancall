@@ -21,7 +21,6 @@ function write(level: LogLevel, msg: string, meta?: Record<string, unknown>): vo
     msg,
     ...meta,
   };
-  // eslint-disable-next-line no-console
   console.log(JSON.stringify(entry));
 }
 

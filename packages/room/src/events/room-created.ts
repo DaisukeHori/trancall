@@ -17,7 +17,7 @@ export const RoomCreatedPayloadSchema = z.object({
   creatorId: UserIdSchema,
   inviteeIds: z.array(UserIdSchema),
   translationEnabled: z.boolean(),
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
 });
 export type RoomCreatedPayload = z.infer<typeof RoomCreatedPayloadSchema>;
 

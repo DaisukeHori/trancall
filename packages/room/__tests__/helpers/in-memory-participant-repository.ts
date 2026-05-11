@@ -17,7 +17,7 @@ export function createInMemoryParticipantRepository(): ParticipantRepository & {
   return {
     _store: store,
 
-    async upsert(cmd: UpsertParticipantCommand): Promise<Result<ParticipantRow, AppError>> {
+    async upsert(cmd: UpsertParticipantCommand): Promise<Result<ParticipantRow>> {
       const key = `${cmd.roomId}:${cmd.userId}`;
       const existing = store.get(key);
       if (existing) {
@@ -43,7 +43,7 @@ export function createInMemoryParticipantRepository(): ParticipantRepository & {
       return ok({ ...row });
     },
 
-    async findByRoomId(roomId: RoomId): Promise<Result<ParticipantRow[], AppError>> {
+    async findByRoomId(roomId: RoomId): Promise<Result<ParticipantRow[]>> {
       const rows: ParticipantRow[] = [];
       for (const [key, row] of store.entries()) {
         if (key.startsWith(`${roomId}:`)) {
@@ -53,7 +53,7 @@ export function createInMemoryParticipantRepository(): ParticipantRepository & {
       return ok(rows);
     },
 
-    async setLeftAtForAll(roomId: RoomId, leftAt: string): Promise<Result<true, AppError>> {
+    async setLeftAtForAll(roomId: RoomId, leftAt: string): Promise<Result<true>> {
       for (const [key, row] of store.entries()) {
         if (key.startsWith(`${roomId}:`) && row.left_at === null) {
           store.set(key, { ...row, left_at: leftAt });

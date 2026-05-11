@@ -9,7 +9,6 @@
 
 import {
   type Result,
-  type AppError,
   type RoomId,
 } from "@trancall/shared-kernel";
 
@@ -28,7 +27,7 @@ export interface MediaFacade {
    */
   issueAccessToken: (
     rawRequest: unknown,
-  ) => Promise<Result<IssueAccessTokenResponse, AppError>>;
+  ) => Promise<Result<IssueAccessTokenResponse>>;
 
   /**
    * Room を作成する。
@@ -36,12 +35,12 @@ export interface MediaFacade {
   createRoom: (
     roomId: RoomId,
     options?: { emptyTimeoutSec?: number; maxParticipants?: number },
-  ) => Promise<Result<void, AppError>>;
+  ) => Promise<Result<void>>;
 
   /**
    * Room を削除する。
    */
-  deleteRoom: (roomId: RoomId) => Promise<Result<void, AppError>>;
+  deleteRoom: (roomId: RoomId) => Promise<Result<void>>;
 }
 
 export function createMediaFacade(adapter: LiveKitAdapter): MediaFacade {

@@ -19,13 +19,13 @@ import { randomUUID } from "node:crypto";
 import { getHttpStatus } from "../middleware/error-handler.js";
 
 const CreateRoomSchema = z.object({
-  inviteeIds: z.array(z.string().uuid()).min(1).max(49),
+  inviteeIds: z.array(z.uuid()).min(1).max(49),
   roomType: z.enum(["audio", "video"]).default("audio"),
   translationEnabled: z.boolean().default(true),
 });
 
 const IssueTokenSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   roomName: z.string().optional(),
 });
 

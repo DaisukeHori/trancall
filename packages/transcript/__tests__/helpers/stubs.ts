@@ -15,7 +15,7 @@ import type { AccessRepository } from "../../src/repositories/access-repository.
 export class InMemorySegmentRepository implements SegmentRepository {
   private segments: TranscriptSegment[] = [];
 
-  async upsert(segment: TranscriptSegment): Promise<Result<true, AppError>> {
+  async upsert(segment: TranscriptSegment): Promise<Result<true>> {
     // UNIQUE(room_id, participant_id, sequence_no) 制約チェック
     const exists = this.segments.some(
       (s) =>
@@ -33,7 +33,7 @@ export class InMemorySegmentRepository implements SegmentRepository {
 
   async findByRoomId(
     roomId: RoomId,
-  ): Promise<Result<TranscriptSegment[], AppError>> {
+  ): Promise<Result<TranscriptSegment[]>> {
     const result = this.segments
       .filter((s) => s.roomId === roomId)
       .sort((a, b) => a.startTimeMs - b.startTimeMs);
@@ -43,7 +43,7 @@ export class InMemorySegmentRepository implements SegmentRepository {
   async getNextSequenceNo(
     roomId: RoomId,
     participantId: ParticipantId,
-  ): Promise<Result<number, AppError>> {
+  ): Promise<Result<number>> {
     const existing = this.segments.filter(
       (s) => s.roomId === roomId && s.participantId === participantId,
     );
@@ -57,7 +57,7 @@ export class InMemorySegmentRepository implements SegmentRepository {
   async searchByFts(
     roomId: RoomId,
     query: string,
-  ): Promise<Result<TranscriptSegment[], AppError>> {
+  ): Promise<Result<TranscriptSegment[]>> {
     const lowerQuery = query.toLowerCase();
     const result = this.segments.filter(
       (s) =>
@@ -92,7 +92,7 @@ export class InMemoryAccessRepository implements AccessRepository {
   async canView(
     roomId: RoomId,
     userId: UserId,
-  ): Promise<Result<boolean, AppError>> {
+  ): Promise<Result<boolean>> {
     const found = this.records.find(
       (r) => r.roomId === roomId && r.userId === userId,
     );
@@ -105,7 +105,7 @@ export class InMemoryAccessRepository implements AccessRepository {
   async softDelete(
     roomId: RoomId,
     userId: UserId,
-  ): Promise<Result<true, AppError>> {
+  ): Promise<Result<true>> {
     const idx = this.records.findIndex(
       (r) => r.roomId === roomId && r.userId === userId,
     );
@@ -127,7 +127,7 @@ export class InMemoryAccessRepository implements AccessRepository {
   async findOne(
     roomId: RoomId,
     userId: UserId,
-  ): Promise<Result<TranscriptAccess, AppError>> {
+  ): Promise<Result<TranscriptAccess>> {
     const found = this.records.find(
       (r) => r.roomId === roomId && r.userId === userId,
     );

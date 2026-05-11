@@ -7,9 +7,8 @@ import type { SegmentRepository } from "@trancall/transcript";
 import { TranscriptSegmentSchema } from "@trancall/transcript";
 import type { TranscriptSegment } from "@trancall/transcript";
 import { type Result, type RoomId, type ParticipantId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
-function parseSegmentRow(row: Record<string, unknown>): Result<TranscriptSegment, AppError> {
+function parseSegmentRow(row: Record<string, unknown>): Result<TranscriptSegment> {
   const parsed = TranscriptSegmentSchema.safeParse({
     segmentId: row["id"],
     roomId: row["room_id"],
@@ -34,7 +33,7 @@ function parseSegmentRow(row: Record<string, unknown>): Result<TranscriptSegment
 
 export function createSegmentRepository(supabase: SupabaseClient): SegmentRepository {
   return {
-    async upsert(segment: TranscriptSegment): Promise<Result<true, AppError>> {
+    async upsert(segment: TranscriptSegment): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_transcript")
         .from("segments")
@@ -64,7 +63,7 @@ export function createSegmentRepository(supabase: SupabaseClient): SegmentReposi
       return ok(true);
     },
 
-    async findByRoomId(roomId: RoomId): Promise<Result<TranscriptSegment[], AppError>> {
+    async findByRoomId(roomId: RoomId): Promise<Result<TranscriptSegment[]>> {
       const { data, error } = await supabase
         .schema("trancall_transcript")
         .from("segments")
@@ -87,7 +86,7 @@ export function createSegmentRepository(supabase: SupabaseClient): SegmentReposi
     async getNextSequenceNo(
       roomId: RoomId,
       participantId: ParticipantId,
-    ): Promise<Result<number, AppError>> {
+    ): Promise<Result<number>> {
       const { data, error } = await supabase
         .schema("trancall_transcript")
         .from("segments")
@@ -102,11 +101,10 @@ export function createSegmentRepository(supabase: SupabaseClient): SegmentReposi
         return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
       }
       if (!data) return ok(0);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       return ok(data["sequence_no"] as number + 1);
     },
 
-    async searchByFts(roomId: RoomId, query: string): Promise<Result<TranscriptSegment[], AppError>> {
+    async searchByFts(roomId: RoomId, query: string): Promise<Result<TranscriptSegment[]>> {
       const { data, error } = await supabase
         .schema("trancall_transcript")
         .from("segments")

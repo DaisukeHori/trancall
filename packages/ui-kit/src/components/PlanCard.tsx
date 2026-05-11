@@ -24,7 +24,7 @@ export function PlanCard({
 
   const label =
     accessibilityLabel ??
-    `${planName} plan, ¥${priceYen} per month, ${includedMinutes} minutes included${isSelected ? ", currently selected" : ""}`;
+    `${planName} plan, ¥${String(priceYen)} per month, ${String(includedMinutes)} minutes included${isSelected ? ", currently selected" : ""}`;
 
   return (
     <TouchableOpacity
