@@ -19,6 +19,12 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@trancall/shared-kernel": "workspace:*",
+    "@parse/node-apn": "^6.1.0",
+    "firebase-admin": "^13.0.0",
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
     "vitest": "^3.2.0"
   }
