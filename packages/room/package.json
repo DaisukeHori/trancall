@@ -19,7 +19,14 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@trancall/shared-kernel": "workspace:*",
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
+    "@trancall/billing": "workspace:*",
+    "@trancall/media": "workspace:*",
+    "@trancall/notification": "workspace:*",
     "vitest": "^3.2.0"
   }
 }

@@ -175,7 +175,23 @@ importers:
         version: 3.2.4(@types/node@22.19.18)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/room:
+    dependencies:
+      '@trancall/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
+      '@trancall/billing':
+        specifier: workspace:*
+        version: link:../billing
+      '@trancall/media':
+        specifier: workspace:*
+        version: link:../media
+      '@trancall/notification':
+        specifier: workspace:*
+        version: link:../notification
       vitest:
         specifier: ^3.2.0
         version: 3.2.4(@types/node@22.19.18)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
