@@ -93,7 +93,7 @@ export const useAuthStore = create<AuthState>()((set, _get) => ({
         ok: false,
         error: {
           code: "AUTH_CONSENT_REQUIRED",
-          message: "続けるには利用規約への同意が必要です",
+          message: "AUTH_CONSENT_REQUIRED",
           retryable: false,
         },
       };

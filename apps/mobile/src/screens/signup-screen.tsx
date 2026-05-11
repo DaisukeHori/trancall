@@ -47,19 +47,19 @@ export function SignUpScreen({ navigation }: Props) {
   const validateFields = (): boolean => {
     let valid = true;
     if (displayName.trim().length < 1) {
-      setNameError("表示名を入力してください");
+      setNameError(t("auth.errors.displayNameRequired"));
       valid = false;
     } else {
       setNameError(undefined);
     }
     if (!isValidEmail(email)) {
-      setEmailError(t("auth.email") + "が正しくありません");
+      setEmailError(t("auth.errors.emailInvalid"));
       valid = false;
     } else {
       setEmailError(undefined);
     }
     if (password.length < 8) {
-      setPasswordError("パスワードは8文字以上です");
+      setPasswordError(t("auth.errors.passwordTooShort"));
       valid = false;
     } else {
       setPasswordError(undefined);
@@ -72,7 +72,7 @@ export function SignUpScreen({ navigation }: Props) {
     if (!validateFields()) return;
 
     if (!consentAccepted) {
-      setAuthError("利用規約とプライバシーポリシーへの同意が必要です");
+      setAuthError(t("auth.errors.consentRequired"));
       return;
     }
 
@@ -153,7 +153,7 @@ export function SignUpScreen({ navigation }: Props) {
 
             {/* Consent checkbox */}
             <Pressable
-              accessibilityLabel="利用規約とプライバシーポリシーに同意する"
+              accessibilityLabel={t("auth.consent.checkboxLabel")}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: consentAccepted }}
               onPress={() => { setConsentAccepted((v) => !v); }}
@@ -170,14 +170,14 @@ export function SignUpScreen({ navigation }: Props) {
                 ]}
               >
                 {consentAccepted && (
-                  <Text style={styles.checkmark}>✓</Text>
+                  <Text style={[styles.checkmark, { color: c.bgPrimary }]}>✓</Text>
                 )}
               </View>
               <Text style={[styles.consentText, { color: c.textSecondary }]}>
                 <Text style={{ color: c.primary }}>{t("settings.terms")}</Text>
-                {"および"}
+                {t("auth.consent.and")}
                 <Text style={{ color: c.primary }}>{t("settings.privacy")}</Text>
-                {"に同意します"}
+                {t("auth.consent.agree")}
               </Text>
             </Pressable>
 
@@ -208,7 +208,7 @@ export function SignUpScreen({ navigation }: Props) {
               style={styles.linkContainer}
             >
               <Text style={[styles.link, { color: c.primary }]}>
-                {t("auth.signIn")}{"へ戻る"}
+                {t("auth.consent.back")}{t("auth.signIn")}
               </Text>
             </Pressable>
           </View>
@@ -253,7 +253,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   checkmark: {
-    color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
   },

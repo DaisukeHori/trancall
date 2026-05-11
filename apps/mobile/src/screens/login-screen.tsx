@@ -40,13 +40,13 @@ export function LoginScreen({ navigation }: Props) {
   const validateFields = (): boolean => {
     let valid = true;
     if (!isValidEmail(email)) {
-      setEmailError(t("auth.email") + "が正しくありません");
+      setEmailError(t("auth.errors.emailInvalid"));
       valid = false;
     } else {
       setEmailError(undefined);
     }
     if (password.length < 8) {
-      setPasswordError("パスワードは8文字以上です");
+      setPasswordError(t("auth.errors.passwordTooShort"));
       valid = false;
     } else {
       setPasswordError(undefined);

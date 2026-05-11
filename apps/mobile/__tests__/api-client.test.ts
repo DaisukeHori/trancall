@@ -21,11 +21,10 @@ const TestSchema = z.object({
 type TestItem = z.infer<typeof TestSchema>;
 
 function makeJsonResponse(body: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
+  return new Response(JSON.stringify(body), {
     status,
-    json: () => Promise.resolve(body),
-  } as Response;
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 describe("apiFetch", () => {
@@ -99,11 +98,11 @@ describe("apiFetch", () => {
   });
 
   it("returns INTERNAL_ERROR when response JSON is invalid", async () => {
-    const badResponse: Response = {
-      ok: true,
-      status: 200,
-      json: () => Promise.reject(new Error("Bad JSON")),
-    } as unknown as Response;
+    const badResponse = new Response(null, { status: 200 });
+    // Override json() to simulate a parse failure
+    Object.defineProperty(badResponse, "json", {
+      value: () => Promise.reject(new Error("Bad JSON")),
+    });
     mockFetch.mockResolvedValueOnce(badResponse);
 
     const result = await apiFetch("/test", TestSchema);
