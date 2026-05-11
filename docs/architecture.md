@@ -230,6 +230,25 @@ UNIQUE制約: (user_id, contact_user_id)
 | end_time_ms | INTEGER | |
 | is_final | BOOLEAN | |
 
+
+#### trancall_transcript.transcript_access
+
+| カラム | 型 | 備考 |
+|--------|-----|------|
+| id | UUID PK | |
+| room_id | UUID FK | → rooms |
+| user_id | UUID FK | → profiles |
+| can_view | BOOLEAN | デフォルトtrue（Room参加者） |
+| can_export | BOOLEAN | デフォルトfalse（Phase 2で有効化） |
+| deleted_at | TIMESTAMPTZ NULLABLE | ユーザーが自分側を削除した日時 |
+| consent_version | VARCHAR | 同意バージョン |
+| created_at | TIMESTAMPTZ | |
+
+UNIQUE制約: (room_id, user_id)
+
+segment本体はimmutable。ユーザーごとの可視性・削除・export権限はこのテーブルで管理。
+片方が削除しても相手のaccess行は影響しない。RLSはこのテーブルをjoinして可視性を判定。
+
 ### 6.3 Row Level Security (RLS)
 
 全テーブルにRLSを適用。profiles: 自分のみ読み書き可（他は表示名等のみ参照可）。rooms/participants: 参加者のみ。contacts: 自分のみ。subscriptions/usage_records: 自分のみ。segments: 自分が参加したRoomのみ。
@@ -390,6 +409,16 @@ heartbeat方式に変更:
 Phase 1a（MVP Core、技術検証を内包）→ Phase 1b（バックグラウンド着信）→ Phase 1c（ストア公開）に再構成。Phase 0（独立PoC）は設けない。翻訳パイプライン構築がそのままPoCになるため、独立フェーズにする意義が薄い。詳細は requirements.md を参照。
 
 
+
+
+#### OpenAI silence連続投入（M-014）
+
+OpenAI Realtime Translationは音声を継続的にappendし、silence も含めて送る設計を前提とする。
+Agent側でVADにより無音を切りすぎると、ターン検出・話者切替・翻訳タイミングが不安定になる。
+- VADは翻訳停止判定には使わない（OpenAI側のターン検出に委ねる）
+- silence paddingを含めて連続ストリームとして送信
+- barge-in（話者割り込み）時はOpenAI側が自動処理
+- packet loss時は欠落として送信、再送しない
 
 ### 第2回レビュー対応（2026-05-11）
 
