@@ -6,6 +6,7 @@ import { useTranslation } from "../i18n/index.js";
 
 function PlaceholderScreen({ title }: { readonly title: string }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const c = theme.colors;
 
   return (
@@ -18,7 +19,7 @@ function PlaceholderScreen({ title }: { readonly title: string }) {
           {title}
         </Text>
         <Text style={[styles.sub, { color: c.textSecondary }]}>
-          {"実装予定 (Layer 4-B)"}
+          {t("dev.notImplementedYet")}
         </Text>
       </View>
     </SafeAreaView>

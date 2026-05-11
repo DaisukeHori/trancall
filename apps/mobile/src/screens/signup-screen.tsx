@@ -13,6 +13,7 @@ import {
 import { Button, Input, LanguagePicker, useTheme } from "@trancall/ui-kit";
 import type { OutputLanguage } from "@trancall/shared-kernel";
 import { useTranslation } from "../i18n/index.js";
+import { resolveErrorMessage } from "../lib/error-i18n.js";
 import { useAuthStore } from "../stores/auth-store.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "../navigation/auth-stack.js";
@@ -78,7 +79,11 @@ export function SignUpScreen({ navigation }: Props) {
 
     const result = await signup(email, password, displayName.trim(), nativeLanguage, consentAccepted);
     if (!result.ok) {
-      setAuthError(result.error.message);
+      if (result.error.code === "AUTH_EMAIL_NOT_VERIFIED") {
+        setAuthError(t("auth.signupVerificationEmailSent"));
+      } else {
+        setAuthError(resolveErrorMessage(result.error, t));
+      }
     }
   };
 
@@ -105,7 +110,7 @@ export function SignUpScreen({ navigation }: Props) {
           <View style={[styles.form, { marginTop: s[24], gap: s[12] }]}>
             <Input
               label={t("auth.displayName")}
-              placeholder="山田太郎"
+              placeholder={t("auth.placeholders.displayName")}
               value={displayName}
               onChangeText={(text) => {
                 setDisplayName(text);

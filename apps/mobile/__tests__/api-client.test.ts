@@ -97,7 +97,7 @@ describe("apiFetch", () => {
     );
   });
 
-  it("returns INTERNAL_ERROR when response JSON is invalid", async () => {
+  it("returns RESPONSE_PARSE_ERROR when response JSON is invalid", async () => {
     const badResponse = new Response(null, { status: 200 });
     // Override json() to simulate a parse failure
     Object.defineProperty(badResponse, "json", {
@@ -109,7 +109,7 @@ describe("apiFetch", () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe("INTERNAL_ERROR");
+      expect(result.error.code).toBe("RESPONSE_PARSE_ERROR");
     }
   });
 

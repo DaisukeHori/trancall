@@ -50,10 +50,7 @@ export async function apiFetch<T>(
       ok: false,
       error: {
         code: "NETWORK_ERROR",
-        message:
-          fetchError instanceof Error
-            ? fetchError.message
-            : "接続できません。ネットワークを確認してください",
+        message: fetchError instanceof Error ? fetchError.message : "NETWORK_ERROR",
         retryable: true,
       },
     };
@@ -66,8 +63,8 @@ export async function apiFetch<T>(
     return {
       ok: false,
       error: {
-        code: "INTERNAL_ERROR",
-        message: "サーバーからの応答を解析できませんでした",
+        code: "RESPONSE_PARSE_ERROR",
+        message: "RESPONSE_PARSE_ERROR",
         retryable: false,
         httpStatus: response.status,
       },
@@ -75,9 +72,8 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
-    const code = extractStringField(rawJson, "code") ?? "INTERNAL_ERROR";
-    const message =
-      extractStringField(rawJson, "message") ?? `HTTPエラー: ${String(response.status)}`;
+    const code = extractStringField(rawJson, "code") ?? "HTTP_ERROR";
+    const message = extractStringField(rawJson, "message") ?? "HTTP_ERROR";
     return {
       ok: false,
       error: {
@@ -85,6 +81,7 @@ export async function apiFetch<T>(
         message,
         retryable: response.status >= 500,
         httpStatus: response.status,
+        details: code === "HTTP_ERROR" ? { status: response.status } : undefined,
       },
     };
   }

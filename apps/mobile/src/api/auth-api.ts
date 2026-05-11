@@ -74,8 +74,8 @@ export async function signInWithSupabase(
     return {
       ok: false,
       error: {
-        code: "AUTH_INVALID_CREDENTIALS",
-        message: "セッションが取得できませんでした",
+        code: "AUTH_SESSION_MISSING",
+        message: "AUTH_SESSION_MISSING",
         retryable: false,
       },
     };
@@ -91,8 +91,8 @@ export async function signInWithSupabase(
     return {
       ok: false,
       error: {
-        code: "VALIDATION_ERROR",
-        message: "セッションデータが不正です",
+        code: "AUTH_SESSION_INVALID",
+        message: "AUTH_SESSION_INVALID",
         retryable: false,
       },
     };
@@ -143,12 +143,12 @@ export async function signUpWithSupabase(
 
   const session = data.session;
   if (session == null) {
-    // Email verification required
+    // Email verification required — UI resolves i18n key "auth.signupVerificationEmailSent"
     return {
       ok: false,
       error: {
         code: "AUTH_EMAIL_NOT_VERIFIED",
-        message: "確認メールを送信しました。メールボックスをご確認ください。",
+        message: "AUTH_EMAIL_NOT_VERIFIED",
         retryable: false,
       },
     };

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Button, Input, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
+import { resolveErrorMessage } from "../lib/error-i18n.js";
 import { useAuthStore } from "../stores/auth-store.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "../navigation/auth-stack.js";
@@ -60,8 +61,7 @@ export function LoginScreen({ navigation }: Props) {
 
     const result = await login(email, password);
     if (!result.ok) {
-      // Use error message from the result directly (i18n key lookup is handled in error store in 4-B)
-      setAuthError(result.error.message);
+      setAuthError(resolveErrorMessage(result.error, t));
     }
   };
 
