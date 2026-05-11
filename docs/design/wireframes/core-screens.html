@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TranCall Wireframes — Core Screens (SCR-001〜006)</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f5;padding:20px;color:#1a1a1a}
+h1{font-size:20px;font-weight:500;text-align:center;margin:0 0 16px}
+.nav{display:flex;justify-content:center;gap:4px;flex-wrap:wrap;margin:0 0 16px}
+.nav button{padding:6px 12px;border-radius:8px;border:1px solid #ddd;font-size:12px;background:#fff;cursor:pointer}
+.nav button.sel{background:#e6f1fb;color:#185fa5;border-color:#85b7eb}
+.wrap{display:flex;flex-wrap:wrap;gap:20px;justify-content:center}
+.card{width:280px}
+.label{font-size:12px;color:#888;margin:0 0 6px;text-align:center}
+.phone{width:260px;height:520px;border:2px solid #333;border-radius:28px;overflow:hidden;position:relative;background:#fff;margin:0 auto}
+.status{height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11px;color:#888}
+.body{padding:0 16px;height:calc(100% - 76px);overflow:hidden}
+.tab-nav{position:absolute;bottom:0;left:0;right:0;height:48px;border-top:1px solid #eee;display:flex;align-items:center;justify-content:space-around;font-size:10px;color:#888;background:#fff}
+.tab-nav .active{color:#185fa5}
+.h1{font-size:18px;font-weight:500;margin:8px 0 12px}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0}
+.avatar{width:36px;height:36px;border-radius:50%;background:#e6f1fb;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#185fa5;flex-shrink:0}
+.meta{flex:1;min-width:0}
+.meta p{margin:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta .sub{font-size:11px;color:#888}
+.badge{font-size:10px;padding:2px 8px;border-radius:10px;background:#e6f1fb;color:#185fa5}
+.badge-g{background:#eaf3de;color:#3b6d11}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:8px;border:1px solid #ddd;font-size:13px;background:#fff;width:100%;margin:6px 0}
+.btn-p{background:#e6f1fb;color:#185fa5;border-color:transparent}
+.input{width:100%;padding:8px 12px;border-radius:8px;border:1px solid #ddd;font-size:13px;background:#f9f9f9;margin:6px 0}
+.call-bg{background:#f5f5f5;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;margin:0 -16px;padding:0 16px}
+.avatar-lg{width:64px;height:64px;font-size:22px;border-radius:50%;background:#e6f1fb;display:flex;align-items:center;justify-content:center;font-weight:500;color:#185fa5}
+.timer{font-size:14px;color:#888;font-family:monospace}
+.circle-btn{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid #ddd;background:#fff}
+.circle-btn.red{background:#e24b4a;color:#fff;border-color:transparent}
+.circle-btn.green{background:#639922;color:#fff;border-color:transparent}
+.sub-box{width:100%;background:#fff;border-radius:8px;padding:8px 12px;font-size:12px;margin:4px 0;border:1px solid #eee}
+.sub-box .orig{color:#888;font-size:11px}
+.sub-box .trans{color:#1a1a1a;font-size:13px;margin-top:2px}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.plan-card{border:1px solid #eee;border-radius:8px;padding:10px;margin:6px 0}
+.plan-card.active{border:2px solid #85b7eb}
+.lang{padding:4px 10px;border-radius:12px;font-size:11px;border:1px solid #ddd;background:#fff;color:#888;display:inline-block;margin:2px}
+.lang.active{background:#e6f1fb;color:#185fa5;border-color:transparent}
+@media(prefers-color-scheme:dark){
+body{background:#1a1a1a;color:#e5e5e5}
+.phone{background:#222;border-color:#555}
+.tab-nav{background:#222;border-color:#333}
+.row{border-color:#333}
+.input{background:#333;border-color:#444;color:#e5e5e5}
+.btn{background:#333;border-color:#444;color:#e5e5e5}
+.btn-p{background:#0c447c;color:#b5d4f4}
+.sub-box{background:#333;border-color:#444}
+.setting-row{border-color:#333}
+.plan-card{border-color:#444}
+.plan-card.active{border-color:#378add}
+.call-bg{background:#1a1a1a}
+.badge{background:#0c447c;color:#b5d4f4}
+.badge-g{background:#27500a;color:#c0dd97}
+.avatar{background:#0c447c;color:#b5d4f4}
+.avatar-lg{background:#0c447c;color:#b5d4f4}
+}
+</style>
+</head>
+<body>
+<h1>TranCall — Core Screens (SCR-001〜006)</h1>
+<div class="nav" id="nav"></div>
+<div class="wrap" id="wrap"></div>
+<script>
+const S=[
+{id:"onboard",label:"SCR-001 Onboarding",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body" style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center"><div style="font-size:28px;margin-bottom:4px">&#127760;</div><div class="h1">TranCall</div><p style="font-size:12px;color:#888;margin:0 0 16px">Choose your native language</p><div style="display:flex;flex-wrap:wrap;justify-content:center;gap:4px"><span class="lang active">日本語</span><span class="lang">English</span><span class="lang">中文</span><span class="lang">한국어</span><span class="lang">Español</span><span class="lang">Français</span><span class="lang">Deutsch</span><span class="lang">Português</span><span class="lang">Русский</span><span class="lang">हिन्दी</span><span class="lang">Tiếng Việt</span><span class="lang">Italiano</span><span class="lang">Indonesia</span></div><div class="btn btn-p" style="margin-top:16px;width:80%">Next →</div><p style="font-size:11px;color:#aaa;margin:12px 0 0">GPT-Realtime-Translate: 13 output languages</p></div></div>'},
+{id:"home",label:"SCR-002 Home",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body"><div class="h1">Recent calls</div><div class="input">&#128269; Search contacts...</div><div class="row"><div class="avatar">JW</div><div class="meta"><p>John Wang</p><p class="sub">↗ Today 14:32 <span class="badge">EN→JA</span></p></div><div style="color:#185fa5">&#9742;</div></div><div class="row"><div class="avatar" style="background:#eaf3de;color:#3b6d11">ML</div><div class="meta"><p>Marie Leclerc</p><p class="sub">↙ Yesterday 09:15 <span class="badge">FR→JA</span></p></div><div style="color:#185fa5">&#9742;</div></div><div class="row"><div class="avatar" style="background:#faeeda;color:#854f0b">KP</div><div class="meta"><p>Kim Park</p><p class="sub">↗ May 8 <span class="badge">KO→JA</span></p></div><div style="color:#185fa5">&#9742;</div></div><div class="row"><div class="avatar" style="background:#fcebeb;color:#a32d2d">AS</div><div class="meta"><p>Anna Schmidt</p><p class="sub" style="color:#a32d2d">✕ May 7 Missed</p></div><div style="color:#185fa5">&#9742;</div></div></div><div class="tab-nav"><div class="active">&#9201;<br>Recent</div><div>&#128101;<br>Contacts</div><div>&#9742;<br>Call</div><div>&#9881;<br>Settings</div></div></div>'},
+{id:"incall",label:"SCR-003 In-call",html:'<div class="phone"><div class="status"><span style="color:#639922">● Translating</span><span>9:41</span></div><div class="body" style="padding:0"><div class="call-bg"><div class="avatar-lg">JW</div><div style="font-size:16px;font-weight:500">John Wang</div><div class="timer">03:42</div><div><span class="badge-g" style="font-size:10px;padding:2px 8px;border-radius:10px">EN→JA Live</span></div><div style="width:100%;padding:0 16px"><div class="sub-box"><div class="orig">I think we should move the meeting to next Thursday.</div><div class="trans">ミーティングは来週の木曜日に移した方がいいと思います。</div></div><div class="sub-box"><div class="orig">Can you send me the latest report before then?</div><div class="trans">それまでに最新のレポートを送ってもらえますか？</div></div><div class="sub-box" style="opacity:0.6;border-style:dashed"><div class="orig">Also, I wanted to discuss the bud...</div><div class="trans" style="color:#888">それから、予算について...</div></div></div><div style="display:flex;gap:12px;margin-top:8px"><div class="circle-btn">&#127908;</div><div class="circle-btn">&#128264;</div><div class="circle-btn">&#127760;</div><div class="circle-btn red">&#9746;</div></div></div></div></div>'},
+{id:"incoming",label:"SCR-004 Incoming",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body" style="padding:0"><div class="call-bg"><div style="font-size:13px;color:#888;margin-bottom:8px">Incoming call</div><div class="avatar-lg" style="width:80px;height:80px;font-size:28px">ML</div><div style="font-size:18px;font-weight:500">Marie Leclerc</div><div><span class="badge">FR→JA</span> <span style="font-size:12px;color:#888">Translation ready</span></div><p style="font-size:11px;color:#aaa;margin:4px 0">Estimated: ~10 yen/min</p><div style="display:flex;gap:24px;margin-top:20px"><div style="text-align:center"><div class="circle-btn red" style="width:56px;height:56px;font-size:20px">&#9746;</div><div style="font-size:11px;color:#888;margin-top:4px">Decline</div></div><div style="text-align:center"><div class="circle-btn green" style="width:56px;height:56px;font-size:20px">&#9742;</div><div style="font-size:11px;color:#888;margin-top:4px">Accept</div></div></div></div></div></div>'},
+{id:"contacts",label:"SCR-005 Contacts",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body"><div class="h1">Contacts</div><div class="input">&#128269; Search or add by ID...</div><div class="btn">+ Add contact</div><div style="font-size:11px;color:#888;margin:8px 0 4px">Favorites</div><div class="row"><div class="avatar">JW</div><div class="meta"><p>John Wang</p><p class="sub">English &#9733;</p></div><div style="display:flex;gap:8px;color:#185fa5">&#9742; &#9993;</div></div><div style="font-size:11px;color:#888;margin:8px 0 4px">All contacts</div><div class="row"><div class="avatar" style="background:#eaf3de;color:#3b6d11">ML</div><div class="meta"><p>Marie Leclerc</p><p class="sub">French</p></div><div style="display:flex;gap:8px;color:#185fa5">&#9742; &#9993;</div></div><div class="row"><div class="avatar" style="background:#faeeda;color:#854f0b">KP</div><div class="meta"><p>Kim Park</p><p class="sub">Korean</p></div><div style="display:flex;gap:8px;color:#185fa5">&#9742; &#9993;</div></div></div><div class="tab-nav"><div>&#9201;<br>Recent</div><div class="active">&#128101;<br>Contacts</div><div>&#9742;<br>Call</div><div>&#9881;<br>Settings</div></div></div>'},
+{id:"settings",label:"SCR-006 Settings",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body"><div class="h1">Settings</div><div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0"><div class="avatar" style="width:44px;height:44px;font-size:16px">DH</div><div class="meta"><p style="font-weight:500">Daisuke Hori</p><p class="sub">hori@revol.co.jp</p></div><div style="color:#aaa">›</div></div><div style="font-size:11px;color:#888;margin:12px 0 4px">Translation</div><div class="setting-row"><div>&#127760; Native language</div><div style="color:#888;font-size:12px">日本語 ›</div></div><div class="setting-row"><div>&#128264; Translation voice</div><div style="color:#888;font-size:12px">Alloy ›</div></div><div class="setting-row"><div>&#128196; Show subtitles</div><div style="color:#888">On</div></div><div style="font-size:11px;color:#888;margin:12px 0 4px">Plan</div><div class="plan-card active"><div style="display:flex;justify-content:space-between"><div style="font-size:13px;font-weight:500">Standard</div><span class="badge">Current</span></div><div style="font-size:16px;font-weight:500;margin:2px 0">2,980 yen/mo</div><div style="font-size:11px;color:#888">248/300 min remaining</div></div><div class="btn" style="font-size:12px">Manage subscription</div></div><div class="tab-nav"><div>&#9201;<br>Recent</div><div>&#128101;<br>Contacts</div><div>&#9742;<br>Call</div><div class="active">&#9881;<br>Settings</div></div></div>'}
+];
+const nav=document.getElementById("nav");
+const wrap=document.getElementById("wrap");
+function show(id){
+nav.querySelectorAll("button").forEach(b=>b.classList.toggle("sel",b.dataset.id===id));
+if(id==="all"){wrap.innerHTML=S.map(s=>'<div class="card"><p class="label">'+s.label+'</p>'+s.html+'</div>').join("");return}
+const s=S.find(x=>x.id===id);
+wrap.innerHTML='<div class="card" style="width:320px"><p class="label">'+s.label+'</p>'+s.html.replace('width:260px','width:300px').replace('height:520px','height:600px')+'</div>';
+}
+const ab=document.createElement("button");ab.textContent="All";ab.dataset.id="all";ab.className="sel";ab.onclick=()=>show("all");nav.appendChild(ab);
+S.forEach(s=>{const b=document.createElement("button");b.textContent=s.label.split(" ").slice(0,1)[0];b.dataset.id=s.id;b.onclick=()=>show(s.id);nav.appendChild(b)});
+show("all");
+</script>
+</body>
+</html>

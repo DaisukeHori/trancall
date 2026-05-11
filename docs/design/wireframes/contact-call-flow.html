@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TranCall Wireframes — Contact & Call Flow (SCR-007〜012)</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f5;padding:20px;color:#1a1a1a}
+h1{font-size:20px;font-weight:500;text-align:center;margin:0 0 16px}
+.nav{display:flex;justify-content:center;gap:4px;flex-wrap:wrap;margin:0 0 16px}
+.nav button{padding:6px 12px;border-radius:8px;border:1px solid #ddd;font-size:12px;background:#fff;cursor:pointer}
+.nav button.sel{background:#e6f1fb;color:#185fa5;border-color:#85b7eb}
+.wrap{display:flex;flex-wrap:wrap;gap:20px;justify-content:center}
+.card{width:280px}
+.label{font-size:12px;color:#888;margin:0 0 6px;text-align:center}
+.phone{width:260px;height:520px;border:2px solid #333;border-radius:28px;overflow:hidden;position:relative;background:#fff;margin:0 auto}
+.status{height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11px;color:#888}
+.body{padding:0 16px;height:calc(100% - 28px);overflow:hidden}
+.h1{font-size:18px;font-weight:500;margin:8px 0 12px;display:flex;align-items:center;gap:8px}
+.h2{font-size:14px;font-weight:500;margin:8px 0 6px}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0}
+.avatar{width:36px;height:36px;border-radius:50%;background:#e6f1fb;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#185fa5;flex-shrink:0}
+.avatar-lg{width:64px;height:64px;font-size:22px;border-radius:50%;background:#e6f1fb;display:flex;align-items:center;justify-content:center;font-weight:500;color:#185fa5}
+.meta{flex:1;min-width:0}.meta p{margin:0;font-size:13px}.meta .sub{font-size:11px;color:#888}
+.badge{font-size:10px;padding:2px 8px;border-radius:10px;background:#e6f1fb;color:#185fa5}
+.badge-g{background:#eaf3de;color:#3b6d11}
+.badge-w{background:#faeeda;color:#854f0b}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:8px;border:1px solid #ddd;font-size:13px;background:#fff;width:100%;margin:6px 0}
+.btn-p{background:#e6f1fb;color:#185fa5;border-color:transparent}
+.btn-g{background:#eaf3de;color:#3b6d11;border-color:transparent}
+.btn-r{background:#fcebeb;color:#a32d2d;border-color:transparent}
+.input{width:100%;padding:8px 12px;border-radius:8px;border:1px solid #ddd;font-size:13px;background:#f9f9f9;margin:6px 0}
+.call-bg{background:#f5f5f5;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;margin:0 -16px;padding:0 16px}
+.circle-btn{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid #ddd;background:#fff}
+.circle-btn.red{background:#e24b4a;color:#fff;border-color:transparent}
+.circle-btn.green{background:#639922;color:#fff;border-color:transparent}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.divider{height:1px;background:#f0f0f0;margin:8px 0}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.stat{background:#f5f5f5;border-radius:8px;padding:10px}
+.stat-label{font-size:11px;color:#888;margin:0}
+.stat-value{font-size:16px;font-weight:500;margin:2px 0 0}
+.tseg{padding:6px 0;border-bottom:1px solid #f0f0f0}
+.tseg .speaker{font-size:11px;font-weight:500;color:#185fa5}
+.tseg .orig{font-size:12px;color:#888;margin:1px 0}
+.tseg .trans{font-size:12px;margin:1px 0}
+.qr{width:100px;height:100px;border:2px dashed #ccc;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;color:#aaa;margin:8px auto}
+.cost-box{background:#f5f5f5;border-radius:8px;padding:10px 12px;margin:8px 0;text-align:center}
+.pill{display:inline-block;padding:4px 10px;border-radius:12px;font-size:11px;border:1px solid #ddd;margin:2px}
+.pill.active{background:#e6f1fb;color:#185fa5;border-color:transparent}
+@media(prefers-color-scheme:dark){
+body{background:#1a1a1a;color:#e5e5e5}
+.phone{background:#222;border-color:#555}
+.row,.setting-row,.tseg{border-color:#333}
+.input{background:#333;border-color:#444;color:#e5e5e5}
+.btn{background:#333;border-color:#444;color:#e5e5e5}
+.btn-p{background:#0c447c;color:#b5d4f4}
+.btn-g{background:#27500a;color:#c0dd97}
+.btn-r{background:#501313;color:#f09595}
+.badge{background:#0c447c;color:#b5d4f4}
+.badge-g{background:#27500a;color:#c0dd97}
+.badge-w{background:#633806;color:#fac775}
+.avatar,.avatar-lg{background:#0c447c;color:#b5d4f4}
+.call-bg,.stat,.cost-box{background:#1a1a1a}
+.divider{background:#333}
+.qr{border-color:#555;color:#666}
+.pill{border-color:#444;color:#888}
+.pill.active{background:#0c447c;color:#b5d4f4}
+}
+</style>
+</head>
+<body>
+<h1>TranCall — Contact & Call Flow (SCR-007〜012)</h1>
+<div class="nav" id="nav"></div>
+<div class="wrap" id="wrap"></div>
+<script>
+const S=[
+{id:"add",label:"SCR-007 Add contact",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body"><div class="h1">&#8592; Add contact</div><div class="input">&#128269; Search by TranCall ID or name...</div><div class="qr">&#9783;</div><p style="font-size:11px;color:#aaa;text-align:center;margin:0 0 12px">Scan QR code to add</p><div class="divider"></div><div style="font-size:11px;color:#888">Search results</div><div class="row"><div class="avatar" style="background:#eaf3de;color:#3b6d11">LZ</div><div class="meta"><p>Li Zhang</p><p class="sub">@lizhang_bj <span class="badge" style="font-size:9px">Chinese</span></p></div><div class="btn-p" style="width:auto;padding:4px 12px;margin:0;font-size:11px;border-radius:12px;display:inline-block">+ Add</div></div><div class="row"><div class="avatar" style="background:#faeeda;color:#854f0b">LZ</div><div class="meta"><p>Laura Zimmerman</p><p class="sub">@lauraz <span class="badge" style="font-size:9px">German</span></p></div><div class="btn-p" style="width:auto;padding:4px 12px;margin:0;font-size:11px;border-radius:12px;display:inline-block">+ Add</div></div><div class="divider"></div><div class="btn">&#128279; Share invite link</div><div class="btn">&#128213; Import from contacts</div></div></div>'},
+{id:"profile",label:"SCR-008 Contact profile",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body"><div class="h1">&#8592;</div><div style="text-align:center;margin:0 0 12px"><div class="avatar-lg" style="margin:0 auto 8px;width:72px;height:72px;font-size:24px">JW</div><div style="font-size:16px;font-weight:500">John Wang</div><div style="font-size:12px;color:#888">@johnwang_sf</div><div style="margin:6px 0"><span class="badge">English</span> <span class="badge-w" style="font-size:10px;padding:2px 8px;border-radius:10px">San Francisco</span></div></div><div style="display:flex;gap:12px;justify-content:center;margin:8px 0 16px"><div style="text-align:center"><div class="circle-btn" style="width:44px;height:44px;background:#e6f1fb;color:#185fa5;border:none;margin:0 auto">&#9742;</div><div style="font-size:10px;color:#888;margin-top:4px">Audio</div></div><div style="text-align:center"><div class="circle-btn" style="width:44px;height:44px;margin:0 auto">&#127909;</div><div style="font-size:10px;color:#888;margin-top:4px">Video</div></div><div style="text-align:center"><div class="circle-btn" style="width:44px;height:44px;margin:0 auto">&#9993;</div><div style="font-size:10px;color:#888;margin-top:4px">Message</div></div><div style="text-align:center"><div class="circle-btn" style="width:44px;height:44px;margin:0 auto">&#9733;</div><div style="font-size:10px;color:#888;margin-top:4px">Favorite</div></div></div><div class="divider"></div><div style="font-size:11px;color:#888">Call history</div><div class="row" style="padding:6px 0"><div style="flex:1"><p style="margin:0;font-size:12px">↗ May 11, 14:32</p><p style="margin:0;font-size:11px;color:#888">12 min <span class="badge" style="font-size:9px">EN→JA</span></p></div><div style="font-size:11px;color:#888">360 yen</div></div><div class="row" style="padding:6px 0"><div style="flex:1"><p style="margin:0;font-size:12px">↙ May 9, 10:05</p><p style="margin:0;font-size:11px;color:#888">8 min <span class="badge" style="font-size:9px">EN→JA</span></p></div><div style="font-size:11px;color:#888">240 yen</div></div><div class="row" style="padding:6px 0"><div style="flex:1"><p style="margin:0;font-size:12px">↗ May 5, 16:20</p><p style="margin:0;font-size:11px;color:#888">25 min <span class="badge" style="font-size:9px">EN→JA</span></p></div><div style="font-size:11px;color:#888">750 yen</div></div></div></div>'},
+{id:"precall",label:"SCR-009 Pre-call setup",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body"><div class="h1">&#8592; Call setup</div><div style="text-align:center;margin:0 0 12px"><div class="avatar-lg" style="margin:0 auto 6px">JW</div><div style="font-size:15px;font-weight:500">John Wang</div><div style="font-size:12px;color:#888">English speaker</div></div><div class="divider"></div><div class="setting-row"><div>&#127760; Translation</div><div style="color:#185fa5;font-size:12px">On &#9679;</div></div><div class="setting-row"><div>&#8594; Your voice → their ears</div><div style="font-size:12px;color:#888">JA→EN</div></div><div class="setting-row"><div>&#8592; Their voice → your ears</div><div style="font-size:12px;color:#888">EN→JA</div></div><div class="setting-row"><div>&#128264; Translation voice</div><div style="font-size:12px;color:#888">Alloy ›</div></div><div class="setting-row"><div>&#128196; Live subtitles</div><div style="color:#185fa5;font-size:12px">On &#9679;</div></div><div class="cost-box"><div style="font-size:11px;color:#888">Estimated cost</div><div style="font-size:18px;font-weight:500">~30 yen/min</div><div style="font-size:11px;color:#888">248 min remaining on Standard plan</div></div><div class="btn btn-g" style="font-size:14px;padding:12px;margin-top:8px">&#9742; Start call</div></div></div>'},
+{id:"ringing",label:"SCR-010 Calling",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body" style="padding:0"><div class="call-bg"><div style="font-size:13px;color:#888">Calling...</div><div class="avatar-lg" style="width:80px;height:80px;font-size:28px">JW</div><div style="font-size:18px;font-weight:500">John Wang</div><div><span class="badge">EN→JA</span> <span class="badge-g" style="font-size:10px;padding:2px 8px;border-radius:10px">Translation ready</span></div><div style="display:flex;gap:4px;margin:4px 0"><div style="width:6px;height:6px;border-radius:50%;background:#aaa;opacity:0.3"></div><div style="width:6px;height:6px;border-radius:50%;background:#aaa;opacity:0.6"></div><div style="width:6px;height:6px;border-radius:50%;background:#aaa"></div></div><div style="font-size:12px;color:#aaa;margin:8px 0">Ringing...</div><div style="display:flex;gap:24px;margin-top:24px"><div style="text-align:center"><div class="circle-btn" style="width:52px;height:52px">&#9993;</div><div style="font-size:10px;color:#888;margin-top:4px">Message</div></div><div style="text-align:center"><div class="circle-btn red" style="width:52px;height:52px;font-size:18px">&#9746;</div><div style="font-size:10px;color:#888;margin-top:4px">Cancel</div></div><div style="text-align:center"><div class="circle-btn" style="width:52px;height:52px">&#128264;</div><div style="font-size:10px;color:#888;margin-top:4px">Speaker</div></div></div></div></div></div>'},
+{id:"postcall",label:"SCR-011 Call summary",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body"><div class="h1">Call ended</div><div style="text-align:center;margin:0 0 12px"><div class="avatar-lg" style="margin:0 auto 6px">JW</div><div style="font-size:15px;font-weight:500">John Wang</div><div style="font-size:11px;color:#888">May 11, 2026 14:32 - 14:44</div></div><div class="stat-grid"><div class="stat"><p class="stat-label">Duration</p><p class="stat-value">12:18</p></div><div class="stat"><p class="stat-label">Cost</p><p class="stat-value">370 yen</p></div><div class="stat"><p class="stat-label">Translation</p><p class="stat-value">EN→JA</p></div><div class="stat"><p class="stat-label">Remaining</p><p class="stat-value">236 min</p></div></div><div class="divider"></div><div style="font-size:12px;font-weight:500;display:flex;justify-content:space-between">Transcript <span style="font-size:11px;color:#185fa5;font-weight:400">&#8595; Export</span></div><div class="tseg"><div class="speaker">John Wang (EN)</div><div class="orig">I think we should move the meeting to next Thursday.</div><div class="trans">ミーティングは来週の木曜日に移した方がいいと思います。</div></div><div class="tseg"><div class="speaker" style="color:#639922">You (JA)</div><div class="orig">はい、それで大丈夫です。</div><div class="trans">Yes, that works.</div></div><div style="text-align:center;padding:6px 0;font-size:11px;color:#185fa5">... View full transcript</div><div class="divider"></div><div class="btn btn-p">&#9742; Call again</div><div class="btn">&#8962; Back to home</div></div></div>'},
+{id:"transcript",label:"SCR-012 Transcript",html:'<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body"><div class="h1">&#8592; Transcript</div><div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px"><div style="font-size:12px;color:#888">John Wang <span class="badge" style="font-size:9px">EN→JA</span></div><div style="font-size:11px;color:#aaa">12:18</div></div><div style="margin:0 0 8px"><span class="pill active">Both</span><span class="pill">Original</span><span class="pill">Translation</span></div><div class="input">&#128269; Search in transcript...</div><div class="tseg"><div style="display:flex;justify-content:space-between"><div class="speaker">John Wang</div><div style="font-size:10px;color:#aaa">0:00</div></div><div class="orig">I think we should move the meeting to next Thursday.</div><div class="trans">ミーティングは来週の木曜日に移した方がいいと思います。</div></div><div class="tseg"><div style="display:flex;justify-content:space-between"><div class="speaker" style="color:#639922">You</div><div style="font-size:10px;color:#aaa">0:12</div></div><div class="orig">はい、それで大丈夫です。金曜日の方がいいですか？</div><div class="trans">Yes, that works. Would Friday be better?</div></div><div class="tseg"><div style="display:flex;justify-content:space-between"><div class="speaker">John Wang</div><div style="font-size:10px;color:#aaa">0:25</div></div><div class="orig">Thursday works better for my team.</div><div class="trans">木曜日の方がチームには都合がいいです。</div></div><div class="tseg"><div style="display:flex;justify-content:space-between"><div class="speaker" style="color:#639922">You</div><div style="font-size:10px;color:#aaa">0:42</div></div><div class="orig">もちろんです。水曜日に送ります。</div><div class="trans">Of course. I will send it Wednesday.</div></div><div class="divider"></div><div style="display:flex;gap:6px"><div class="btn" style="font-size:11px">PDF</div><div class="btn" style="font-size:11px">TXT</div><div class="btn" style="font-size:11px">Share</div></div></div></div>'}
+];
+const nav=document.getElementById("nav");const wrap=document.getElementById("wrap");
+function show(id){nav.querySelectorAll("button").forEach(b=>b.classList.toggle("sel",b.dataset.id===id));if(id==="all"){wrap.innerHTML=S.map(s=>'<div class="card"><p class="label">'+s.label+'</p>'+s.html+'</div>').join("");return}const s=S.find(x=>x.id===id);wrap.innerHTML='<div class="card" style="width:320px"><p class="label">'+s.label+'</p>'+s.html+'</div>';}
+const ab=document.createElement("button");ab.textContent="All";ab.dataset.id="all";ab.className="sel";ab.onclick=()=>show("all");nav.appendChild(ab);
+S.forEach(s=>{const b=document.createElement("button");b.textContent=s.label.split(" ").slice(0,1)[0];b.dataset.id=s.id;b.onclick=()=>show(s.id);nav.appendChild(b)});show("all");
+</script>
+</body>
+</html>
