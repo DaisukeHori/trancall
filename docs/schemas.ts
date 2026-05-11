@@ -170,11 +170,12 @@ const UserRegisteredEvent = DomainEventBase.extend({
   }),
 });
 
+// AuthFacade は Sprint 0 で getProfile のみに縮退済み (C-005)。
+// signUp / signIn / validateToken は Supabase Auth クライアントが直接担当し、
+// Server 側 facade としては Profile lookup のみを公開する。
+// 詳細は docs/module-contracts.md Section 2.1 参照。
 interface AuthFacade {
-  signUp(cmd: SignUpCommand): Promise<ResultOf<typeof AuthSession>>;
-  signIn(cmd: SignInCommand): Promise<ResultOf<typeof AuthSession>>;
   getProfile(userId: UserId): Promise<ResultOf<typeof UserProfile>>;
-  validateToken(token: string): Promise<ResultOf<typeof UserProfile>>;
 }
 
 // =============================================================================
@@ -361,20 +362,23 @@ const TranslationRecoveredEvent = DomainEventBase.extend({
 // Translation Facade
 // server-side Agent方式（公式推奨）で実装
 // client-side sidecarは公式非推奨のため採用しない
+//
+// 重要: Sprint 1 で大幅再設計済み。重い処理 (OpenAI WS 接続、AudioFrame 送受信、
+// Track Publish) は apps/translation-agent 側 (別プロセス)。
+// 本 facade は Server 側で Agent event 受信・永続化・同言語判定・delta バリデーションを担う。
+// 詳細は docs/module-contracts.md Section 2.7 参照。
 interface TranslationFacade {
-  startSession(config: TranslationConfig): Promise<ResultOf<typeof TranslationConfig>>;
-  // AudioFrameのAsyncIterableを受け取り、翻訳済みフレームを返す
-  translate(
-    sessionId: TranslationSessionId,
-    input: AsyncIterable<AudioFrame>,
-  ): AsyncIterable<TranslatedFrame>;
-  endSession(sessionId: TranslationSessionId): Promise<TranslationUsage>;
-  getUsage(sessionId: TranslationSessionId): Promise<TranslationUsage>;
-  // OpenAIセッション割当チェック（同時セッション上限考慮）
-  canAllocateSession(
-    languagePair: string,
-    expectedDurationMinutes: number,
-  ): Promise<Result<true, AppError>>;
+  // Agent からの event (session_started/ended/transcript.delta/agent.metrics) を Server 側で処理
+  handleAgentEvent(event: unknown): Promise<Result<true, AppError>>;
+  // 当該 agent job の利用量取得 (billing 連携用)
+  getUsage(agentJobId: string): Promise<Result<TranslationUsage, AppError>>;
+  // 同言語判定 utility (ja===ja なら false = 翻訳セッション不要)
+  shouldStartSession(
+    sourceNativeLanguage: OutputLanguage,
+    targetNativeLanguage: OutputLanguage,
+  ): boolean;
+  // LiveKit Data Channel 受信時の delta バリデーション
+  validateLiveDelta(rawDelta: unknown): Result<LiveSubtitleDelta, AppError>;
 }
 
 // =============================================================================
@@ -429,16 +433,25 @@ const RecordUsageCommand = z.object({
   idempotencyKey: z.string(),
 });
 
+// Sprint 1 で 3 チャネル設計 + Webhook ハンドラ + refundMinutes 追加。
+// 詳細は docs/module-contracts.md Section 2.3 参照。
 interface BillingFacade {
   getSubscription(userId: UserId): Promise<ResultOf<typeof SubscriptionState>>;
   recordUsage(cmd: z.infer<typeof RecordUsageCommand>): Promise<ResultOf<typeof SubscriptionState>>;
   canStartCall(userId: UserId): Promise<Result<true, AppError>>;
   reserveMinutes(userId: UserId, minutes: number): Promise<Result<true, AppError>>;
   reconcile(userId: UserId, sessionId: TranslationSessionId): Promise<ResultOf<typeof SubscriptionState>>;
+  refundMinutes(sessionId: TranslationSessionId): Promise<Result<true, AppError>>;
+  // 3 チャネル設計: stripe_web (アプリ外 Web) / storekit_external (日本 MSCA アプリ内)
   createCheckoutSession(
     userId: UserId,
     tier: z.infer<typeof PlanTier>,
+    channel: "stripe_web" | "storekit_external",
   ): Promise<Result<{ url: string }, AppError>>;
+  // Webhook ハンドラ (server から呼ぶ、冪等性は webhook_events で保証)
+  handleStripeWebhook(rawBody: string, signature: string): Promise<Result<true, AppError>>;
+  handleAppleIapWebhook(payload: unknown): Promise<Result<true, AppError>>;
+  handleGoogleIapWebhook(payload: unknown): Promise<Result<true, AppError>>;
 }
 
 // =============================================================================
@@ -467,11 +480,32 @@ const IncomingCallNotification = z.object({
   languagePair: z.string(),
 });
 
+// 不在着信通知の body フォーマット: "{callerName} ({callerTrancallId})" (docs/notification-detail.md 厳守)
+const MissedCallPayload = z.object({
+  callerName: z.string().min(1),
+  callerTrancallId: z.string().min(1),
+  callerAvatarUrl: z.string().url().nullable(),
+  roomId: RoomIdSchema,
+  timestamp: z.string().datetime(),
+});
+type MissedCallPayload = z.infer<typeof MissedCallPayload>;
+
+// Sprint 1 で unregisterDevice / sendMissedCall を追加。
+// 詳細は docs/module-contracts.md Section 2.5 参照。
 interface NotificationFacade {
   registerDevice(userId: UserId, target: NotificationTarget): Promise<Result<true, AppError>>;
+  unregisterDevice(
+    userId: UserId,
+    platform: "ios" | "android",
+    token: string,
+  ): Promise<Result<true, AppError>>;
   sendIncomingCall(
     targetUserId: UserId,
     notification: z.infer<typeof IncomingCallNotification>,
+  ): Promise<Result<true, AppError>>;
+  sendMissedCall(
+    targetUserId: UserId,
+    payload: MissedCallPayload,
   ): Promise<Result<true, AppError>>;
 }
 
@@ -534,11 +568,26 @@ const FullTranscript = z.object({
   generatedAt: z.string().datetime(),
 });
 
+// Sprint 1 再設計: getLiveSubtitles AsyncIterable は廃止 (LiveKit Data Channel 経由で
+// client が直接受信、facade 側に AsyncIterable は不要)。代わりに validateLiveDelta を提供。
+// searchSegments / exportTranscript (Sprint 2 stub) を追加。
+// 詳細は docs/module-contracts.md Section 2.6 参照。
 interface TranscriptFacade {
   appendFinalSegment(segment: TranscriptSegment): Promise<Result<true, AppError>>;
   getTranscript(roomId: RoomId, userId: UserId): Promise<ResultOf<typeof FullTranscript>>;
-  getLiveSubtitles(roomId: RoomId): AsyncIterable<z.infer<typeof LiveSubtitleDelta>>;
+  searchSegments(
+    roomId: RoomId,
+    userId: UserId,
+    query: string,
+  ): Promise<Result<TranscriptSegment[], AppError>>;
   deleteAccess(roomId: RoomId, userId: UserId): Promise<Result<true, AppError>>;
+  exportTranscript(
+    roomId: RoomId,
+    userId: UserId,
+    format: "pdf" | "txt",
+  ): Promise<Result<{ contentBase64: string; mime: string }, AppError>>;
+  // LiveKit Data Channel 受信時のバリデーション (mobile 側で使用)
+  validateLiveDelta(rawDelta: unknown): Result<z.infer<typeof LiveSubtitleDelta>, AppError>;
 }
 
 // =============================================================================
@@ -575,13 +624,28 @@ const ReportUserCommand = z.object({
   details: z.string().optional(),
 });
 
+// Sprint 1 で unblockUser / toggleFavorite / createInviteLink / consumeInviteLink を追加。
+// searchUsers は callerId を受け取り、ブロック相手を結果から除外。
+// PublicProfile は contact モジュール内で独自定義 (email を含まない、情報露出最小化)。
+// 詳細は docs/module-contracts.md Section 2.4 参照。
 interface ContactFacade {
   addContact(cmd: z.infer<typeof AddContactCommand>): Promise<ResultOf<typeof ContactEntry>>;
   removeContact(userId: UserId, contactId: string): Promise<Result<true, AppError>>;
   listContacts(userId: UserId): Promise<z.infer<typeof ContactEntry>[]>;
-  searchUsers(query: string): Promise<z.infer<typeof UserProfile>[]>;
+  // PublicProfile は packages/contact/src/schemas.ts で独自 Zod 定義 (UserProfile.email を含めない)
+  // 戻り値型は実装側で z.infer<typeof PublicProfileSchema>[] になる
+  searchUsers(query: string, callerId: UserId): Promise<unknown[]>; // PublicProfile[] 相当
   blockUser(cmd: z.infer<typeof BlockUserCommand>): Promise<Result<true, AppError>>;
+  unblockUser(userId: UserId, blockedUserId: UserId): Promise<Result<true, AppError>>;
   reportUser(cmd: z.infer<typeof ReportUserCommand>): Promise<Result<true, AppError>>;
+  toggleFavorite(userId: UserId, contactId: string): Promise<Result<true, AppError>>;
+  createInviteLink(
+    userId: UserId,
+  ): Promise<Result<{ url: string; token: string; expiresAt: string }, AppError>>;
+  consumeInviteLink(
+    token: string,
+    newUserId: UserId,
+  ): Promise<Result<z.infer<typeof ContactEntry>, AppError>>;
 }
 
 // =============================================================================
