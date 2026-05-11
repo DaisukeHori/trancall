@@ -1,37 +1,41 @@
 # TranCall デプロイ設計
 
-## 1. システム構成図
+> 第11回レビューで「最初からクラウド」「Proxmox オンプレは廃止」「LiveKit Cloud を採用」
+> という方針が確定したため、旧設計（Proxmox LXC `.207/.208` 固定IP）から全面的に書き直した。
+
+## 1. システム構成図（クラウド前提）
 
 ```
-                    ┌─────────────────────────────────────┐
-                    │          Cloudflare                  │
-                    │   DNS + Tunnel + WAF                 │
-                    └──────────┬──────────────────────────┘
-                               │
-               ┌───────────────┼──────────────────┐
-               ▼               ▼                  ▼
-    ┌──────────────────┐ ┌──────────────┐ ┌──────────────────┐
-    │  API Server       │ │ LiveKit SFU  │ │ Translation      │
-    │  (Vercel)         │ │ (LXC)        │ │ Agent (LXC)      │
-    │                   │ │              │ │                  │
-    │  apps/server      │ │ livekit-     │ │ apps/translation-│
-    │  Node.js          │ │ server       │ │ agent            │
-    │                   │ │              │ │ Node.js or Python│
-    └────────┬──────────┘ └──────┬───────┘ └────────┬─────────┘
-             │                   │                   │
-             ▼                   │                   ▼
-    ┌──────────────────┐         │         ┌──────────────────┐
-    │  Supabase Cloud   │         │         │  OpenAI API      │
-    │  (PostgreSQL +    │         │         │  GPT-RT-Translate│
-    │   Auth + Realtime)│         │         │                  │
-    └──────────────────┘         │         └──────────────────┘
+                      ┌──────────────────────────────────┐
+                      │       Cloudflare                  │
+                      │  DNS + WAF + Rate Limit           │
+                      └──────────┬───────────────────────┘
                                  │
-                    ┌────────────┴────────────┐
-                    │    LiveKit TURN/STUN     │
-                    │    (LiveKit Cloud or     │
-                    │     self-hosted coturn)  │
-                    └─────────────────────────┘
+            ┌────────────────────┼─────────────────────────┐
+            ▼                    ▼                         ▼
+  ┌──────────────────┐  ┌──────────────────┐   ┌──────────────────┐
+  │  API Server      │  │  LiveKit Cloud   │   │ Translation      │
+  │  (Vercel)        │  │  (managed SFU)   │   │ Agent (Render or │
+  │                  │  │                  │   │  Fly.io)         │
+  │  apps/server     │  │  - SFU            │   │                  │
+  │  Next.js / Node  │  │  - TURN / STUN    │   │ apps/translation-│
+  │                  │  │  - Token verify   │   │ agent (Node.js)  │
+  └────────┬─────────┘  └────────┬─────────┘   └────────┬─────────┘
+           │                     │                       │
+           ▼                     │                       ▼
+  ┌──────────────────┐           │             ┌──────────────────┐
+  │  Supabase Cloud  │           │             │  OpenAI API      │
+  │  (Postgres +     │           │             │  GPT-RT-Translate│
+  │   Auth + Realtime│           │             │                  │
+  │   + Storage)     │           │             └──────────────────┘
+  └──────────────────┘           │
+                                 │
+                       (RTC media は LiveKit Cloud の
+                        グローバルエッジを直接利用)
 ```
+
+すべて **マネージドサービス**で構成し、サーバーOS / ネットワーク / ファイアウォール / TLS 終端を自前で持たない。
+これにより Phase 1a の TestFlight 期間は **インフラ運用に時間を取られない**。
 
 ## 2. コンポーネント別デプロイ設計
 
@@ -39,121 +43,107 @@
 
 | 項目 | 値 |
 |------|-----|
-| ホスティング | **Vercel** (Serverless Functions) |
+| ホスティング | **Vercel** |
 | ランタイム | Node.js 22 |
-| リージョン | ap-northeast-1 (Tokyo) |
+| リージョン | Tokyo (hnd1) |
 | ドメイン | api.trancall.app |
-| CDN | Cloudflare (Vercelの前段) |
-| デプロイ | GitHub push → Vercel自動デプロイ |
-| 環境変数 | `.env.server.example` 参照 |
-| スケーリング | Vercel自動スケール |
+| デプロイ | GitHub push → Vercel 自動デプロイ |
+| 環境変数 | Vercel Dashboard（`.env.server.example` 参照） |
 
-制約:
-- Vercel Serverless Functionsは実行時間上限あり（Pro: 60秒、Hobby: 10秒）
-- WebSocket長時間接続は不可 → Supabase Realtimeに委譲
-- 内部API（/internal/*）はVercel Edge Middleware でAgent IP/署名を検証
+ホスティング判断:
+- Next.js Server / REST API / Server Action は Vercel で動く（実行時間制限内で完結する処理のみ）
+- **WebSocket 常時接続を要する処理は Vercel に置かない**:
+  - Translation Agent → 別ホスティング（2.3 参照）
+  - LiveKit SFU → LiveKit Cloud（2.2 参照）
+  - クライアント↔Server リアルタイム通信 → Supabase Realtime
+- 内部 API `/internal/agent/events` は HMAC-SHA256 で検証（`apps/translation-agent/src/internal-api-client.ts` と同じ鍵）
 
-Phase 1a代替案:
-- Vercelが制約で合わない場合、Proxmox LXC (IP: .207) にNode.jsサーバーをデプロイ
-- Cloudflare Tunnel経由で公開
-
-### 2.2 LiveKit SFU
+### 2.2 LiveKit SFU（マネージド）
 
 | 項目 | 値 |
 |------|-----|
-| ホスティング | **Proxmox LXC** (VMID: TBD) |
-| IPアドレス | 192.168.70.207 (予定) |
-| OS | Ubuntu 24.04 (LXCテンプレート314ベース) |
-| CPU / メモリ | 4 core / 8 GB |
-| ストレージ | 20 GB |
-| 外部公開 | Cloudflare Tunnel → livekit.trancall.app |
-| TURN/STUN | LiveKit組み込みTURN or coturn |
-| 自動起動 | systemd |
+| ホスティング | **LiveKit Cloud**（managed、Apache 2.0 ベース） |
+| プラン | Phase 1a: Free tier（5,000 participant-min/月） |
+| | Phase 1b 以降: Build tier（$50/月、50,000 minutes） |
+| URL | `wss://trancall-xxxx.livekit.cloud`（プロジェクト作成時に発行） |
+| TURN/STUN | LiveKit Cloud に統合済み |
+| グローバル展開 | 自動（東京・米西海岸・EU など複数リージョン） |
 
-設定ファイル: `/etc/livekit/config.yaml`
-```yaml
-port: 7880
-rtc:
-  port_range_start: 50000
-  port_range_end: 60000
-  use_external_ip: true
-  tcp_port: 7881
-keys:
-  APIxxxxxxxx: <secret>
-logging:
-  level: info
-```
+採用理由:
+- WebRTC SFU は UDP / TCP ポートを直接握る host networking が必要で、Vercel のような serverless では構造的に動かない
+- 自前ホスト（Render / Fly.io / Cloud Run）でも稼働は可能だが、グローバルエッジを自前で構築するコストが Phase 1a の費用対効果に合わない
+- LiveKit Cloud は Free tier だけで TestFlight 100名 × 1人あたり 50分/月 = 5,000 分まで賄える計算
 
-Phase 1a → Phase 1c スケーリング:
-- Phase 1a: 単一LXC（同時10通話まで）
-- Phase 1c: LiveKit Cloud への移行を検討（グローバル展開時）
+注意点:
+- API Key / Secret は **Vercel と Translation Agent ホスティング**にだけ環境変数として配布する。クライアントには絶対に渡さない（Token 発行は Server 側で完結）
 
 ### 2.3 Translation Agent（apps/translation-agent）
 
 | 項目 | 値 |
 |------|-----|
-| ホスティング | **Proxmox LXC** (VMID: TBD) |
-| IPアドレス | 192.168.70.208 (予定) |
-| OS | Ubuntu 24.04 (LXCテンプレート314ベース) |
-| CPU / メモリ | 2 core / 2 GB（Agent 1プロセスあたり） |
-| ストレージ | 10 GB |
-| プロセス管理 | **pm2** |
-| 自動再起動 | pm2 + systemd |
+| ホスティング | **Render（Background Worker）が第一候補** |
+| 代替案 | Fly.io / Google Cloud Run（min-instances=1 必須） |
+| プラン | Render Starter ($7/月、512MB / 0.5 CPU、Always-on) |
+| OS | Linux x86_64（@livekit/rtc-node の native binding が動く） |
+| プロセス管理 | Render の Background Worker（再起動・ヘルスチェック内蔵） |
+| 自動再起動 | Render が exit 時に自動再起動 |
 | メモリ上限 | 512 MB / プロセス |
-| 最大Room数 | 10 / プロセス |
+| 環境変数 | Render Dashboard（`.env.agent.example` 参照） |
+| デプロイ | GitHub push → Render 自動デプロイ |
 
-pm2設定: `ecosystem.config.cjs`
-```javascript
-module.exports = {
-  apps: [{
-    name: "trancall-agent",
-    script: "dist/index.js",
-    instances: 1,
-    max_memory_restart: "512M",
-    env: {
-      NODE_ENV: "production",
-      AGENT_MAX_ROOMS: "10",
-    },
-    // 自動再起動設定
-    exp_backoff_restart_delay: 1000,
-    max_restarts: 10,
-    restart_delay: 1000,
-  }]
-};
-```
+採用理由:
+- Translation Agent は **LiveKit Server との WebSocket 常時接続 + OpenAI Realtime API への別 WebSocket** を持つため、Vercel の Edge Function / Serverless Function では動かない
+- Render の Background Worker は HTTP リクエストを受けない常駐プロセス専用で、料金が最も安く（$7/月）、Dockerfile デプロイが簡単
+- LiveKit Cloud と同リージョンに置きたいので Tokyo 系の datacenter を選択（Render は Singapore が最寄り、Fly.io は `nrt`（Tokyo）あり）
+
+代替評価:
+| プラットフォーム | 月額 | Tokyo | Memo |
+|---|---|---|---|
+| Render Background Worker | $7 | Singapore | 設定が最も簡単、Dockerfile or Build Cmd |
+| Fly.io Machine | $0〜$3（使用分） | あり（nrt） | グローバル展開しやすい、CLI 慣れ要 |
+| Google Cloud Run (always-on) | $10〜（min-instances=1） | あり（asia-northeast1） | min-instances=1 を必ず設定（idle 停止すると Job 取り逃がす） |
+| Railway | $5〜 | US | 安いが日本リージョン不在 |
+
+Phase 1a Sprint 0 で **Render に dry-run デプロイ** → Sprint 1 で gate-check を回して採否確定。
 
 スケーリング:
-- Phase 1a: 1プロセス（同時10 Room）
-- Phase 1c: 2-3プロセス（pm2 cluster mode）
-- Phase 2: 別LXCに分離、ロードバランサー追加
+- Phase 1a: 1 ワーカー（同時 10 通話、各 1〜2 翻訳セッション）
+- Phase 1b: 2〜3 ワーカー（Render は同じサービスで manual scaling、Fly.io は `fly scale count`）
+- Phase 1c: Agent dispatch を `agentName` ベースに切り替え、Worker pool に分割
 
 ### 2.4 Supabase
 
 | 項目 | 値 |
 |------|-----|
 | ホスティング | **Supabase Cloud** |
-| プラン | Pro ($25/month) |
+| プラン | Phase 1a: Free → Phase 1b: Pro ($25/月) |
 | リージョン | ap-northeast-1 (Tokyo) |
-| DB | PostgreSQL 15+ |
-| 認証 | Supabase Auth (email + OAuth) |
-| リアルタイム | Supabase Realtime (WebSocket) |
-| ストレージ | Supabase Storage (アバター画像用) |
+| DB | Postgres 15+ |
+| 認証 | Supabase Auth (email + Google + Apple OAuth) |
+| Realtime | Supabase Realtime (WebSocket) |
+| Storage | アバター画像・トランスクリプト PDF |
 
 ### 2.5 Cloudflare
 
 | サービス | 用途 |
 |---------|------|
 | DNS | trancall.app ドメイン管理 |
-| Tunnel | LXCサーバーの外部公開（API/LiveKit/Agent） |
-| WAF | DDoS防御、Rate Limiting |
-| SSL/TLS | 全エンドポイントのTLS終端 |
+| WAF | DDoS 防御、Rate Limit、Bot Fight |
+| TLS | trancall.app 系の Universal SSL |
 
-Tunnelルーティング:
+注意:
+- LiveKit Cloud は `livekit.cloud` ドメイン直接利用（Cloudflare の前段は不要）
+- Vercel は Cloudflare 経由でも直接でもよいが、Cloudflare 経由にすると Apple App Site Association のキャッシュ制御が容易
+
+ルーティング:
 ```
-api.trancall.app      → 192.168.70.207:3000 (API Server or Vercel)
-livekit.trancall.app  → 192.168.70.207:7880 (LiveKit SFU)
-agent.trancall.app    → 192.168.70.208:3001 (Translation Agent 内部)
+trancall.app           → Vercel（ランディング・Universal Links）
+api.trancall.app       → Vercel（API Server）
+livekit-xxxx.livekit.cloud → LiveKit Cloud（直接、Cloudflare 経由しない）
 ```
+
+Translation Agent には **公開ドメインを当てない**（インバウンドは LiveKit Server からの WebSocket のみ）。
+内部 API のコールバック先 `https://api.trancall.app/internal/agent/events` は **Server → Cloudflare → Vercel** 経路。
 
 ## 3. 監視・ログ・アラート
 
@@ -161,48 +151,48 @@ agent.trancall.app    → 192.168.70.208:3001 (Translation Agent 内部)
 
 | メトリクス | 収集元 | 方法 |
 |----------|--------|------|
-| 翻訳レイテンシー (p50/p95/p99) | Translation Agent | gate-check.ts / カスタムメトリクス |
-| 通話ドロップ率 | LiveKit SFU | LiveKit Dashboard / Webhook |
-| API応答時間 | API Server | Vercel Analytics or カスタム |
-| WebSocket再接続回数 | Translation Agent | pm2 logs + カスタムカウンター |
-| メモリ使用量 | Translation Agent | pm2 monit |
-| 同時通話数 | LiveKit SFU | LiveKit Server SDK roomList |
-| OpenAI APIエラー率 | Translation Agent | カスタムカウンター |
-| DB接続数 | Supabase | Supabase Dashboard |
+| 翻訳レイテンシ (p50/p95/p99) | Translation Agent | `internal-api-client` 経由で Server に送信 → Supabase に蓄積 |
+| 通話ドロップ率 | LiveKit Cloud | LiveKit Cloud Dashboard / Webhook |
+| API 応答時間 | API Server | Vercel Analytics（OpenTelemetry に拡張予定） |
+| Agent ワーカー再起動 | Render | Render Dashboard + Webhook → Slack |
+| Agent メモリ使用量 | Translation Agent | `process.memoryUsage()` を5秒ごとサンプリングし `agent.metrics` イベントで送信 |
+| 同時通話数 | LiveKit Cloud | RoomServiceClient.listRooms |
+| OpenAI API エラー率 | Translation Agent | カスタムカウンター（Sentry にも転送） |
+| DB 接続数 | Supabase | Supabase Dashboard |
 
 ### 3.2 アラート条件
 
 | 条件 | 重要度 | 通知先 |
 |------|--------|--------|
-| 翻訳レイテンシー p95 > 4秒 | Critical | Slack + メール |
+| 翻訳レイテンシ p95 > 4s | Critical | Slack + メール |
 | Agent プロセス再起動 | Warning | Slack |
 | Agent メモリ > 450MB | Warning | Slack |
-| LiveKit SFU CPU > 80% | Warning | Slack |
-| OpenAI 429エラー 5回/分 | Critical | Slack + メール |
-| 同時通話数 > 8 (上限10の80%) | Warning | Slack |
-| DB接続数 > 80% | Warning | Slack |
+| LiveKit Cloud Free tier 残量 < 500 minutes | Warning | Slack |
+| OpenAI 429 エラー 5回/分 | Critical | Slack + メール |
+| 同時通話数 > 8（Phase 1a 上限10の80%） | Warning | Slack |
+| Supabase DB 接続数 > 80% | Warning | Slack |
 
 ### 3.3 ログ設計
 
-| コンポーネント | ログ出力 | 保持期間 |
+| コンポーネント | ログ出力先 | 保持期間 |
 |-------------|---------|---------|
-| API Server | Vercel Logs (自動) | 30日 |
-| Translation Agent | pm2 logs → ファイル | 14日 (logrotate) |
-| LiveKit SFU | systemd journal | 14日 |
+| API Server | Vercel Logs（自動） | 30日 |
+| Translation Agent | stdout JSON Lines → Render Logs | 14日 |
+| LiveKit SFU | LiveKit Cloud Dashboard | プランに依存 |
 | Supabase | Supabase Dashboard | プランに依存 |
 
+将来的に Sentry を追加して、Agent / Server の error log を集約する（Phase 1b）。
+
 ログに含めてはいけないもの:
-- 音声データ
-- トランスクリプト本文
-- OpenAI APIキー
+- 音声 PCM データ（Base64 含む）
+- トランスクリプト本文（ID と sequence のみ）
+- OpenAI API キー / LiveKit Secret / TRANCALL_AGENT_HMAC_SECRET
 - ユーザーのメールアドレス（ハッシュ化してログ）
 
 ログに含めるべきもの:
-- correlation_id（通話ごとのトレースID）
-- session_id
-- room_id
-- participant_id（ブランド型のまま）
-- レイテンシー数値
+- correlation_id（通話ごとのトレース ID）
+- agentJobId / roomId / sourceParticipantId（Branded UUID のまま）
+- レイテンシ数値
 - エラーコード・メッセージ
 
 ## 4. CI/CD パイプライン
@@ -211,43 +201,54 @@ agent.trancall.app    → 192.168.70.208:3001 (Translation Agent 内部)
 GitHub push (main)
     │
     ├──→ GitHub Actions CI
-    │    ├── lint
-    │    ├── typecheck
-    │    ├── test (unit + RLS)
-    │    └── build
+    │    ├── pnpm install
+    │    ├── lint (eslint)
+    │    ├── typecheck (tsc --noEmit)
+    │    ├── test (vitest run, all packages)
+    │    └── build (turbo build)
     │
-    ├──→ Vercel (API Server)
-    │    └── 自動デプロイ（Vercel GitHub Integration）
+    ├──→ Vercel（API Server）
+    │    └── GitHub Integration が自動デプロイ
     │
-    └──→ [手動 or Webhook] LiveKit SFU / Translation Agent
-         ├── SSH → LXC
-         ├── git pull
-         ├── pnpm install --frozen-lockfile
-         ├── pnpm turbo build --filter=@trancall/app-translation-agent
-         └── pm2 reload trancall-agent
+    └──→ Render（Translation Agent）
+         └── GitHub Integration が自動デプロイ
+              ├── Dockerfile build
+              └── 既存ワーカーを Rolling Restart
 ```
 
-Phase 1a では Translation Agent のデプロイは手動 SSH。
-Phase 1c で GitHub Actions → SSH デプロイの自動化を検討。
+すべて GitHub Integration で自動化する想定。SSH 経由のデプロイは廃止。
 
 ## 5. バックアップ・リカバリ
 
 | 対象 | バックアップ | 頻度 | 保持 |
 |------|------------|------|------|
-| Supabase DB | Supabase自動バックアップ | 日次 | 7日 |
-| LiveKit設定 | Git管理 | コミット時 | 永続 |
-| Agent設定 | Git管理 | コミット時 | 永続 |
-| LXC全体 | Proxmox vzdump | 週次 | 4世代 |
+| Supabase DB | Supabase 自動バックアップ | 日次 | Pro: 7日 |
+| LiveKit Cloud | LiveKit 側の責任分界 | - | - |
+| Vercel ビルド成果物 | Git tag + Vercel Deployment 履歴 | コミット時 | 90日 |
+| Render ビルド成果物 | Git tag + Render Deployment 履歴 | コミット時 | プランに依存 |
+| 環境変数 | 1Password Vault（手動同期） | 更新時 | 永続 |
 
 ## 6. ドメイン・証明書
 
 | ドメイン | 用途 | 証明書 |
 |---------|------|--------|
-| trancall.app | Webサイト + ディープリンク | Cloudflare自動 |
-| api.trancall.app | API Server | Cloudflare自動 |
-| livekit.trancall.app | LiveKit SFU WebSocket | Cloudflare自動 |
+| trancall.app | ランディング + Universal Links | Vercel + Cloudflare |
+| api.trancall.app | API Server | Vercel + Cloudflare |
+| trancall-xxxx.livekit.cloud | LiveKit SFU WebSocket | LiveKit Cloud 提供 |
 
 Apple Universal Links / Android App Links:
-- `trancall.app/.well-known/apple-app-site-association`
-- `trancall.app/.well-known/assetlinks.json`
-- 招待リンク `trancall.app/invite/{token}` のディープリンク対応
+- `https://trancall.app/.well-known/apple-app-site-association`
+- `https://trancall.app/.well-known/assetlinks.json`
+- 招待リンク `https://trancall.app/invite/{token}` のディープリンク対応
+
+## 7. 旧設計（オンプレ Proxmox）からの変更点
+
+| 旧設計 | 新設計（Phase 1a 〜） | 理由 |
+|---|---|---|
+| LiveKit を Proxmox LXC `.207` に設置 | LiveKit Cloud | グローバル展開時のエッジネットワークと TURN サーバを自前で構築する手間を回避 |
+| Translation Agent を Proxmox LXC `.208` に設置 | Render Background Worker | Phase 1a の TestFlight 期間は管理しやすさ優先 |
+| Cloudflare Tunnel 経由で公開 | Vercel / LiveKit Cloud / Render は直接公開 | Tunnel は内部資源を公開する用途、マネージドホストには不要 |
+| 固定IP `.207/.208` の重複検証必要 | 不要（IP管理が消滅） | 全てクラウドホスト |
+| LXC テンプレート 314 ベースで構築 | Render の Dockerfile（`node:22-bookworm`） | クラウドプロバイダ提供のイメージを使う |
+
+将来的にコスト最適化が必要になれば、Phase 2 以降で **LiveKit セルフホスト + Fly.io / Cloud Run** に段階的に移行する選択肢を残す。

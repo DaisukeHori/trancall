@@ -75,7 +75,7 @@ trancall/
 - Runtime: Node.js 22+
 - Package Manager: pnpm
 - Monorepo: Turborepo
-- Mobile: React Native + Expo SDK 53+
+- Mobile: React Native + Expo SDK 54+（Legacy Architecture opt-out 可能な最後のSDK。React Native 0.81 / React 19.1）
 - Desktop: Electron (Phase 3)
 - SFU: LiveKit
 - 翻訳: OpenAI GPT-Realtime-Translate

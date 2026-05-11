@@ -19,7 +19,14 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@trancall/auth": "workspace:*",
+    "@trancall/shared-kernel": "workspace:*",
+    "livekit-server-sdk": "^2.13.0",
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
+    "jose": "^5.9.6",
     "vitest": "^3.2.0"
   }
 }
