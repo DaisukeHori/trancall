@@ -2,7 +2,7 @@
  * in-memory ParticipantRepository — テスト用モック実装
  */
 
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { ok } from "@trancall/shared-kernel";
 import type { Result, AppError, RoomId } from "@trancall/shared-kernel";
 import type { ParticipantRepository } from "../../src/repositories/participant-repository.js";
