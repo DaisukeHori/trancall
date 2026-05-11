@@ -8,7 +8,7 @@
 - LiveKitAdapter実装（Room作成/削除、Token発行、参加制御）
 - AudioFrameストリームの生成・消費
 - 翻訳済みトラックのPublish制御（対象参加者のみSubscribe）
-- サンプルレート変換（PCM 16kHzに統一）
+- サンプルレート変換（PCM 24kHzに統一）
 - Track命名規約の管理: `raw-{participantId}`, `trans-{sourceId}-to-{lang}`
 - LiveKit grant / subscription policyによるアクセス制御
 

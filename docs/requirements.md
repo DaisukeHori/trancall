@@ -62,7 +62,9 @@ i18nによるUI多言語化。Phase 1では以下の3言語から開始し、順
 Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証はPhase 1aの初期実装の中で行う。翻訳パイプラインの構築がそのままPoCになるため、独立フェーズにする意義が薄い。問題が出ればPhase 1a内で設計を修正する。
 
 - LiveKit SFU + Translation Agent + GPT-RT-Translate 接続（技術検証を兼ねる）
+- client-side sidecar方式（端末→OpenAI直接）とserver-side Agent方式の両方を実装しレイテンシー比較
 - レイテンシー測定（p50/p95/p99）とバジェット分解
+- Expo SDK 53 + New Architecture + LiveKit RN SDK のビルド・実機動作検証
 - ユーザー登録・認証（Supabase Auth）
 - 連絡先管理（追加・検索・QRコード・招待リンク）
 - 1対1 foreground音声通話
@@ -127,6 +129,7 @@ Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証�
 | AUTH-006 | Googleアカウントでのソーシャルログインができる | Should |
 | AUTH-007 | Apple IDでのソーシャルログインができる | Should |
 | AUTH-008 | パスワードリセットができる | Must |
+| AUTH-009 | 初回翻訳通話前にOpenAIへの音声送信同意を取得（発信者: アプリ内同意画面、着信者: 応答後初回のみ同意画面） | Must |
 
 ### 3.2 連絡先管理（Contact モジュール）
 
@@ -146,7 +149,7 @@ Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証�
 | ID | 要件 | 優先度 |
 |----|------|--------|
 | ROOM-001 | 連絡先を選択して1対1音声通話を開始できる | Must |
-| ROOM-002 | 通話開始前に翻訳設定（ON/OFF、言語ペア、音声、字幕）を確認・変更できる | Must |
+| ROOM-002 | 初回通話時のみPre-call setupを表示。2回目以降は前回設定を記憶しスキップ（通話中から設定変更可能） | Must |
 | ROOM-003 | 通話開始前にコスト見積もりが表示される | Must |
 | ROOM-004 | 着信を受ける/拒否できる | Must |
 | ROOM-005 | 通話中にミュート/アンミュートできる | Must |
@@ -163,15 +166,16 @@ Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証�
 | TRANS-001 | 通話中に双方向リアルタイム音声翻訳が行われる | Must |
 | TRANS-002 | 翻訳はGPT-Realtime-Translate APIを使用する | Must |
 | TRANS-003 | 翻訳セッションは参加者ごと・言語方向ごとに独立して管理される | Must |
-| TRANS-004 | 翻訳音声のボイスを選択できる（12種: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, cedar, marin） | Should |
+| TRANS-004 | 翻訳音声はdynamic voice adaptation（話者の声に自動適応）で生成される。ボイス選択UIは提供しない（APIが未対応のため）。差別化要素として訴求する | — |
 | TRANS-005 | 翻訳なし（同じ言語同士）の通話もできる | Must |
-| TRANS-006 | 翻訳の遅延は体感2秒以内を目標とする | Must |
+| TRANS-006 | 翻訳の遅延はp95で3秒以内を目標とする（英日など語順差の大きいペアは4秒も許容） | Must |
+| TRANS-007 | 原音をambient passthrough（30%音量）で常時ミキシングし、翻訳音声到着時にducking。同一言語発話の無音問題を防止 | Must |
 
 ### 3.5 字幕・トランスクリプト（Transcript モジュール）
 
 | ID | 要件 | 優先度 |
 |----|------|--------|
-| SCRIPT-001 | 通話中にリアルタイム字幕（原文 + 翻訳文）が表示される | Must |
+| SCRIPT-001 | 通話中にリアルタイム字幕（原文 + 翻訳文）が表示される。原文転写にはgpt-realtime-whisperを併用（追加$0.017/min） | Must |
 | SCRIPT-002 | 字幕表示のON/OFFを切替できる | Must |
 | SCRIPT-003 | 通話終了後にトランスクリプト全文を閲覧できる | Must |
 | SCRIPT-004 | トランスクリプト内を全文検索できる | Must |
@@ -186,7 +190,7 @@ Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証�
 |----|------|--------|
 | MEDIA-001 | SFUはLiveKitを使用する | Must |
 | MEDIA-002 | Transport Adapterパターンで実装し、将来のSFU差し替えに対応する | Must |
-| MEDIA-003 | 音声フォーマットはPCM 16kHz モノラルを基本とする | Must |
+| MEDIA-003 | 音声フォーマットはPCM 24kHz モノラル（LiveKit内部は48kHz、変換はmedia adapter層）を基本とする | Must |
 | MEDIA-004 | WebRTCによるP2P〜SFU間の音声転送が行われる | Must |
 | MEDIA-005 | LiveKit Agent FrameworkでTranslation Agentをサーバー側に配置する | Must |
 | MEDIA-006 | 翻訳済み音声は独立したTrackとしてPublishされ、対象参加者のみがSubscribeする | Must |
@@ -285,7 +289,7 @@ Transcript保持期間:
 | SCR-001 | Onboarding | 初回起動時の言語選択（13言語） |
 | SCR-002 | Home (Recent) | 最近の通話一覧、検索 |
 | SCR-003 | In-call | 通話中画面（翻訳字幕、ミュート、スピーカー、終話） |
-| SCR-004 | Incoming call | 着信画面（応答/拒否、翻訳言語ペア表示、コスト表示） |
+| SCR-004 | Incoming call | 着信画面（応答/拒否、翻訳言語ペア表示）※コスト表示は発信側のみ |
 | SCR-005 | Contacts | 連絡先一覧（お気に入り、全連絡先） |
 | SCR-006 | Settings | 設定（プロフィール、翻訳設定、プラン、通知、アプリ情報） |
 | SCR-007 | Add contact | 連絡先追加（ID検索、QRスキャン、招待リンク、端末インポート） |

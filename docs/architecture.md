@@ -102,7 +102,7 @@ packages/{module}/src/
 2. Room内の全参加者の Audio Track を Subscribe
 3. 各参加者ごとに翻訳セッション判定（言語が異なる場合のみ開始）
 4. 翻訳セッションごとに:
-   a. Audio TrackからAudioFrame (PCM 16kHz mono) を取得
+   a. Audio TrackからAudioFrame (PCM 24kHz mono（LiveKit内部48kHzからadapter層で変換）) を取得
    b. GPT-RT-Translate WebSocketに送信
    c. 翻訳済み音声 + テキストを受信
    d. 翻訳済み音声を新しいAudio Trackとして Room に Publish
@@ -127,7 +127,7 @@ Room: "room-abc-123"
     └── Subscribe "mic-b" → GPT-RT-Translate(EN→JA) → Publish "trans-b-to-ja"
 ```
 
-クライアント側: Participant Aは "trans-b-to-ja" のみSubscribe。原音 "mic-b" はSubscribeしない。
+クライアント側: Participant Aは "trans-b-to-ja" をSubscribe。加えて原音 "mic-b" も30%音量でambient passthrough（同一言語発話の無音問題を防止）。翻訳音声到着時はducking。
 
 ### 5.4 グループ通話時のスケーリング（Phase 2）
 
@@ -388,6 +388,43 @@ heartbeat方式に変更:
 ### Phase構成変更（C-004）
 
 Phase 1a（MVP Core、技術検証を内包）→ Phase 1b（バックグラウンド着信）→ Phase 1c（ストア公開）に再構成。Phase 0（独立PoC）は設けない。翻訳パイプライン構築がそのままPoCになるため、独立フェーズにする意義が薄い。詳細は requirements.md を参照。
+
+
+
+### 第2回レビュー対応（2026-05-11）
+
+詳細は `docs/review-responses-v2.md` を参照。
+
+#### サンプルレート修正（C2-001）
+- 16kHz → 24kHz（OpenAI公式仕様）
+- media adapter層で 48kHz(LiveKit) ↔ 24kHz(OpenAI) 変換
+
+#### ボイス選択削除（C2-002）
+- GPT-RT-Translateはdynamic voice adaptation（話者の声に自動適応）
+- voice選択UI・パラメータを全削除
+
+#### ambient passthrough（C2-003）
+- 原音30%を常時ミキシング、翻訳到着時にducking
+- 同一言語発話（"OK" "Thank you"等）の無音問題を防止
+
+#### client-side sidecar検証（M2-004）
+- Phase 1aでserver-side AgentとClient-side sidecarの両方を実装
+- `/v1/realtime/translations/client_secrets`で短命トークン発行
+- レイテンシー比較後に採用方式を決定
+
+#### Expo New Architecture検証（C2-004）
+- Phase 1a最初のタスクでビルド・実機動作を検証
+- 失敗時: (a) New Architecture opt-out (b) Swift Native Module (c) プラットフォーム変更
+
+#### レイテンシー目標修正
+- p95で3秒以内（英日など語順差大のペアは4秒も許容）
+
+#### 着信者同意フロー（M2-015）
+- 着信者は応答後初回のみ同意画面表示
+- 拒否時は翻訳OFFで通話継続
+
+#### gpt-realtime-whisper併用（m2-002）
+- 原文転写にgpt-realtime-whisperを使用（追加$0.017/min）
 
 ## 付録: 技術選定比較
 

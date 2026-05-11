@@ -52,7 +52,7 @@ interface TranslationFacade {
 - OpenAI Realtime Translation API
   - エンドポイント: `wss://api.openai.com/v1/realtime/translations?model=gpt-realtime-translate`
   - 認証: Bearer token（サーバー側のみ）
-  - 入力: PCM 16kHz モノラル
+  - 入力: PCM 24kHz モノラル
   - 出力: 翻訳済み音声（PCM） + トランスクリプトテキスト
 
 ## ディレクトリ構造
@@ -93,4 +93,4 @@ packages/translation/
 - OpenAI APIキーはこのモジュール内でハードコードしない。環境変数またはDIで注入
 - WebSocket再接続ロジックは指数バックオフで実装
 - 翻訳セッションが異常終了した場合も `translation.ended` イベントを発行すること
-- PCM 16kHz モノラルはGPT-RT-Translateの要件。サンプルレートの変換はmediaモジュール側で行う
+- PCM 24kHz モノラルはGPT-RT-Translateの要件。サンプルレートの変換はmediaモジュール側で行う

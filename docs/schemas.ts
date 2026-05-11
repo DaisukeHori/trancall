@@ -196,7 +196,7 @@ interface RoomFacade {
 
 // --- AudioFrame: 翻訳パイプラインの入出力単位 ---
 const AudioFrameSchema = z.object({
-  sampleRate: z.literal(16000),               // GPT-RT-Translate要件
+  sampleRate: z.union([z.literal(24000), z.literal(48000)]),  // OpenAI要件: 24kHz, LiveKit内部: 48kHz
   channels: z.literal(1),                      // モノラル
   format: z.enum(["pcm16", "opus"]),
   durationMs: z.number().int().positive(),
@@ -263,11 +263,7 @@ const TranslationConfig = z.object({
   sessionId: TranslationSessionId,
   inputLanguage: InputLanguage,     // 自動検出も可 (auto)
   outputLanguage: OutputLanguage,   // 13言語限定
-  voice: z.enum([
-    "alloy", "ash", "ballad", "coral", "echo",
-    "fable", "onyx", "nova", "sage", "shimmer",
-    "cedar", "marin",
-  ]).default("alloy"),
+  // voice選択は不可。GPT-RT-Translateはdynamic voice adaptation（話者の声に自動適応）
 });
 type TranslationConfig = z.infer<typeof TranslationConfig>;
 
