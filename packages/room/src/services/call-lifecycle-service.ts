@@ -4,7 +4,7 @@
  * docs/call-lifecycle.md Section 1 と Section 4 に準拠。
  */
 
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import type { Result, AppError, UserId, RoomId } from "@trancall/shared-kernel";
 import { RoomIdSchema, UserIdSchema, err, ok } from "@trancall/shared-kernel";
 import type { BillingFacade } from "@trancall/billing";
