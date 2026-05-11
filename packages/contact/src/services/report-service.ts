@@ -4,7 +4,6 @@
 
 import {
   type Result,
-  type AppError,
   err,
 } from "@trancall/shared-kernel";
 
@@ -12,7 +11,7 @@ import type { ReportUserCommand } from "../schemas.js";
 import type { ReportRepository } from "../repositories/report-repository.js";
 
 export interface ReportService {
-  reportUser(cmd: ReportUserCommand): Promise<Result<true, AppError>>;
+  reportUser(cmd: ReportUserCommand): Promise<Result<true>>;
 }
 
 export function createReportService(
@@ -21,7 +20,7 @@ export function createReportService(
   return {
     reportUser: async (
       cmd: ReportUserCommand,
-    ): Promise<Result<true, AppError>> => {
+    ): Promise<Result<true>> => {
       // 自分自身の通報は不可
       if (cmd.userId === cmd.reportedUserId) {
         return err({

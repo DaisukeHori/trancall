@@ -7,11 +7,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ReportRepository } from "@trancall/contact";
 import type { ReportUserCommand } from "@trancall/contact";
 import { type Result, type UserId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 export function createReportRepository(supabase: SupabaseClient): ReportRepository {
   return {
-    async create(cmd: ReportUserCommand): Promise<Result<true, AppError>> {
+    async create(cmd: ReportUserCommand): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_contact")
         .from("report_events")

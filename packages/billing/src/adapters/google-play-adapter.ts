@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import type { Result, AppError } from "@trancall/shared-kernel";
+import type { Result} from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
 import type { PlanTier } from "../schemas.js";
@@ -89,7 +89,7 @@ export function createGooglePlayAdapter() {
      */
     parseWebhookPayload(
       payload: unknown,
-    ): Result<GooglePlayWebhookResult, AppError> {
+    ): Result<GooglePlayWebhookResult> {
       // Pub/Sub メッセージ形式の場合
       const pubSubParsed = GoogleRtdnMessageSchema.safeParse(payload);
       if (pubSubParsed.success) {
@@ -108,7 +108,7 @@ export function createGooglePlayAdapter() {
      */
     parseNotification(
       rawNotification: unknown,
-    ): Result<GooglePlayWebhookResult, AppError> {
+    ): Result<GooglePlayWebhookResult> {
       const parsed = DeveloperNotificationSchema.safeParse(rawNotification);
       if (!parsed.success) {
         return err({
@@ -197,7 +197,7 @@ export type GooglePlayAdapter = ReturnType<typeof createGooglePlayAdapter>;
 
 // --- ヘルパー ---
 
-function decodeBase64Json(base64: string): Result<unknown, AppError> {
+function decodeBase64Json(base64: string): Result<unknown> {
   try {
     const decoded = Buffer.from(base64, "base64").toString("utf-8");
     const parsed = JSON.parse(decoded) as unknown;

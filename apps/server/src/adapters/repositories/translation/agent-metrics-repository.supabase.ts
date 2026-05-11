@@ -8,7 +8,6 @@ import type { AgentMetricsRepository } from "@trancall/translation";
 import { AgentMetricsRecordSchema } from "@trancall/translation";
 import type { AgentMetricsRecord } from "@trancall/translation";
 import { type Result, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 export function createAgentMetricsRepository(
   supabase: SupabaseClient,
@@ -16,7 +15,7 @@ export function createAgentMetricsRepository(
   return {
     async insert(
       record: Omit<AgentMetricsRecord, "id" | "createdAt">,
-    ): Promise<Result<AgentMetricsRecord, AppError>> {
+    ): Promise<Result<AgentMetricsRecord>> {
       const id = randomUUID();
       const now = new Date().toISOString();
 

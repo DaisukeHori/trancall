@@ -6,7 +6,7 @@
  */
 
 import { type Result, err } from "@trancall/shared-kernel";
-import type { AppError, RoomId, UserId } from "@trancall/shared-kernel";
+import type { RoomId, UserId } from "@trancall/shared-kernel";
 
 export type ExportFormat = "pdf" | "txt";
 
@@ -24,7 +24,7 @@ export interface ExportService {
     roomId: RoomId,
     userId: UserId,
     format: ExportFormat,
-  ): Promise<Result<ExportResult, AppError>>;
+  ): Promise<Result<ExportResult>>;
 }
 
 export function createExportService(): ExportService {

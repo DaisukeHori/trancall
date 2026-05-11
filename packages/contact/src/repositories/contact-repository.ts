@@ -3,7 +3,6 @@
  */
 
 import type { Result } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 import type { UserId } from "@trancall/shared-kernel";
 import type { ContactEntry } from "../schemas.js";
 
@@ -15,7 +14,7 @@ export interface ContactRepository {
   add(
     userId: UserId,
     contactUserId: UserId,
-  ): Promise<Result<ContactEntry, AppError>>;
+  ): Promise<Result<ContactEntry>>;
 
   /**
    * 連絡先を削除する。
@@ -25,7 +24,7 @@ export interface ContactRepository {
   remove(
     userId: UserId,
     contactId: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * 連絡先一覧を取得する。
@@ -46,5 +45,5 @@ export interface ContactRepository {
   toggleFavorite(
     userId: UserId,
     contactId: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 }

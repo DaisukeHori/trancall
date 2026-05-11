@@ -6,7 +6,6 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TranslationEventOutboxRepository, OutboxRecord } from "@trancall/translation";
 import { type Result, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 function parseRow(row: Record<string, unknown>): OutboxRecord {
   return {
@@ -25,7 +24,7 @@ export function createTranslationEventOutboxRepository(
   return {
     async insert(
       record: Omit<OutboxRecord, "id" | "createdAt" | "processedAt">,
-    ): Promise<Result<OutboxRecord, AppError>> {
+    ): Promise<Result<OutboxRecord>> {
       const id = randomUUID();
       const now = new Date().toISOString();
 
@@ -49,7 +48,7 @@ export function createTranslationEventOutboxRepository(
       return ok(parseRow(data as Record<string, unknown>));
     },
 
-    async findUnprocessed(limit: number): Promise<Result<OutboxRecord[], AppError>> {
+    async findUnprocessed(limit: number): Promise<Result<OutboxRecord[]>> {
       const { data, error } = await supabase
         .schema("trancall_event")
         .from("translation_events")
@@ -64,7 +63,7 @@ export function createTranslationEventOutboxRepository(
       return ok((data as Record<string, unknown>[]).map(parseRow));
     },
 
-    async markProcessed(id: string): Promise<Result<void, AppError>> {
+    async markProcessed(id: string): Promise<Result<void>> {
       const { error } = await supabase
         .schema("trancall_event")
         .from("translation_events")

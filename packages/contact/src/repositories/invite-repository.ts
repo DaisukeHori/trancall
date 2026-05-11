@@ -2,7 +2,7 @@
  * InviteRepository — 招待リンクデータアクセスインターフェース
  */
 
-import type { Result, AppError, UserId } from "@trancall/shared-kernel";
+import type { Result, UserId } from "@trancall/shared-kernel";
 
 export interface InviteLink {
   id: string;
@@ -23,7 +23,7 @@ export interface InviteRepository {
     userId: UserId,
     token: string,
     expiresAt: Date,
-  ): Promise<Result<InviteLink, AppError>>;
+  ): Promise<Result<InviteLink>>;
 
   /**
    * トークンで招待リンクを取得する。
@@ -36,5 +36,5 @@ export interface InviteRepository {
   markUsed(
     token: string,
     usedBy: UserId,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 }

@@ -6,7 +6,6 @@
  */
 
 import type { Result } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 import type { UserId } from "@trancall/shared-kernel";
 
 import type { DeviceTokenRow, NotificationTarget } from "../schemas.js";
@@ -19,7 +18,7 @@ export interface DeviceTokenRepository {
   upsert(
     userId: UserId,
     target: NotificationTarget,
-  ): Promise<Result<DeviceTokenRow, AppError>>;
+  ): Promise<Result<DeviceTokenRow>>;
 
   /**
    * 指定ユーザーの指定プラットフォームのトークンをすべて取得する。
@@ -28,7 +27,7 @@ export interface DeviceTokenRepository {
   findActiveByUserId(
     userId: UserId,
     platform?: "ios" | "android",
-  ): Promise<Result<DeviceTokenRow[], AppError>>;
+  ): Promise<Result<DeviceTokenRow[]>>;
 
   /**
    * トークンを無効化する（APNs 410 Gone や FCM UNREGISTERED 受信時）。
@@ -36,7 +35,7 @@ export interface DeviceTokenRepository {
   revoke(
     platform: "ios" | "android",
     token: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * ユーザーの特定プラットフォームのトークンを削除する（ログアウト時）。
@@ -45,5 +44,5 @@ export interface DeviceTokenRepository {
     userId: UserId,
     platform: "ios" | "android",
     token: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 }

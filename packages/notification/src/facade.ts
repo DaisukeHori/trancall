@@ -4,7 +4,7 @@
  * 他モジュール (room など) はこのファサード経由でしか notification に触れない。
  */
 
-import type { Result, AppError, UserId } from "@trancall/shared-kernel";
+import type { Result, UserId } from "@trancall/shared-kernel";
 import { err } from "@trancall/shared-kernel";
 
 import type {
@@ -29,7 +29,7 @@ export interface NotificationFacade {
   registerDevice(
     userId: UserId,
     target: NotificationTarget,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * デバイストークンを削除する（ログアウト時）。
@@ -38,7 +38,7 @@ export interface NotificationFacade {
     userId: UserId,
     platform: "ios" | "android",
     token: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * 着信通知を送信する。
@@ -46,7 +46,7 @@ export interface NotificationFacade {
   sendIncomingCall(
     targetUserId: UserId,
     notification: IncomingCallNotification,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * 不在着信通知を送信する。
@@ -54,7 +54,7 @@ export interface NotificationFacade {
   sendMissedCall(
     targetUserId: UserId,
     payload: MissedCallPayload,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 }
 
 export interface NotificationFacadeDeps {

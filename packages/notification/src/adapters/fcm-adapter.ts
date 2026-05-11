@@ -30,7 +30,7 @@ export interface FcmAdapter {
   sendData(
     fcmToken: string,
     data: FcmDataPayload,
-  ): Promise<Result<FcmSendResult, AppError>>;
+  ): Promise<Result<FcmSendResult>>;
 
   /** リソース解放（テスト後のクリーンアップ用） */
   close(): Promise<void>;
@@ -83,7 +83,6 @@ export function createFcmAdapter(config: FcmAdapterConfig): FcmAdapter {
       app = admin.app(appName);
     } catch {
       // アプリがまだ初期化されていない場合
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const serviceAccount = require(config.serviceAccountJsonPath) as admin.ServiceAccount;
       app = admin.initializeApp(
         {

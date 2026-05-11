@@ -73,7 +73,6 @@ function mapApnsError(
 
 export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
   // node-apn の Provider を初期化
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   const provider = new apn.Provider({
     token: {
       key: config.keyPath,
@@ -99,7 +98,6 @@ export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
       notification.payload = { trancall: payload.trancall };
 
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
         const result = await provider.send(notification, deviceToken);
 
         const failed = result.failed as Array<{
@@ -155,7 +153,6 @@ export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
       notification.payload = payload;
 
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
         const result = await provider.send(notification, deviceToken);
 
         const failed = result.failed as Array<{
@@ -185,7 +182,6 @@ export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
           return err(mapApnsError(failure.response?.reason, failure.response?.statusCode));
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         const sent = result.sent as Array<{ device: string }>;
         const firstSent = sent[0];
         return ok({ apnsId: firstSent?.device });

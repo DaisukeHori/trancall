@@ -36,7 +36,7 @@ describe("createAuthFacade.getProfile", () => {
   it("リポジトリの戻り値をそのまま返す（正常系）", async () => {
     const repo: ProfileRepository = {
       findByUserId: vi
-        .fn<(userId: UserId) => Promise<Result<Profile, AppError>>>()
+        .fn<(userId: UserId) => Promise<Result<Profile>>>()
         .mockResolvedValue({ ok: true, data: validProfile }),
     };
     const facade = createAuthFacade(repo);
@@ -55,7 +55,7 @@ describe("createAuthFacade.getProfile", () => {
     };
     const repo: ProfileRepository = {
       findByUserId: vi
-        .fn<(userId: UserId) => Promise<Result<Profile, AppError>>>()
+        .fn<(userId: UserId) => Promise<Result<Profile>>>()
         .mockResolvedValue({ ok: false, error: upstreamError }),
     };
     const facade = createAuthFacade(repo);
@@ -74,7 +74,7 @@ describe("createAuthFacade.getProfile", () => {
     };
     const repo: ProfileRepository = {
       findByUserId: vi
-        .fn<(userId: UserId) => Promise<Result<Profile, AppError>>>()
+        .fn<(userId: UserId) => Promise<Result<Profile>>>()
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .mockResolvedValue({ ok: true, data: invalidProfile as any }),
     };

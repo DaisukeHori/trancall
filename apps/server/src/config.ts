@@ -60,7 +60,6 @@ export function loadConfig(): Config {
     const missing = result.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
       .join("\n");
-    // eslint-disable-next-line no-console
     console.error("[config] 環境変数の検証に失敗しました:\n" + missing);
     process.exit(1);
   }

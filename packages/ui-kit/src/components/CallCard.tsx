@@ -38,7 +38,7 @@ export function CallCard({
 
   const label =
     accessibilityLabel ??
-    `${missed ? "Missed call" : "Call"} with ${name}, ${String(fromLanguage)} to ${String(toLanguage)}, ${formatDuration(durationSeconds)}`;
+    `${missed ? "Missed call" : "Call"} with ${name}, ${fromLanguage} to ${toLanguage}, ${formatDuration(durationSeconds)}`;
 
   return (
     <TouchableOpacity
@@ -72,7 +72,7 @@ export function CallCard({
           {name}
         </Text>
         <Text style={[styles.sub, { color: c.textSecondary, fontSize: 13 }]}>
-          {String(fromLanguage)} → {String(toLanguage)}
+          {fromLanguage} → {toLanguage}
         </Text>
       </View>
       <View style={styles.right}>

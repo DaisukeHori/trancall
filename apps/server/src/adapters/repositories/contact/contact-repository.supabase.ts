@@ -8,9 +8,8 @@ import type { ContactRepository } from "@trancall/contact";
 import { ContactEntrySchema } from "@trancall/contact";
 import type { ContactEntry } from "@trancall/contact";
 import { type Result, type UserId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
-function parseContactRow(row: Record<string, unknown>): Result<ContactEntry, AppError> {
+function parseContactRow(row: Record<string, unknown>): Result<ContactEntry> {
   const parsed = ContactEntrySchema.safeParse({
     contactId: row["id"],
     userId: row["user_id"],
@@ -30,7 +29,7 @@ function parseContactRow(row: Record<string, unknown>): Result<ContactEntry, App
 
 export function createContactRepository(supabase: SupabaseClient): ContactRepository {
   return {
-    async add(userId: UserId, contactUserId: UserId): Promise<Result<ContactEntry, AppError>> {
+    async add(userId: UserId, contactUserId: UserId): Promise<Result<ContactEntry>> {
       const { data, error } = await supabase
         .schema("trancall_contact")
         .from("contacts")
@@ -53,7 +52,7 @@ export function createContactRepository(supabase: SupabaseClient): ContactReposi
       return parseContactRow(data as Record<string, unknown>);
     },
 
-    async remove(userId: UserId, contactId: string): Promise<Result<true, AppError>> {
+    async remove(userId: UserId, contactId: string): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_contact")
         .from("contacts")
@@ -96,7 +95,7 @@ export function createContactRepository(supabase: SupabaseClient): ContactReposi
       return (count ?? 0) > 0;
     },
 
-    async toggleFavorite(userId: UserId, contactId: string): Promise<Result<true, AppError>> {
+    async toggleFavorite(userId: UserId, contactId: string): Promise<Result<true>> {
       // まず現状取得
       const { data: existing, error: fetchErr } = await supabase
         .schema("trancall_contact")
@@ -113,7 +112,6 @@ export function createContactRepository(supabase: SupabaseClient): ContactReposi
       const { error } = await supabase
         .schema("trancall_contact")
         .from("contacts")
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         .update({ is_favorite: !existing["is_favorite"] })
         .eq("id", contactId)
         .eq("user_id", userId);

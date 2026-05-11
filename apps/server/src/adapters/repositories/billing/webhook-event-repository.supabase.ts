@@ -8,9 +8,8 @@ import type { WebhookEventRepository } from "@trancall/billing";
 import { WebhookEvent, WebhookProvider } from "@trancall/billing";
 import type { WebhookEventType, WebhookProviderType } from "@trancall/billing";
 import { type Result, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
-function parseRow(row: Record<string, unknown>): Result<WebhookEventType, AppError> {
+function parseRow(row: Record<string, unknown>): Result<WebhookEventType> {
   const parsed = WebhookEvent.safeParse({
     id: row["id"],
     provider: row["provider"],
@@ -36,7 +35,7 @@ export function createWebhookEventRepository(
       externalEventId: string;
       eventType: string;
       payload: Record<string, unknown>;
-    }): Promise<Result<{ event: WebhookEventType; isNew: boolean }, AppError>> {
+    }): Promise<Result<{ event: WebhookEventType; isNew: boolean }>> {
       const id = randomUUID();
       const now = new Date().toISOString();
 
@@ -78,7 +77,7 @@ export function createWebhookEventRepository(
       return ok({ event: eventResult.data, isNew });
     },
 
-    async markProcessed(id: string): Promise<Result<void, AppError>> {
+    async markProcessed(id: string): Promise<Result<void>> {
       const { error } = await supabase
         .schema("trancall_billing")
         .from("webhook_events")
@@ -91,7 +90,7 @@ export function createWebhookEventRepository(
       return ok(undefined);
     },
 
-    async markFailed(id: string, errorMsg: string): Promise<Result<void, AppError>> {
+    async markFailed(id: string, errorMsg: string): Promise<Result<void>> {
       const { error } = await supabase
         .schema("trancall_billing")
         .from("webhook_events")
