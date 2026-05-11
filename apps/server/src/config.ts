@@ -14,7 +14,7 @@ const ConfigSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
   // Supabase
-  SUPABASE_URL: z.string().url(),
+  SUPABASE_URL: z.url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
   // LiveKit
@@ -28,8 +28,8 @@ const ConfigSchema = z.object({
   STRIPE_PRICE_ID_LIGHT: z.string().default("price_light"),
   STRIPE_PRICE_ID_STANDARD: z.string().default("price_standard"),
   STRIPE_PRICE_ID_BUSINESS: z.string().default("price_business"),
-  STRIPE_SUCCESS_URL: z.string().url().default("https://trancall.app/billing/success"),
-  STRIPE_CANCEL_URL: z.string().url().default("https://trancall.app/billing/cancel"),
+  STRIPE_SUCCESS_URL: z.url().default("https://trancall.app/billing/success"),
+  STRIPE_CANCEL_URL: z.url().default("https://trancall.app/billing/cancel"),
 
   // APNs
   APNS_KEY_ID: z.string().min(1).optional(),
@@ -45,7 +45,7 @@ const ConfigSchema = z.object({
   TRANCALL_AGENT_HMAC_SECRET: z.string().min(32),
 
   // Invite link base URL
-  INVITE_BASE_URL: z.string().url().default("https://trancall.app/invite"),
+  INVITE_BASE_URL: z.url().default("https://trancall.app/invite"),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

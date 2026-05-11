@@ -35,13 +35,13 @@ type InsertRoomCommand = {
 
 function parseRow(row: Record<string, unknown>): Result<RoomRow, AppError> {
   const parsed = z.object({
-    room_id: z.string().uuid(),
+    room_id: z.uuid(),
     status: RoomStatusSchema,
     room_type: z.enum(["audio", "video"]),
     translation_enabled: z.boolean(),
-    created_by: z.string().uuid(),
-    created_at: z.string().datetime(),
-    ended_at: z.string().datetime().nullable(),
+    created_by: z.uuid(),
+    created_at: z.iso.datetime(),
+    ended_at: z.iso.datetime().nullable(),
   }).safeParse({
     room_id: row["room_id"],
     status: row["status"],

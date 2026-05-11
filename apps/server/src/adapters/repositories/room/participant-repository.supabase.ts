@@ -31,13 +31,13 @@ type UpsertParticipantCommand = {
 };
 
 const ParticipantRowSchema = z.object({
-  id: z.string().uuid(),
-  room_id: z.string().uuid(),
-  user_id: z.string().uuid(),
+  id: z.uuid(),
+  room_id: z.uuid(),
+  user_id: z.uuid(),
   role: z.enum(["host", "member"]),
   is_muted: z.boolean(),
-  joined_at: z.string().datetime(),
-  left_at: z.string().datetime().nullable(),
+  joined_at: z.iso.datetime(),
+  left_at: z.iso.datetime().nullable(),
 });
 
 function parseRow(row: Record<string, unknown>): Result<ParticipantRow, AppError> {

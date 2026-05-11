@@ -38,7 +38,7 @@ export interface CreateCheckoutResult {
 
 // Stripe Checkout Session 作成時のメタデータスキーマ（検証用）
 const CheckoutMetadataSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   tier: z.enum(["free", "light", "standard", "business"]),
   channel: z.enum(["stripe_web", "storekit_external"]),
 });

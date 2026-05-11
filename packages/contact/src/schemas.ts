@@ -21,7 +21,7 @@ export const PublicProfileSchema = z.object({
   trancallId: z.string().min(3).max(30),
   displayName: z.string().min(1).max(50),
   nativeLanguage: OutputLanguage,
-  avatarUrl: z.string().url().nullable(),
+  avatarUrl: z.url().nullable(),
 });
 export type PublicProfile = z.infer<typeof PublicProfileSchema>;
 
@@ -30,13 +30,13 @@ export type PublicProfile = z.infer<typeof PublicProfileSchema>;
 // =============================================================================
 
 export const ContactEntrySchema = z.object({
-  contactId: z.string().uuid(),
+  contactId: z.uuid(),
   userId: UserIdSchema,
   contactUserId: UserIdSchema,
   displayName: z.string(),
   nativeLanguage: OutputLanguage,
-  avatarUrl: z.string().url().nullable(),
-  addedAt: z.string().datetime(),
+  avatarUrl: z.url().nullable(),
+  addedAt: z.iso.datetime(),
   isFavorite: z.boolean(),
   trancallId: z.string().min(3).max(30),
 });

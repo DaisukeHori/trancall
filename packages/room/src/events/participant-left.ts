@@ -15,7 +15,7 @@ import {
 export const ParticipantLeftPayloadSchema = z.object({
   roomId: RoomIdSchema,
   userId: UserIdSchema,
-  leftAt: z.string().datetime(),
+  leftAt: z.iso.datetime(),
 });
 export type ParticipantLeftPayload = z.infer<typeof ParticipantLeftPayloadSchema>;
 

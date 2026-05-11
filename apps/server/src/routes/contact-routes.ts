@@ -17,16 +17,16 @@ import { brandUserId } from "@trancall/shared-kernel";
 import { getHttpStatus } from "../middleware/error-handler.js";
 
 const AddContactSchema = z.object({
-  contactUserId: z.string().uuid(),
+  contactUserId: z.uuid(),
 });
 
 const BlockSchema = z.object({
-  blockedUserId: z.string().uuid(),
+  blockedUserId: z.uuid(),
   reason: z.string().optional(),
 });
 
 const ReportSchema = z.object({
-  reportedUserId: z.string().uuid(),
+  reportedUserId: z.uuid(),
   reason: z.enum(["spam", "harassment", "impersonation", "other"]),
   details: z.string().optional(),
 });
