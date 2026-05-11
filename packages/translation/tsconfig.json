@@ -2,8 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["dist", "node_modules", "__tests__"]
+  "exclude": ["dist", "node_modules", "__tests__"],
+  "references": [
+    { "path": "../shared-kernel" }
+  ]
 }

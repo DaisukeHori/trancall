@@ -1,0 +1,38 @@
+/**
+ * ReportService — 通報ドメインサービス
+ */
+
+import {
+  type Result,
+  type AppError,
+  err,
+} from "@trancall/shared-kernel";
+
+import type { ReportUserCommand } from "../schemas.js";
+import type { ReportRepository } from "../repositories/report-repository.js";
+
+export interface ReportService {
+  reportUser(cmd: ReportUserCommand): Promise<Result<true, AppError>>;
+}
+
+export function createReportService(
+  reportRepo: ReportRepository,
+): ReportService {
+  return {
+    reportUser: async (
+      cmd: ReportUserCommand,
+    ): Promise<Result<true, AppError>> => {
+      // 自分自身の通報は不可
+      if (cmd.userId === cmd.reportedUserId) {
+        return err({
+          code: "VALIDATION_ERROR",
+          message: "自分を通報することはできません",
+          retryable: false,
+          httpStatus: 400,
+        });
+      }
+
+      return reportRepo.create(cmd);
+    },
+  };
+}

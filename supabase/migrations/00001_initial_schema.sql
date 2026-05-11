@@ -130,7 +130,7 @@ CREATE TABLE trancall_billing.subscriptions (
   user_id                 UUID NOT NULL UNIQUE REFERENCES trancall_auth.profiles(user_id),
   plan_tier               VARCHAR(10) NOT NULL DEFAULT 'free'
                             CHECK (plan_tier IN ('free', 'light', 'standard', 'business')),
-  included_minutes        INTEGER NOT NULL DEFAULT 3,
+  included_minutes        INTEGER NOT NULL DEFAULT 5,
   overage_rate_yen        INTEGER NOT NULL DEFAULT 0,
   monthly_price_yen       INTEGER NOT NULL DEFAULT 0,
   transcript_retention_days INTEGER NOT NULL DEFAULT 7,
