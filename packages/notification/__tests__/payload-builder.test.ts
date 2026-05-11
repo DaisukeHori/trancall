@@ -28,6 +28,7 @@ const baseNotification: IncomingCallNotification = {
 
 const baseMissed: MissedCallPayload = {
   callerName: "John Wang",
+  callerTrancallId: "@johnwang_sf",
   callerAvatarUrl: null,
   roomId,
   timestamp: "2026-05-11T10:00:00Z",
@@ -92,12 +93,21 @@ describe("buildFcmIncomingCallPayload", () => {
 describe("buildApnsMissedCallPayload", () => {
   it("missed_call payload が正しい型を含む", () => {
     const payload = buildApnsMissedCallPayload(baseMissed) as {
-      aps: object;
-      trancall: { type: string; roomId: string; callerName: string; callerAvatarUrl: null; timestamp: string };
+      aps: { alert: { title: string; body: string }; "content-available": number };
+      trancall: { type: string; roomId: string; callerName: string; callerTrancallId: string; callerAvatarUrl: null; timestamp: string };
     };
     expect(payload.trancall.type).toBe("missed_call");
     expect(payload.trancall.callerName).toBe("John Wang");
+    expect(payload.trancall.callerTrancallId).toBe("@johnwang_sf");
     expect(payload.trancall.callerAvatarUrl).toBeNull();
+  });
+
+  it("body フォーマットが \"{callerName} ({callerTrancallId})\" であること", () => {
+    const payload = buildApnsMissedCallPayload(baseMissed) as {
+      aps: { alert: { title: string; body: string } };
+      trancall: Record<string, unknown>;
+    };
+    expect(payload.aps.alert.body).toBe("John Wang (@johnwang_sf)");
   });
 });
 
@@ -106,7 +116,15 @@ describe("buildFcmMissedCallPayload", () => {
     const payload = buildFcmMissedCallPayload(baseMissed);
     expect(payload.type).toBe("missed_call");
     expect(payload.callerName).toBe("John Wang");
+    expect(payload.callerTrancallId).toBe("@johnwang_sf");
     expect(payload.callerAvatarUrl).toBeNull();
     expect(payload.roomId).toBe(baseMissed.roomId);
+  });
+
+  it("body フォーマットが \"{callerName} ({callerTrancallId})\" であること", () => {
+    // FCM missed_call には notification.body がないため callerTrancallId フィールドを直接検証
+    const payload = buildFcmMissedCallPayload(baseMissed);
+    expect(payload.callerTrancallId).toBe("@johnwang_sf");
+    expect(`${payload.callerName} (${payload.callerTrancallId})`).toBe("John Wang (@johnwang_sf)");
   });
 });

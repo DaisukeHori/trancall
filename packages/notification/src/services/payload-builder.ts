@@ -47,7 +47,7 @@ export function buildApnsMissedCallPayload(missed: MissedCallPayload): Record<st
     aps: {
       alert: {
         title: "Missed call",
-        body: missed.callerName,
+        body: `${missed.callerName} (${missed.callerTrancallId})`,
       },
       "content-available": 1,
     },
@@ -55,6 +55,7 @@ export function buildApnsMissedCallPayload(missed: MissedCallPayload): Record<st
       type: "missed_call",
       roomId: missed.roomId,
       callerName: missed.callerName,
+      callerTrancallId: missed.callerTrancallId,
       callerAvatarUrl: missed.callerAvatarUrl,
       timestamp: missed.timestamp,
     },
@@ -95,6 +96,7 @@ export function buildFcmMissedCallPayload(missed: MissedCallPayload): FcmDataPay
     type: "missed_call",
     roomId: missed.roomId,
     callerName: missed.callerName,
+    callerTrancallId: missed.callerTrancallId,
     callerAvatarUrl: missed.callerAvatarUrl,
     timestamp: missed.timestamp,
   };

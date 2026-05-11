@@ -50,6 +50,7 @@ export type IncomingCallNotification = z.infer<typeof IncomingCallNotificationSc
 
 export const MissedCallPayloadSchema = z.object({
   callerName: z.string().min(1),
+  callerTrancallId: z.string().min(1),
   callerAvatarUrl: z.string().url().nullable(),
   roomId: RoomIdSchema,
   timestamp: z.string().datetime(),
