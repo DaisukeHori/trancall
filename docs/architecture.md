@@ -44,9 +44,8 @@
 
 - shared-kernel ← 全モジュールが依存
 - contact → auth (ユーザー検索)
-- room → signaling (Token発行)
-- media/adapters/livekit → LiveKit Server SDK（signalingを統合）
-- media → translation (翻訳呼び出し) + signaling (Track制御)
+- media/adapters/livekit → LiveKit Server SDK
+- media → translation (翻訳呼び出し)
 - translation → OpenAI GPT-RT-Translate
 - billing ← translation.ended イベントを購読
 - transcript ← translation (TranslatedFrame受信)
@@ -275,7 +274,7 @@ segment本体はimmutable。ユーザーごとの可視性・削除・export権�
 | POST | /api/rooms/:id/join | room | Room参加 |
 | POST | /api/rooms/:id/leave | room | Room退出 |
 | GET | /api/rooms/history | room | 通話履歴 |
-| POST | /api/rooms/:id/token | signaling | LiveKit Token取得 |
+| POST | /api/rooms/:id/token | media | LiveKit Token取得（media/adapters/livekit経由） |
 | GET | /api/billing/subscription | billing | プラン取得 |
 | POST | /api/billing/checkout | billing | Stripeチェックアウト |
 | POST | /api/billing/webhook/stripe | billing | Stripe Webhook |
@@ -411,14 +410,59 @@ Phase 1a（MVP Core、技術検証を内包）→ Phase 1b（バックグラウ�
 
 
 
-#### OpenAI silence連続投入（M-014）
 
-OpenAI Realtime Translationは音声を継続的にappendし、silence も含めて送る設計を前提とする。
-Agent側でVADにより無音を切りすぎると、ターン検出・話者切替・翻訳タイミングが不安定になる。
-- VADは翻訳停止判定には使わない（OpenAI側のターン検出に委ねる）
-- silence paddingを含めて連続ストリームとして送信
+### 5.5 言語ペア検出と翻訳セッション制御
+
+#### 検出方式
+
+参加者のプロフィール `nativeLanguage` を信頼する方式を採用。
+
+| 判定 | 動作 |
+|------|------|
+| A.nativeLanguage ≠ B.nativeLanguage | 双方向翻訳セッション開始 |
+| A.nativeLanguage = B.nativeLanguage | 翻訳セッション不要、通常通話 |
+
+#### 同一言語発話の扱い（C2-003対応）
+
+日本語話者が "OK" "Thank you" と英語で発話した場合、GPT-RT-Translate は出力言語と同じ言語の入力を翻訳しない可能性がある。
+
+Phase 1a技術検証で確認すべき項目:
+- 同言語発話時にOpenAI APIが何を返すか（pass-through / 空 / 強制翻訳）
+- 無音区間の長さと頻度
+
+対策（実装済み設計）:
+- ambient passthrough 30% で原音を常時ミキシング
+- 翻訳音声到着時はducking（原音10%、翻訳90%）
+- 翻訳が空の区間は原音30%がそのまま聞こえる
+
+#### InputLanguage = "auto" の利用
+
+翻訳セッション作成時、`inputLanguage` は参加者のプロフィール `nativeLanguage` を設定する。
+"auto" は使用しない（同言語判定ができず、不要な翻訳セッションが発生するため）。
+
+### 5.6 翻訳プロバイダー抽象化
+
+Phase 1はOpenAI GPT-Realtime-Translateのみだが、以下のリスクに備えてFacade層で差し替え可能にする:
+
+- OpenAI API価格改定
+- OpenAI サービス障害
+- GPT-Realtime-Translate（2026年5月リリース）の品質・安定性問題
+
+Translation Facadeの背後で `OpenAIRealtimeTranslator` を実装し、将来的に以下のプロバイダーを追加可能にする:
+- Google Cloud Speech-to-Speech Translation
+- Azure Speech Translation
+- ElevenLabs Voice Translation
+
+ただしPhase 1では抽象インターフェースを先行して作らず、OpenAI実装を直接書く。
+
+### 5.7 OpenAI silence 連続投入
+
+OpenAI Realtime Translation は音声 + silence の連続ストリームを前提とする。
+- Agent側のVADは翻訳停止判定に使わない（OpenAI側のターン検出に委ねる）
+- silence paddingを含めて連続送信
 - barge-in（話者割り込み）時はOpenAI側が自動処理
 - packet loss時は欠落として送信、再送しない
+- OpenAI出力は200msフレーム単位（inherent frame granularity）
 
 ### 第2回レビュー対応（2026-05-11）
 
@@ -436,10 +480,12 @@ Agent側でVADにより無音を切りすぎると、ターン検出・話者切
 - 原音30%を常時ミキシング、翻訳到着時にducking
 - 同一言語発話（"OK" "Thank you"等）の無音問題を防止
 
-#### client-side sidecar検証（M2-004）
-- Phase 1aでserver-side AgentとClient-side sidecarの両方を実装
-- `/v1/realtime/translations/client_secrets`で短命トークン発行
-- レイテンシー比較後に採用方式を決定
+#### 翻訳パイプライン方式（確定）
+- **server-side Agent + LiveKit edge network 一本**に確定
+- client-side sidecarは OpenAI/LiveKit 公式がモバイルでは非推奨のため不採用
+- OpenAI公式: "WebSocket is not ideal for realtime audio over slower networks"
+- LiveKit公式: "LiveKit bridges this gap by converting transport to WebRTC"
+- Agent placementはap-northeast-1の同一リージョンに配置しレイテンシー最小化
 
 #### Expo New Architecture検証（C2-004）
 - Phase 1a最初のタスクでビルド・実機動作を検証

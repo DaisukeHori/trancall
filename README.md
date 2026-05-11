@@ -18,13 +18,32 @@ TranCallはGPT-Realtime-Translateを活用したリアルタイム翻訳付きVo
 
 **出力**: English, Español, Português, Français, 日本語, Русский, 中文, Deutsch, 한국어, हिन्दी, Bahasa Indonesia, Tiếng Việt, Italiano
 
+
+## 差別化（2026年5月時点）
+
+Apple Phone Live Translation（iOS 26〜）との比較:
+
+| | TranCall | Apple純正 |
+|---|---|---|
+| 対応端末 | **全iOS + 全Android** | iPhone 15 Pro以降のみ |
+| トランスクリプト | **保存・検索・エクスポート** | 保存なし（オンデバイス） |
+| 通話コスト | VoIP（データ通信のみ） | 国際電話料金（60-360円/分） |
+| 対応言語（2026/5） | 13出力言語 | 5言語（拡大中） |
+| プライバシー | クラウド処理（同意制） | オンデバイス |
+| B2B機能 | 通話ログ・監査・検索 | なし |
+
+TranCallの主要ターゲット:
+1. iPhone 15 Pro未満 / Android（Apple Intelligence非対応）
+2. B2Bログ・トランスクリプト要件
+3. VoIP経済圏（国際電話料金を避けたいユーザー）
+
 ## アーキテクチャ
 
 モジュラーモノリス + Zodスキーマによる型安全なモジュール境界
 
 ```
 trancall/
-├── packages/           # ドメインモジュール（10モジュール + 1 deprecated）
+├── packages/           # ドメインモジュール（10モジュール）
 │   ├── shared-kernel/  # 共通型・EventBus・DI
 │   ├── auth/           # 認証・ユーザー管理
 │   ├── room/           # 通話セッション管理

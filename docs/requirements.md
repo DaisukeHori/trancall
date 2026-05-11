@@ -62,9 +62,8 @@ i18nによるUI多言語化。Phase 1では以下の3言語から開始し、順
 Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証はPhase 1aの初期実装の中で行う。翻訳パイプラインの構築がそのままPoCになるため、独立フェーズにする意義が薄い。問題が出ればPhase 1a内で設計を修正する。
 
 - LiveKit SFU + Translation Agent + GPT-RT-Translate 接続（技術検証を兼ねる）
-- client-side sidecar方式（端末→OpenAI直接）とserver-side Agent方式の両方を実装しレイテンシー比較
 - レイテンシー測定（p50/p95/p99）とバジェット分解
-- Expo SDK 53 + New Architecture + LiveKit RN SDK のビルド・実機動作検証
+- Expo最新安定SDK + New Architecture + LiveKit RN SDK のビルド・実機動作検証
 - CallKit/ConnectionService/Bluetooth/バックグラウンド復帰の実現性検証（1画面技術検証アプリで確認、実装はPhase 1b）
 - ユーザー登録・認証（Supabase Auth）
 - 連絡先管理（追加・検索・QRコード・招待リンク）
