@@ -6,9 +6,24 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/index.ts dev",
+    "gate-check": "tsx scripts/gate-check.ts",
     "test": "vitest run",
-    "lint": "eslint src/",
+    "lint": "eslint src/ scripts/",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.0.47",
+    "@livekit/rtc-node": "^0.13.5",
+    "@trancall/shared-kernel": "workspace:*",
+    "livekit-server-sdk": "^2.13.0",
+    "ws": "^8.18.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "vitest": "^3.2.0"
   }
 }
