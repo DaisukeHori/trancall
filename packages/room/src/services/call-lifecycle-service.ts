@@ -136,7 +136,6 @@ export function createCallLifecycleService(
 
       // 6. EventBus.publish room.created
       const event = createRoomCreatedEvent({
-        eventId: randomUUID(),
         roomId,
         creatorId,
         inviteeIds,
@@ -213,7 +212,6 @@ export function createCallLifecycleService(
           if (!parsedUserId.success) return Promise.resolve();
           return eventBus.publish(
             createParticipantLeftEvent({
-              eventId: randomUUID(),
               roomId,
               userId: parsedUserId.data,
               leftAt,

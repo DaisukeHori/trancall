@@ -4,7 +4,6 @@
  * docs/call-lifecycle.md Section 2 に準拠。
  */
 
-import { randomUUID } from "crypto";
 import type { Result, AppError, UserId, RoomId } from "@trancall/shared-kernel";
 
 import type { RoomState } from "../schemas.js";
@@ -73,7 +72,6 @@ export function createJoinService(deps: JoinServiceDeps): JoinService {
       // 4. EventBus.publish room.participant_joined
       // userId は UserId (Branded Type) なのでそのまま渡せる
       const event = createParticipantJoinedEvent({
-        eventId: randomUUID(),
         roomId,
         userId,
         role: "member",

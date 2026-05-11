@@ -118,9 +118,9 @@ describe("JoinService.joinCall", () => {
       (e) => (e as { type: string }).type === "room.participant_joined",
     );
     expect(joinedEvents).toHaveLength(1);
-    const event = joinedEvents[0] as { roomId: string; userId: string };
-    expect(event.roomId).toBe(testRoomId);
-    expect(event.userId).toBe(userId2);
+    const event = joinedEvents[0] as { payload: { roomId: string; userId: string } };
+    expect(event.payload.roomId).toBe(testRoomId);
+    expect(event.payload.userId).toBe(userId2);
   });
 
   it("複数ユーザーが join できる", async () => {
