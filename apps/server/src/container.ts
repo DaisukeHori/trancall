@@ -38,31 +38,31 @@ import { createRoomFacade } from "@trancall/room";
 import type { RoomFacade } from "@trancall/room";
 
 // Repositories — auth
-import { createProfileRepository } from "./repositories/auth/profile-repository.supabase.js";
+import { createProfileRepository } from "./adapters/repositories/auth/profile-repository.supabase.js";
 // Repositories — billing
-import { createSubscriptionRepository } from "./repositories/billing/subscription-repository.supabase.js";
-import { createUsageRepository } from "./repositories/billing/usage-repository.supabase.js";
-import { createReservationRepository } from "./repositories/billing/reservation-repository.supabase.js";
-import { createWebhookEventRepository } from "./repositories/billing/webhook-event-repository.supabase.js";
+import { createSubscriptionRepository } from "./adapters/repositories/billing/subscription-repository.supabase.js";
+import { createUsageRepository } from "./adapters/repositories/billing/usage-repository.supabase.js";
+import { createReservationRepository } from "./adapters/repositories/billing/reservation-repository.supabase.js";
+import { createWebhookEventRepository } from "./adapters/repositories/billing/webhook-event-repository.supabase.js";
 // Repositories — contact
-import { createContactRepository } from "./repositories/contact/contact-repository.supabase.js";
-import { createBlockRepository } from "./repositories/contact/block-repository.supabase.js";
-import { createInviteRepository } from "./repositories/contact/invite-repository.supabase.js";
-import { createProfileSearchRepository } from "./repositories/contact/profile-search-repository.supabase.js";
-import { createReportRepository } from "./repositories/contact/report-repository.supabase.js";
+import { createContactRepository } from "./adapters/repositories/contact/contact-repository.supabase.js";
+import { createBlockRepository } from "./adapters/repositories/contact/block-repository.supabase.js";
+import { createInviteRepository } from "./adapters/repositories/contact/invite-repository.supabase.js";
+import { createProfileSearchRepository } from "./adapters/repositories/contact/profile-search-repository.supabase.js";
+import { createReportRepository } from "./adapters/repositories/contact/report-repository.supabase.js";
 // Repositories — notification
-import { createDeviceTokenRepository } from "./repositories/notification/device-token-repository.supabase.js";
-import { createPushLogRepository } from "./repositories/notification/push-log-repository.supabase.js";
+import { createDeviceTokenRepository } from "./adapters/repositories/notification/device-token-repository.supabase.js";
+import { createPushLogRepository } from "./adapters/repositories/notification/push-log-repository.supabase.js";
 // Repositories — transcript
-import { createSegmentRepository } from "./repositories/transcript/segment-repository.supabase.js";
-import { createAccessRepository } from "./repositories/transcript/access-repository.supabase.js";
+import { createSegmentRepository } from "./adapters/repositories/transcript/segment-repository.supabase.js";
+import { createAccessRepository } from "./adapters/repositories/transcript/access-repository.supabase.js";
 // Repositories — translation
-import { createTranslationSessionRepository } from "./repositories/translation/translation-session-repository.supabase.js";
-import { createAgentMetricsRepository } from "./repositories/translation/agent-metrics-repository.supabase.js";
-import { createTranslationEventOutboxRepository } from "./repositories/translation/translation-event-outbox-repository.supabase.js";
+import { createTranslationSessionRepository } from "./adapters/repositories/translation/translation-session-repository.supabase.js";
+import { createAgentMetricsRepository } from "./adapters/repositories/translation/agent-metrics-repository.supabase.js";
+import { createTranslationEventOutboxRepository } from "./adapters/repositories/translation/translation-event-outbox-repository.supabase.js";
 // Repositories — room
-import { createRoomRepository } from "./repositories/room/room-repository.supabase.js";
-import { createParticipantRepository } from "./repositories/room/participant-repository.supabase.js";
+import { createRoomRepository } from "./adapters/repositories/room/room-repository.supabase.js";
+import { createParticipantRepository } from "./adapters/repositories/room/participant-repository.supabase.js";
 
 // Adapters
 import { buildLiveKitAdapter } from "./adapters/livekit-adapter.js";
@@ -71,8 +71,8 @@ import { buildAppleIapAdapter, buildGooglePlayAdapter } from "./adapters/iap-ada
 import { buildApnsAdapter, buildFcmAdapter } from "./adapters/notification-adapters.js";
 
 // EventBus
-import { createEventBus } from "./event-bus.js";
-import type { EventBus } from "./event-bus.js";
+import { createEventBus } from "./adapters/event-bus.js";
+import type { EventBus } from "./adapters/event-bus.js";
 
 import type { Config } from "./config.js";
 

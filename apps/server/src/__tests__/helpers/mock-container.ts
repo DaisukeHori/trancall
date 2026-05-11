@@ -6,7 +6,7 @@
 
 import { vi } from "vitest";
 import type { AppContainer } from "../../container.js";
-import { createEventBus } from "../../event-bus.js";
+import { createEventBus } from "../../adapters/event-bus.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserId, RoomId } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";

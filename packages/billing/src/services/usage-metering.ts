@@ -11,7 +11,6 @@
 import {
   type Result,
   type AppError,
-  type UserId,
   ok,
   err,
 } from "@trancall/shared-kernel";

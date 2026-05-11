@@ -29,6 +29,8 @@ const IssueTokenSchema = z.object({
   roomName: z.string().optional(),
 });
 
+const RoomParamsSchema = z.object({ id: z.string() });
+
 const RESERVE_MINUTES = 60; // デフォルト予約分数
 
 export function registerRoomRoutes(
@@ -86,7 +88,11 @@ export function registerRoomRoutes(
 
   // GET /api/rooms/:id
   fastify.get("/api/rooms/:id", async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string };
+    const parsedParams = RoomParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "id は必須です", retryable: false } });
+    }
+    const { id } = parsedParams.data;
     const roomIdResult = brandRoomId(id);
     if (!roomIdResult.success) {
       return reply.status(400).send({
@@ -104,7 +110,11 @@ export function registerRoomRoutes(
 
   // POST /api/rooms/:id/join
   fastify.post("/api/rooms/:id/join", async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string };
+    const parsedParams = RoomParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "id は必須です", retryable: false } });
+    }
+    const { id } = parsedParams.data;
     const roomIdResult = brandRoomId(id);
     if (!roomIdResult.success) {
       return reply.status(400).send({
@@ -122,7 +132,11 @@ export function registerRoomRoutes(
 
   // POST /api/rooms/:id/leave (endCall 相当)
   fastify.post("/api/rooms/:id/leave", async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string };
+    const parsedParams = RoomParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "id は必須です", retryable: false } });
+    }
+    const { id } = parsedParams.data;
     const roomIdResult = brandRoomId(id);
     if (!roomIdResult.success) {
       return reply.status(400).send({
@@ -147,7 +161,11 @@ export function registerRoomRoutes(
 
   // POST /api/rooms/:id/token (LiveKit token 発行)
   fastify.post("/api/rooms/:id/token", async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string };
+    const parsedParams = RoomParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "id は必須です", retryable: false } });
+    }
+    const { id } = parsedParams.data;
     const roomIdResult = brandRoomId(id);
     if (!roomIdResult.success) {
       return reply.status(400).send({

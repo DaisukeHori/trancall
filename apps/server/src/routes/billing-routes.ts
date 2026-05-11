@@ -11,7 +11,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { BillingFacade } from "@trancall/billing";
-import type { PlanTierType } from "@trancall/billing";
 import { getHttpStatus } from "../middleware/error-handler.js";
 
 const CheckoutSchema = z.object({
@@ -44,8 +43,8 @@ export function registerBillingRoutes(
       });
     }
 
-    const tier = parsed.data["tier"] as PlanTierType;
-    const paymentMethod = parsed.data["paymentMethod"] as "stripe_web" | "storekit_external";
+    const tier = parsed.data.tier;
+    const paymentMethod = parsed.data.paymentMethod;
 
     const result = await billing.createCheckoutSession(
       request.userId,

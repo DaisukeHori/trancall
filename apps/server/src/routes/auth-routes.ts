@@ -138,8 +138,8 @@ export function registerAuthRoutes(
         user: {
           userId: user.id,
           email: user.email,
-          displayName: user.user_metadata?.["display_name"],
-          nativeLanguage: user.user_metadata?.["native_language"],
+          displayName: typeof user.user_metadata?.["display_name"] === "string" ? user.user_metadata["display_name"] : null,
+          nativeLanguage: typeof user.user_metadata?.["native_language"] === "string" ? user.user_metadata["native_language"] : null,
           trancallId: null,
           avatarUrl: null,
           consentVersion: null,

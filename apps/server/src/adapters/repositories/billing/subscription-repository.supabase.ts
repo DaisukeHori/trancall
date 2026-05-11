@@ -4,7 +4,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SubscriptionRepository } from "@trancall/billing";
-import { SubscriptionRow, PlanTier, PurchaseChannel, PLAN_CONFIGS } from "@trancall/billing";
+import { SubscriptionRow, PLAN_CONFIGS } from "@trancall/billing";
 import type { SubscriptionRowType, PlanTierType, PurchaseChannelType } from "@trancall/billing";
 import { type Result, type UserId, err, ok } from "@trancall/shared-kernel";
 import type { AppError } from "@trancall/shared-kernel";
@@ -47,7 +47,7 @@ export function createSubscriptionRepository(
       userId: UserId,
       data: Partial<Omit<SubscriptionRowType, "id" | "user_id" | "created_at">>,
     ): Promise<Result<SubscriptionRowType, AppError>> {
-      const tier: PlanTierType = (data["plan_tier"] as PlanTierType | undefined) ?? "free";
+      const tier: PlanTierType = data["plan_tier"] ?? "free";
       const planConfig = PLAN_CONFIGS[tier];
       const now = new Date().toISOString();
 
@@ -58,7 +58,7 @@ export function createSubscriptionRepository(
         overage_rate_yen: planConfig.overageRateYen,
         monthly_price_yen: planConfig.monthlyPriceYen,
         transcript_retention_days: planConfig.transcriptRetentionDays,
-        purchase_channel: (data["purchase_channel"] as PurchaseChannelType | undefined) ?? "free",
+        purchase_channel: data["purchase_channel"] ?? "free",
         cancel_at_period_end: data["cancel_at_period_end"] ?? false,
         stripe_customer_id: data["stripe_customer_id"] ?? null,
         stripe_subscription_id: data["stripe_subscription_id"] ?? null,

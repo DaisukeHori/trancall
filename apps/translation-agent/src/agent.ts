@@ -94,7 +94,7 @@ export default defineAgent({
     //   Phase 1a は 1対1 のみなので最大 2 セッション。
     const sessions = new Map<string, TranslationSession>();
 
-    function sessionKey(sourceParticipantId: string, outputLanguage: string): string {
+    function _sessionKey(sourceParticipantId: string, outputLanguage: string): string {
       return `${sourceParticipantId}-${outputLanguage}`;
     }
 
@@ -124,7 +124,7 @@ export default defineAgent({
       //     for (const other of ctx.room.remoteParticipants.values()) {
       //       const otherMeta = parseParticipantMetadata(other.metadata);
       //       const sess = new TranslationSession({...});
-      //       sessions.set(sessionKey(other.sid, meta.nativeLanguage), sess);
+      //       sessions.set(_sessionKey(other.sid, meta.nativeLanguage), sess);
       //       await sess.start();
       //     }
     }

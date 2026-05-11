@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { createEventBus } from "../event-bus.js";
+import { createEventBus } from "../adapters/event-bus.js";
 import type { RoomCreatedEvent } from "@trancall/room";
 
 function makeRoomCreatedEvent(): RoomCreatedEvent {

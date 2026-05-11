@@ -6,7 +6,7 @@
  * - canView: can_view=true AND deleted_at IS NULL チェック
  */
 
-import { type Result, ok, err } from "@trancall/shared-kernel";
+import { type Result, ok } from "@trancall/shared-kernel";
 import type { AppError, RoomId, UserId } from "@trancall/shared-kernel";
 import type { AccessRepository } from "../repositories/access-repository.js";
 

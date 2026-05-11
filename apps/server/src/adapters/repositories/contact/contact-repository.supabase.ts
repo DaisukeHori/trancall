@@ -113,7 +113,8 @@ export function createContactRepository(supabase: SupabaseClient): ContactReposi
       const { error } = await supabase
         .schema("trancall_contact")
         .from("contacts")
-        .update({ is_favorite: !(existing as { is_favorite: boolean })["is_favorite"] })
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        .update({ is_favorite: !existing["is_favorite"] })
         .eq("id", contactId)
         .eq("user_id", userId);
 

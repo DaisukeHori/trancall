@@ -96,7 +96,7 @@ export function createPushDispatcher(deps: PushDispatcherDeps): PushDispatcher {
     sendFn: () => Promise<Result<unknown, AppError>>,
     notificationType: "incoming_call" | "missed_call",
     targetUserId: UserId,
-    roomId: IncomingCallNotification["roomId"] | MissedCallPayload["roomId"] | null,
+    roomId: IncomingCallNotification["roomId"] | null,
   ): Promise<Result<true, AppError>> {
     const result = await withRetry(sendFn, delay);
 

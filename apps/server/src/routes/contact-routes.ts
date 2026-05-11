@@ -78,7 +78,11 @@ export function registerContactRoutes(
 
   // DELETE /api/contacts/:id
   fastify.delete("/api/contacts/:id", async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string };
+    const parsedParams = z.object({ id: z.string() }).safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "id は必須です", retryable: false } });
+    }
+    const { id } = parsedParams.data;
     const result = await contact.removeContact(request.userId, id);
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });

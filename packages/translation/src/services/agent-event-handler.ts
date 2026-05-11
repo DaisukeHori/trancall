@@ -69,7 +69,8 @@ export async function handleAgentEvent(
         ok: false,
         error: {
           code: "VALIDATION_ERROR",
-          message: `未知のイベント type: ${String((_never as { type: string }).type)}`,
+          // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+          message: `未知のイベント type: ${(_never as Record<string, unknown>)["type"] as string}`,
           retryable: false,
         },
       };

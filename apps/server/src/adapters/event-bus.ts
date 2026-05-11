@@ -66,9 +66,10 @@ export function createEventBus(): EventBus {
       // handler の型を AnyHandler にキャスト（境界: eventType で dispatch 済み）
       const anyHandler = handler as AnyHandler;
       set.add(anyHandler);
-
+      // unsubscribe クロージャ: set をローカル変数として捕捉して optional chain を回避
+      const capturedSet = set;
       return () => {
-        set?.delete(anyHandler);
+        capturedSet.delete(anyHandler);
       };
     },
   };

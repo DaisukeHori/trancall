@@ -102,7 +102,8 @@ export function createSegmentRepository(supabase: SupabaseClient): SegmentReposi
         return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
       }
       if (!data) return ok(0);
-      return ok((data as { sequence_no: number })["sequence_no"] + 1);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      return ok(data["sequence_no"] as number + 1);
     },
 
     async searchByFts(roomId: RoomId, query: string): Promise<Result<TranscriptSegment[], AppError>> {

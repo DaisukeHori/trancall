@@ -16,6 +16,8 @@ const ExportSchema = z.object({
   format: z.enum(["pdf", "txt"]).default("txt"),
 });
 
+const TranscriptParamsSchema = z.object({ roomId: z.string() });
+
 export function registerTranscriptRoutes(
   fastify: FastifyInstance,
   deps: { transcript: TranscriptFacade },
@@ -24,7 +26,11 @@ export function registerTranscriptRoutes(
 
   // GET /api/transcripts/:roomId
   fastify.get("/api/transcripts/:roomId", async (request: FastifyRequest, reply: FastifyReply) => {
-    const { roomId } = request.params as { roomId: string };
+    const parsedParams = TranscriptParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "roomId は必須です", retryable: false } });
+    }
+    const { roomId } = parsedParams.data;
     const roomIdResult = brandRoomId(roomId);
     if (!roomIdResult.success) {
       return reply.status(400).send({
@@ -42,7 +48,11 @@ export function registerTranscriptRoutes(
 
   // DELETE /api/transcripts/:roomId (soft delete)
   fastify.delete("/api/transcripts/:roomId", async (request: FastifyRequest, reply: FastifyReply) => {
-    const { roomId } = request.params as { roomId: string };
+    const parsedParams = TranscriptParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "roomId は必須です", retryable: false } });
+    }
+    const { roomId } = parsedParams.data;
     const roomIdResult = brandRoomId(roomId);
     if (!roomIdResult.success) {
       return reply.status(400).send({
@@ -60,7 +70,11 @@ export function registerTranscriptRoutes(
 
   // POST /api/transcripts/:roomId/export
   fastify.post("/api/transcripts/:roomId/export", async (request: FastifyRequest, reply: FastifyReply) => {
-    const { roomId } = request.params as { roomId: string };
+    const parsedParams = TranscriptParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "roomId は必須です", retryable: false } });
+    }
+    const { roomId } = parsedParams.data;
     const roomIdResult = brandRoomId(roomId);
     if (!roomIdResult.success) {
       return reply.status(400).send({
