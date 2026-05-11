@@ -284,7 +284,7 @@ segment本体はimmutable。ユーザーごとの可視性・削除・export権�
 
 ### 6.3 Row Level Security (RLS)
 
-全テーブルにRLSを適用。profiles: 自分のみ読み書き可（他は表示名等のみ参照可）。rooms/participants: 参加者のみ。contacts: 自分のみ。subscriptions/usage_records: 自分のみ。segments: 自分が参加したRoomのみ。
+全テーブルにRLSを適用。profiles: 自分のみ読み書き可（他は表示名等のみ参照可）。rooms/participants: 参加者のみ。contacts: 自分のみ。subscriptions/usage_windows/usage_reservations: 自分のみ。segments: 自分が参加したRoomのみ（transcript_accessでさらに個別可視性を判定）。
 
 ---
 
