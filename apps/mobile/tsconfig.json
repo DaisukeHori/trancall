@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-native",
+    "allowJs": true,
+    "baseUrl": ".",
+    "paths": {
+      "@trancall/ui-kit": ["../../packages/ui-kit/src/index.ts"],
+      "@trancall/shared-kernel": ["../../packages/shared-kernel/src/index.ts"]
+    },
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+    "esModuleInterop": true,
+    "declaration": false,
+    "sourceMap": true
+  },
+  "include": [
+    "App.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "__tests__/**/*.ts",
+    "__tests__/**/*.tsx",
+    "../../packages/ui-kit/src/**/*.ts",
+    "../../packages/ui-kit/src/**/*.tsx",
+    "../../packages/shared-kernel/src/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "_design-ref"]
+}
