@@ -279,8 +279,8 @@ export interface RoomFacade {
 | `room.participant_left` | room (Layer 2) | translation | `ParticipantLeftEvent` | 非同期 | EventBus |
 | `translation.started` | translation | transcript | `TranslationStartedEvent` | 非同期 | EventBus |
 | `translation.ended` | translation | **billing**, transcript | `TranslationEndedEvent` | 非同期 | EventBus |
-| `translation.degraded` | translation | (UI 配信用、client へ data channel) | `TranslationDegradedEvent` | 非同期 | LiveKit Data Channel |
-| `translation.recovered` | translation | (同上) | `TranslationRecoveredEvent` | 非同期 | LiveKit Data Channel |
+| `translation.degraded` | translation | (UI 配信用、client へ data channel) | `TranslationDegradedEvent` (docs/schemas.ts 定義のみ、packages/translation/src/schemas.ts には Layer 3 で追加予定) | 非同期 | LiveKit Data Channel |
+| `translation.recovered` | translation | (同上) | `TranslationRecoveredEvent` (同上、Layer 3 で追加予定) | 非同期 | LiveKit Data Channel |
 
 ### 3.2 EventBus 契約
 
@@ -318,35 +318,50 @@ interface EventBus {
 - (auth の Facade を受け取るので、auth Repository を間接的に依存)
 
 ### 4.3 billing が要求する Repository / Adapter
-- `SubscriptionRepository`: getByUserId / upsertByPurchaseChannel / updatePlan / ...
-- `UsageRepository`: insertWindowIdempotent / sumByUserAndPeriod / ...
-- `ReservationRepository`: create / reconcile / refund / ...
-- `WebhookEventRepository`: insertIfNotExists (UNIQUE(provider, external_event_id))
-- `StripeAdapter`: createCheckoutSession / verifyWebhookSignature / parseEvent
-- `AppleIapAdapter`: parseNotification (JWS デコードのみ、署名検証は server 側)
-- `GooglePlayAdapter`: parseRtdnMessage
+
+実装メソッド名と完全一致 (`packages/billing/src/repositories/*.ts` / `packages/billing/src/adapters/*.ts`):
+
+- `SubscriptionRepository`: `findByUserId` / `upsert` / `updatePlan` / `getUsedSecondsInPeriod`
+- `UsageRepository`: `insertWindowIdempotent` / `findBySessionId` / `sumDurationSecondsInPeriod`
+- `ReservationRepository`: `create` / `findActiveBySessionId` / `reconcile` / `expire` (facade の `refundMinutes` から呼ばれる)
+- `WebhookEventRepository`: `insertIdempotent` (UNIQUE(provider, external_event_id) で重複弾き) / `markProcessed` / `markFailed`
+- `StripeAdapter` (`createStripeAdapter` factory): `createCheckoutSession` / `verifyWebhook` / `parseCheckoutCompleted` / `parseSubscriptionDeleted`
+- `AppleIapAdapter` (`createAppleIapAdapter` factory): JWS デコード (`signedTransactionInfo` の `payload` を Base64URL → JSON)、署名検証は server 側委譲
+- `GooglePlayAdapter` (`createGooglePlayAdapter` factory): RTDN Pub/Sub `data` を Base64 → JSON デコード
 
 ### 4.4 contact が要求する Repository
-- `ContactRepository`: list / add / remove / toggleFavorite
-- `BlockRepository`: block / unblock / isBlocked
-- `InviteRepository`: createToken / findByToken / markUsed
-- `ProfileSearchRepository`: searchByTrancallIdOrName (外部 auth の profiles テーブルを検索する read-only ビュー)
-- `ReportRepository`: insert
+
+実装メソッド名と完全一致 (`packages/contact/src/repositories/*.ts`):
+
+- `ContactRepository`: `add` / `remove` / `list` / `exists` / `toggleFavorite`
+- `BlockRepository`: `block` / `unblock` / `isBlocked` / `getBlockedUserIds`
+- `InviteRepository`: `create` / `findByToken` / `markUsed`
+- `ProfileSearchRepository`: `findByTrancallId` / `searchByDisplayName` (外部 auth の profiles テーブルを検索する read-only ビュー、PublicProfile を返す)
+- `ReportRepository`: `create` / `exists`
 
 ### 4.5 notification が要求する Repository / Adapter
-- `DeviceTokenRepository`: register / revoke / listByUser
-- `PushLogRepository`: insert
-- `ApnsAdapter`: sendVoipPush / sendNormalPush
-- `FcmAdapter`: send
+
+実装メソッド名と完全一致 (`packages/notification/src/repositories/*.ts` / `adapters/*.ts`):
+
+- `DeviceTokenRepository`: `upsert` / `findActiveByUserId` / `revoke` / `delete`
+- `PushLogRepository`: `write`
+- `ApnsAdapter` (`createApnsAdapter` factory): `sendVoipPush` / `sendNormalPush` (410 Gone → `NOTIFICATION_DEVICE_TOKEN_INVALID`、`.voip` topic suffix を自動付与)
+- `FcmAdapter` (`createFcmAdapter` factory): `send` (firebase-admin の `messaging.send` ラッパー)
 
 ### 4.6 transcript が要求する Repository
-- `SegmentRepository`: upsertIdempotent / getByRoom / search (FTS) / getNextSequenceNo
-- `AccessRepository`: canView / deleteSelf / listForUser
+
+実装メソッド名と完全一致 (`packages/transcript/src/repositories/*.ts`):
+
+- `SegmentRepository`: `upsert` (UNIQUE(room_id, participant_id, sequence_no) 制約で冪等) / `findByRoomId` / `getNextSequenceNo` / `searchByFts`
+- `AccessRepository`: `canView` / `softDelete` (自分の `transcript_access.deleted_at` をセット) / `findOne`
 
 ### 4.7 translation が要求する Repository
-- `TranslationSessionRepository`: insertStarted / updateEnded / findByAgentJobId
-- `AgentMetricsRepository`: insert
-- (`TranslationEventOutboxRepository` は server の outbox パターン用、Layer 3 で利用)
+
+実装メソッド名と完全一致 (`packages/translation/src/repositories/*.ts`):
+
+- `TranslationSessionRepository`: `insert` (session_started 受信時) / `updateEnded` (session_ended 受信時) / `findByAgentJobId`
+- `AgentMetricsRepository`: `insert` (agent.metrics 受信時)
+- `TranslationEventOutboxRepository`: `insert` / `findUnprocessed` / `markProcessed` (DomainEvent outbox パターン用、`trancall_event.translation_events` テーブル、Layer 3 で server から利用)
 
 ---
 
@@ -384,6 +399,7 @@ interface EventBus {
 | `NOTIFICATION_PUSH_DELIVERY_FAILED` | notification | 502 | true | サーバー内部リトライ |
 | `NOTIFICATION_DEVICE_TOKEN_INVALID` | notification | 400 | false | トークン再登録を要求 |
 | `TRANSCRIPT_EXPORT_NOT_IMPLEMENTED` | transcript | 501 | false | 「Sprint 2 で実装予定」 |
+| `TRANSLATION_SESSION_NOT_FOUND` | translation | 404 | false | (内部エラー、`getUsage` で agentJobId 不一致時) |
 
 ### 5.1 AppError 構造 (shared-kernel)
 
@@ -429,6 +445,16 @@ const AppError = z.object({
 
 ESLint `no-restricted-imports` or import 静的解析で違反を検出する CI ジョブを Layer 3 (`L3-3 CI/CD`) で導入予定。
 
+### 6.2 既存設計書との矛盾 (本書 canonical を優先)
+
+`packages/media/CLAUDE.md` の「禁止依存」セクションに「`auth を直接importしない`」という記述が残っているが、これは **C-005 (Token metadata server-side 焼き込み) 解決前の古い記述**である。
+
+現在の正しい契約 (本書 Section 6 の媒体行 + Section 2.2 の MediaFacade 注釈):
+- **`@trancall/media` → `@trancall/auth` は許可** (C-005 対応で `AuthFacade.getProfile` を呼び、DB の `nativeLanguage` を LiveKit Token metadata に焼き込むため)
+- `packages/media/package.json` の `dependencies` にも `"@trancall/auth": "workspace:*"` が記載済み
+
+`packages/media/CLAUDE.md` の禁止依存記述は次回 docs sweep で削除予定。本書 (canonical) と CLAUDE.md が矛盾した場合は本書を優先する。
+
 ---
 
 ## 7. Agent ⇔ Server 内部 API Contract
@@ -456,7 +482,11 @@ Headers:
 ### 7.3 冪等性
 
 - `x-trancall-idempotency-key` (UUID) で重複処理排除
-- Server 側で `trancall_event.translation_events` (outbox) に `(idempotency_key UNIQUE)` で INSERT、既存なら 200 で early return
+- 冪等性の保証は **event type に応じた個別テーブル** で行う:
+  - `translation.session_started` / `session_ended`: `trancall_event.translation_sessions.agent_job_id` (UNIQUE) で重複弾き、既存ならスキップして 200 を返す
+  - `transcript.delta`: `trancall_transcript.segments` の `UNIQUE(room_id, participant_id, sequence_no)` 制約で冪等 (final segment のみ DB 保存、partial delta は LiveKit Data Channel)
+  - `agent.metrics`: 重複は許容 (時系列ログとして全件保存)
+- `trancall_event.translation_events` (outbox テーブル、`event_type CHECK ('translation.started'|'.ended'|'.degraded'|'.recovered')`) は **Server 内 DomainEvent 発行の outbox パターン用**で、Agent → Server の HTTP 冪等性とは別目的。混同しないこと。
 
 ### 7.4 Event Type 一覧
 
