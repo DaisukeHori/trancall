@@ -13,13 +13,13 @@ import { z } from "zod";
 // 1. Branded Types + ファクトリヘルパー
 // =============================================================================
 
-const UserIdSchema = z.string().uuid().brand<"UserId">();
-const RoomIdSchema = z.string().uuid().brand<"RoomId">();
-const TrackIdSchema = z.string().uuid().brand<"TrackId">();
-const ParticipantIdSchema = z.string().uuid().brand<"ParticipantId">();
-const TranslationSessionIdSchema = z.string().uuid().brand<"TranslationSessionId">();
-const LiveKitTrackSidSchema = z.string().min(1).brand<"LiveKitTrackSid">();
-const OpenAISessionIdSchema = z.string().min(1).brand<"OpenAISessionId">();
+const UserIdSchema = z.string().uuid().brand("UserId");
+const RoomIdSchema = z.string().uuid().brand("RoomId");
+const TrackIdSchema = z.string().uuid().brand("TrackId");
+const ParticipantIdSchema = z.string().uuid().brand("ParticipantId");
+const TranslationSessionIdSchema = z.string().uuid().brand("TranslationSessionId");
+const LiveKitTrackSidSchema = z.string().min(1).brand("LiveKitTrackSid");
+const OpenAISessionIdSchema = z.string().min(1).brand("OpenAISessionId");
 
 type UserId = z.infer<typeof UserIdSchema>;
 type RoomId = z.infer<typeof RoomIdSchema>;
