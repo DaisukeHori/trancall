@@ -208,7 +208,7 @@ Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証�
 | BILL-004 | プラン超過分は従量課金とする | Must |
 | BILL-005 | iOS App Store In-App Purchaseに対応する | Must |
 | BILL-006 | Google Play In-App Purchaseに対応する | Must |
-| BILL-007 | Webサイト（アプリ外）からの直接課金はStripeを使用する。アプリ内にStripe決済導線は置かない（App Storeガイドライン準拠） | Must |
+| BILL-007 | 日本市場ではIAPとStoreKit External Purchase（アプリ内Stripe外部リンク）を併設する。アプリ外Webサイトからの直接購入はStripeで提供。海外市場はIAPのみ | Must |
 | BILL-008 | 通話開始前に残り分数とコスト見積もりを表示する | Must |
 | BILL-009 | 残り分数が0の場合、翻訳通話を開始できない（通知あり） | Must |
 | BILL-010 | 通話終了後にコストサマリーを表示する | Must |
