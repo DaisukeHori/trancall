@@ -67,4 +67,4 @@ USER trancall
 ENV NODE_ENV=production
 
 # 重要: 最初のヘルスチェックでメモリ使用量が見えるようにする
-CMD ["node", "apps/translation-agent/dist/index.js", "start"]
+CMD ["node", "apps/translation-agent/dist/src/index.js", "start"]

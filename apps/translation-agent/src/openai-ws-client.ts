@@ -19,10 +19,49 @@
 
 import { EventEmitter } from "node:events";
 import WebSocket from "ws";
+import { z } from "zod";
 
 import { type OutputLanguage } from "@trancall/shared-kernel";
 
 import { type Logger } from "./logger.js";
+
+// --- OpenAI Realtime API メッセージスキーマ ---
+
+const AudioDeltaMessageSchema = z.object({
+  type: z.literal("response.audio.delta"),
+  delta: z.string(),
+});
+
+const AudioDoneMessageSchema = z.object({
+  type: z.literal("response.audio.done"),
+});
+
+const TranscriptDeltaMessageSchema = z.object({
+  type: z.literal("response.audio_transcript.delta"),
+  delta: z.string(),
+});
+
+const TranscriptDoneMessageSchema = z.object({
+  type: z.literal("response.audio_transcript.done"),
+  transcript: z.string(),
+});
+
+const ErrorDetailSchema = z.object({
+  message: z.string(),
+});
+
+const ErrorMessageSchema = z.object({
+  type: z.literal("error"),
+  error: ErrorDetailSchema,
+});
+
+const OpenAIMessageSchema = z.discriminatedUnion("type", [
+  AudioDeltaMessageSchema,
+  AudioDoneMessageSchema,
+  TranscriptDeltaMessageSchema,
+  TranscriptDoneMessageSchema,
+  ErrorMessageSchema,
+]);
 
 // --- 設定 ---
 
@@ -243,9 +282,9 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
   }
 
   private handleMessage(data: WebSocket.RawData): void {
-    let parsed: unknown;
+    let raw: unknown;
     try {
-      parsed = JSON.parse(data.toString());
+      raw = JSON.parse(data.toString());
     } catch (e: unknown) {
       this.config.logger.warn("OpenAI WS: JSON parse 失敗", {
         error: e instanceof Error ? e.message : String(e),
@@ -253,52 +292,46 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
       return;
     }
 
-    if (typeof parsed !== "object" || parsed === null || !("type" in parsed)) {
+    // type フィールドを事前チェックして未処理イベントのログを出す
+    if (typeof raw !== "object" || raw === null || !("type" in raw)) {
       this.config.logger.warn("OpenAI WS: 想定外メッセージ形式");
       return;
     }
 
-    // 型安全な分岐のため Record<string, unknown> に narrowing
-    const msg = parsed as Record<string, unknown>;
-    const type = typeof msg["type"] === "string" ? msg["type"] : "unknown";
+    const rawType = (raw as { type: unknown }).type;
     const now = Date.now();
 
-    switch (type) {
-      case "response.audio.delta": {
-        const audio = msg["delta"];
-        if (typeof audio === "string") {
-          this.emit("audio.delta", { audioBase64: audio, receivedAt: now });
-        }
-        break;
+    const parseResult = OpenAIMessageSchema.safeParse(raw);
+    if (!parseResult.success) {
+      // 既知の type が来た場合はフィールド不足ログ、未知の type は debug
+      if (typeof rawType === "string") {
+        this.config.logger.debug("OpenAI WS: 未処理イベント", { type: rawType });
+      } else {
+        this.config.logger.warn("OpenAI WS: メッセージ検証失敗", {
+          issues: parseResult.error.issues.map((i) => i.message).join(", "),
+        });
       }
+      return;
+    }
+
+    const msg = parseResult.data;
+
+    switch (msg.type) {
+      case "response.audio.delta":
+        this.emit("audio.delta", { audioBase64: msg.delta, receivedAt: now });
+        break;
       case "response.audio.done":
         this.emit("audio.done");
         break;
-      case "response.audio_transcript.delta": {
-        const text = msg["delta"];
-        if (typeof text === "string") {
-          this.emit("transcript.delta", { text, isFinal: false, receivedAt: now });
-        }
+      case "response.audio_transcript.delta":
+        this.emit("transcript.delta", { text: msg.delta, isFinal: false, receivedAt: now });
         break;
-      }
-      case "response.audio_transcript.done": {
-        const text = msg["transcript"];
-        if (typeof text === "string") {
-          this.emit("transcript.done", { text, isFinal: true, receivedAt: now });
-        }
+      case "response.audio_transcript.done":
+        this.emit("transcript.done", { text: msg.transcript, isFinal: true, receivedAt: now });
         break;
-      }
-      case "error": {
-        const error = msg["error"];
-        const errorMessage =
-          typeof error === "object" && error !== null && "message" in error
-            ? String((error as Record<string, unknown>)["message"])
-            : "OpenAI Realtime API error";
-        this.emit("error", new Error(errorMessage));
+      case "error":
+        this.emit("error", new Error(msg.error.message));
         break;
-      }
-      default:
-        this.config.logger.debug("OpenAI WS: 未処理イベント", { type });
     }
   }
 
