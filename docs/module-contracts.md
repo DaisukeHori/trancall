@@ -49,11 +49,11 @@
 | `@trancall/shared-kernel` | Branded Type / Result / Zod ヘルパー / DomainEventBase | — | — | — | (個別関数 export) | (なし、依存される側) |
 | `@trancall/auth` | Supabase Auth ラップ・プロフィール管理 | `trancall_auth.profiles`, `trancall_auth.consent_versions` | `auth.user_registered` | — | `AuthFacade` | shared-kernel |
 | `@trancall/media` | LiveKit Room CRUD / Token 発行 / Track 命名 (C-005) | (LiveKit Cloud 側) | — | — | `MediaFacade` | shared-kernel, **auth** (Profile lookup) |
-| `@trancall/billing` | サブスク / heartbeat 課金 / 3 チャネル決済 | `trancall_billing.subscriptions`, `usage_windows`, `usage_reservations`, `webhook_events` | — (将来 `billing.balance_low`) | (将来 `translation.ended`) | `BillingFacade` | shared-kernel |
-| `@trancall/contact` | 連絡先 / ブロック / 通報 / 招待 | `trancall_contact.contacts`, `block_list`, `report_events`, `invite_links` | — | — | `ContactFacade` | shared-kernel |
-| `@trancall/notification` | APNs VoIP Push / FCM 配信 | `trancall_notification.device_tokens`, `push_logs` | — | (将来 `room.created`) | `NotificationFacade` | shared-kernel |
-| `@trancall/transcript` | 字幕 final segment 永続化 / FTS / Export skeleton | `trancall_transcript.segments`, `transcript_access` | — | (将来 `translation.ended`) | `TranscriptFacade` | shared-kernel |
-| `@trancall/translation` | Agent event 受信 / session 永続化 / 同言語判定 | `trancall_event.translation_sessions`, `agent_metrics`, `translation_events` (outbox) | `translation.started`, `translation.ended`, `translation.degraded`, `translation.recovered` | — | `TranslationFacade` | shared-kernel |
+| `@trancall/billing` | サブスク / heartbeat 課金 / 3 チャネル決済 | `trancall_billing.subscriptions`, `trancall_billing.usage_windows`, `trancall_billing.usage_reservations`, `trancall_billing.webhook_events` | — (将来 `billing.balance_low`) | (将来 `translation.ended`) | `BillingFacade` | shared-kernel |
+| `@trancall/contact` | 連絡先 / ブロック / 通報 / 招待 | `trancall_contact.contacts`, `trancall_contact.block_list`, `trancall_contact.report_events`, `trancall_contact.invite_links` | — | — | `ContactFacade` | shared-kernel |
+| `@trancall/notification` | APNs VoIP Push / FCM 配信 | `trancall_notification.device_tokens`, `trancall_notification.push_logs` | — | (将来 `room.created`) | `NotificationFacade` | shared-kernel |
+| `@trancall/transcript` | 字幕 final segment 永続化 / FTS / Export skeleton | `trancall_transcript.segments`, `trancall_transcript.transcript_access` | — | (将来 `translation.ended`) | `TranscriptFacade` | shared-kernel |
+| `@trancall/translation` | Agent event 受信 / session 永続化 / 同言語判定 | `trancall_event.translation_sessions`, `trancall_event.agent_metrics`, `trancall_event.translation_events` (outbox) | `translation.started`, `translation.ended`, `translation.degraded`, `translation.recovered` | — | `TranslationFacade` | shared-kernel |
 | `@trancall/ui-kit` | React Native コンポーネント + デザイントークン + i18n | — | — | — | (個別 export) | shared-kernel (型のみ) |
 | `@trancall/app-translation-agent` | LiveKit Agent (別プロセス) | (なし、HMAC 経由 Server 送信) | — | — | (CLI entry) | shared-kernel (型のみ) |
 
@@ -483,10 +483,10 @@ Headers:
 
 - `x-trancall-idempotency-key` (UUID) で重複処理排除
 - 冪等性の保証は **event type に応じた個別テーブル** で行う:
-  - `translation.session_started` / `session_ended`: `trancall_event.translation_sessions.agent_job_id` (UNIQUE) で重複弾き、既存ならスキップして 200 を返す
+  - `translation.session_started` / `session_ended`: `trancall_event.translation_sessions.agent_job_id` (UNIQUE 制約は `supabase/migrations/00006_add_translation_sessions_agent_job_unique.sql` で追加) で重複弾き、既存ならスキップして 200 を返す
   - `transcript.delta`: `trancall_transcript.segments` の `UNIQUE(room_id, participant_id, sequence_no)` 制約で冪等 (final segment のみ DB 保存、partial delta は LiveKit Data Channel)
   - `agent.metrics`: 重複は許容 (時系列ログとして全件保存)
-- `trancall_event.translation_events` (outbox テーブル、`event_type CHECK ('translation.started'|'.ended'|'.degraded'|'.recovered')`) は **Server 内 DomainEvent 発行の outbox パターン用**で、Agent → Server の HTTP 冪等性とは別目的。混同しないこと。
+- `trancall_event.translation_events` (outbox テーブル、`event_type CHECK (event_type IN ('translation.started', 'translation.ended', 'translation.degraded', 'translation.recovered'))`) は **Server 内 DomainEvent 発行の outbox パターン用**で、Agent → Server の HTTP 冪等性とは別目的。混同しないこと。
 
 ### 7.4 Event Type 一覧
 
