@@ -28,6 +28,11 @@ export interface InviteService {
   /**
    * 招待リンクを生成する。
    * @returns url, token, expiresAt
+   *
+   * NOTE: Rate limit は本 facade では実装しない。
+   *   docs/security-detail.md より、`POST /api/contacts/invite-link` には
+   *   **10 req/hour/user** のレート制限が要求される。
+   *   実際の rate limit は server (Layer 3) のミドルウェア層で実装すること。
    */
   createInviteLink(userId: UserId): Promise<
     Result<{ url: string; token: string; expiresAt: string }, AppError>

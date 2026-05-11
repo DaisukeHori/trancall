@@ -9,11 +9,16 @@ import type { BlockRepository } from "../repositories/block-repository.js";
 
 export interface SearchService {
   /**
-   * TranCall ID または表示名でユーザーを検索する。
+   * TranCall ID / 名前でユーザーを検索する。
    * - TranCall ID は完全一致
    * - 表示名は部分一致（opt-in ユーザーのみ）
    * - 自分自身を除外
    * - ブロック済みユーザーを除外（双方向）
+   *
+   * NOTE: Rate limit は本 facade では実装しない。
+   *   docs/security-detail.md より、`GET /api/contacts/search` には
+   *   **10 req/min/user** のレート制限が要求される。
+   *   実際の rate limit は server (Layer 3) のミドルウェア層で実装すること。
    */
   searchUsers(
     query: string,
