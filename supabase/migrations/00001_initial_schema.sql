@@ -443,3 +443,26 @@ VALUES ('v1.0', now(), 'Initial consent: audio sent to OpenAI for translation', 
 -- pgcrypto 拡張有効化（ローカル開発用、m-002）
 -- =============================================================================
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- =============================================================================
+-- 16. trancall_contact.invite_links (招待リンク管理)
+-- =============================================================================
+
+CREATE TABLE trancall_contact.invite_links (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES trancall_auth.profiles(user_id) ON DELETE CASCADE,
+  token       VARCHAR(30) NOT NULL UNIQUE,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  used_by     UUID REFERENCES trancall_auth.profiles(user_id),
+  used_at     TIMESTAMPTZ,
+  revoked_at  TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_invite_links_token ON trancall_contact.invite_links(token);
+CREATE INDEX idx_invite_links_user ON trancall_contact.invite_links(user_id);
+
+ALTER TABLE trancall_contact.invite_links ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY invite_links_self ON trancall_contact.invite_links
+  FOR ALL USING (user_id = auth.uid());

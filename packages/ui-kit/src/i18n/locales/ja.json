@@ -1,0 +1,150 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "delete": "削除",
+    "back": "戻る",
+    "next": "次へ",
+    "done": "完了",
+    "error": "エラー",
+    "retry": "再試行",
+    "loading": "読み込み中..."
+  },
+  "auth": {
+    "signIn": "ログイン",
+    "signUp": "アカウント作成",
+    "signOut": "ログアウト",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "displayName": "表示名",
+    "nativeLanguage": "母国語",
+    "forgotPassword": "パスワードを忘れた方",
+    "verifyEmail": "メール認証を完了してください",
+    "invalidCredentials": "メールアドレスまたはパスワードが正しくありません"
+  },
+  "onboarding": {
+    "title": "TranCall",
+    "subtitle": "すべての通話を、自分の言語で。",
+    "chooseLanguage": "母国語を選択してください",
+    "poweredBy": "GPT-Realtime-Translate: 13出力言語対応"
+  },
+  "home": {
+    "recentCalls": "最近の通話",
+    "searchContacts": "連絡先を検索...",
+    "noRecentCalls": "通話履歴はありません",
+    "missed": "不在着信"
+  },
+  "contacts": {
+    "title": "連絡先",
+    "addContact": "連絡先を追加",
+    "favorites": "お気に入り",
+    "allContacts": "すべての連絡先",
+    "searchById": "TranCall IDまたは名前で検索...",
+    "scanQr": "QRコードをスキャン",
+    "shareInvite": "招待リンクを共有",
+    "importContacts": "端末の連絡先からインポート",
+    "block": "ブロック",
+    "report": "通報",
+    "unblock": "ブロック解除",
+    "blocked": "ブロック済み"
+  },
+  "call": {
+    "startCall": "通話を開始",
+    "endCall": "通話を終了",
+    "calling": "発信中...",
+    "ringing": "呼び出し中...",
+    "connecting": "接続中...",
+    "inCall": "通話中",
+    "mute": "ミュート",
+    "unmute": "ミュート解除",
+    "speaker": "スピーカー",
+    "decline": "拒否",
+    "accept": "応答",
+    "callEnded": "通話終了",
+    "callAgain": "もう一度かける",
+    "backToHome": "ホームに戻る",
+    "incomingCall": "着信",
+    "translationReady": "翻訳準備完了"
+  },
+  "translation": {
+    "enabled": "翻訳ON",
+    "disabled": "翻訳OFF",
+    "paused": "翻訳一時停止",
+    "reconnecting": "翻訳を再接続中...",
+    "stopped": "翻訳が停止しました",
+    "recovered": "翻訳が復旧しました",
+    "switchToOriginal": "原音に切替",
+    "switchToTranslated": "翻訳に戻す",
+    "subtitles": "字幕",
+    "dynamicVoice": "相手の声に自動適応する翻訳音声"
+  },
+  "precall": {
+    "title": "通話設定",
+    "translationDirection": "翻訳方向",
+    "yourVoice": "あなたの声 → 相手",
+    "theirVoice": "相手の声 → あなた",
+    "liveSubtitles": "リアルタイム字幕",
+    "estimatedCost": "推定コスト",
+    "perMinute": "約{{cost}}円/分",
+    "remainingMinutes": "残り{{minutes}}分（{{plan}}プラン）"
+  },
+  "summary": {
+    "callEnded": "通話終了",
+    "duration": "通話時間",
+    "cost": "コスト",
+    "translationPair": "翻訳",
+    "remaining": "残り分数",
+    "viewTranscript": "全文を表示",
+    "exportTranscript": "エクスポート"
+  },
+  "transcript": {
+    "title": "トランスクリプト",
+    "search": "トランスクリプト内を検索...",
+    "both": "両方",
+    "originalOnly": "原文のみ",
+    "translationOnly": "翻訳のみ",
+    "exportPdf": "PDF",
+    "exportTxt": "TXT",
+    "share": "共有",
+    "deleted": "削除済み",
+    "interruptedNote": "[翻訳中断: {{seconds}}秒]"
+  },
+  "billing": {
+    "currentPlan": "現在のプラン",
+    "managePlan": "プランを管理",
+    "upgrade": "アップグレード",
+    "remaining": "残り{{minutes}}分",
+    "insufficientBalance": "翻訳分数が不足しています",
+    "upgradeToContinue": "プランをアップグレードして翻訳を続けますか？",
+    "continueWithoutTranslation": "翻訳なしで通話を続ける"
+  },
+  "settings": {
+    "title": "設定",
+    "profile": "プロフィール",
+    "nativeLanguage": "母国語",
+    "showSubtitles": "字幕表示",
+    "notifications": "通知",
+    "plan": "プラン",
+    "about": "TranCallについて",
+    "privacy": "プライバシーポリシー",
+    "terms": "利用規約",
+    "deleteAccount": "アカウントを削除"
+  },
+  "consent": {
+    "title": "翻訳通話について",
+    "description": "TranCallの翻訳機能を利用するには、通話音声がOpenAI社のサーバーに送信されます。",
+    "details": "音声は翻訳処理のためにのみ使用され、OpenAI側では保存されません。トランスクリプト（文字起こし）はTranCallサーバーに保存されます（設定で無効化可能）。",
+    "agree": "同意して続ける",
+    "decline": "翻訳なしで通話する",
+    "learnMore": "詳しく見る"
+  },
+  "permissions": {
+    "microphoneTitle": "マイクへのアクセス",
+    "microphoneDescription": "通話にはマイクの使用が必要です",
+    "notificationTitle": "通知の許可",
+    "notificationDescription": "着信通知を受け取るために必要です",
+    "allow": "許可する",
+    "later": "あとで"
+  }
+}
