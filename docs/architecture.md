@@ -45,7 +45,7 @@
 - shared-kernel ← 全モジュールが依存
 - contact → auth (ユーザー検索)
 - room → signaling (Token発行)
-- signaling → LiveKit Server SDK
+- media/adapters/livekit → LiveKit Server SDK（signalingを統合）
 - media → translation (翻訳呼び出し) + signaling (Track制御)
 - translation → OpenAI GPT-RT-Translate
 - billing ← translation.ended イベントを購読
@@ -335,6 +335,59 @@ push to main → Lint + Type Check → Unit Test → Build → Deploy
 - docs/*: ドキュメント
 
 ---
+
+
+---
+
+## 追記: 設計レビュー対応（2026-05-11）
+
+以下の設計変更をレビュー指摘に基づき適用済み。詳細は `docs/review-responses.md` を参照。
+
+### モジュール変更
+
+- signalingモジュールを廃止し `media/adapters/livekit` に統合（M-001）
+- モジュール数: 11 → 10
+
+### Agent-Server通信（C-001）
+
+Translation Agent → APIサーバー間にHTTP内部APIを追加:
+- `POST /internal/translation/events`（署名付きAgent token、idempotency key）
+- Agent側にoutboxパターン実装
+- in-process EventBusはServer内モジュール間のみに限定
+
+### 課金計測（M-010）
+
+heartbeat方式に変更:
+- 通話開始時: minute reservation（残量からロック）
+- 通話中: 30秒ごとにheartbeat usage送信
+- 通話終了時: reconcile（最終利用量確定）
+- 冪等化: `session_id + window_start`
+
+### 翻訳fallback（M-003）
+
+翻訳失敗・遅延時のfallback仕様を追加:
+- 原音を小音量（20%）で同時再生
+- ワンタップで原音100%に切替
+- 字幕のみ継続モード
+- 翻訳再接続中インジケータ
+
+### Transcript保存ポリシー（C-005）
+
+- デフォルト保存、通話の両参加者が閲覧可能
+- 保持期間: Free=7日 / Light=30日 / Standard=90日 / Business=1年
+- segmentsテーブルに `retention_until`, `deleted_at`, `consent_version` 追加
+- 保持期間超過分は日次バッチで物理削除
+- 初回通話前に同意画面表示
+
+### Zodバリデーション適用範囲（M-006）
+
+- API input, DB row, external event, session config → Zodバリデーション
+- AudioFrame（hot path） → 内部TypeScript型 + dev-only assertion
+- adapters/* と schemas/brand.ts のみ型アサーション例外許可（M-007）
+
+### Phase構成変更（C-004）
+
+Phase 0（PoC）→ Phase 1a（MVP Core）→ Phase 1b（バックグラウンド着信）→ Phase 1c（ストア公開）に再構成。詳細は requirements.md を参照。
 
 ## 付録: 技術選定比較
 

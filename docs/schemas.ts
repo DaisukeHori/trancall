@@ -1,5 +1,5 @@
 // =============================================================================
-// VoiceTranslate — Zodスキーマ設計リファレンス
+// TranCall — Zodスキーマ設計リファレンス
 // =============================================================================
 // モジュール境界は全てZodスキーマで定義。
 // `as any`, `as unknown`, `@ts-ignore`, `@ts-expect-error` は全面禁止。
@@ -574,7 +574,7 @@ export default [
 /*
 // packages/translation/package.json
 {
-  "name": "@voicetranslate/translation",
+  "name": "@trancall/translation",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -586,7 +586,7 @@ export default [
     }
   },
   // ↑ これにより外部モジュールは
-  //   import { TranslationConfig } from "@voicetranslate/translation/schemas";
+  //   import { TranslationConfig } from "@trancall/translation/schemas";
   //   のみアクセス可能。内部実装には手が届かない。
   "files": ["dist"]
 }

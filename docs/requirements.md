@@ -57,17 +57,40 @@ i18nによるUI多言語化。Phase 1では以下の3言語から開始し、順
 
 ## 2. フェーズ定義
 
-### Phase 1 — MVP（最小実行可能プロダクト）
+### Phase 0 — PoC（技術検証）
 
-- 1対1音声通話
-- リアルタイム双方向翻訳（GPT-Realtime-Translate）
-- リアルタイム字幕表示（原文 + 翻訳文）
-- 通話後トランスクリプト保存・閲覧・エクスポート
+- LiveKit SFU + Translation Agent + GPT-RT-Translate の最小構成接続
+- 実機（iOS/Android）でのend-to-endレイテンシー測定（p50/p95/p99）
+- レイテンシーバジェット分解と目標値の確定
+- fallback仕様の策定（字幕先行、原音同時再生、翻訳OFF）
+
+### Phase 1a — MVP Core（TestFlight / internal beta）
+
 - ユーザー登録・認証（Supabase Auth）
 - 連絡先管理（追加・検索・QRコード・招待リンク）
-- VoIP Push通知（iOS: APNs / Android: FCM）
-- 課金（Stripe + App Store IAP + Google Play IAP）
-- iOS / Android リリース
+- 1対1 foreground音声通話
+- リアルタイム双方向翻訳（GPT-Realtime-Translate）
+- リアルタイム字幕表示（原文 + 翻訳文）
+- 通話後トランスクリプト閲覧（保存・保持期間管理）
+- 翻訳利用量の計測（heartbeat方式）
+- 翻訳失敗時のfallback（原音切替、字幕のみ継続）
+
+### Phase 1b — バックグラウンド着信
+
+- VoIP Push通知（iOS: APNs VoIP Push）
+- FCM通知（Android）
+- iOS CallKit統合（ロック画面着信、kill状態着信）
+- Android ConnectionService統合
+- Bluetooth headset対応
+- 権限拒否ハンドリング
+
+### Phase 1c — ストア公開
+
+- Stripe課金（Web直接課金）
+- iOS App Store In-App Purchase
+- Google Play In-App Purchase
+- プラン管理UI
+- App Store / Google Play 公開
 
 ### Phase 2 — 拡張
 
@@ -190,10 +213,19 @@ i18nによるUI多言語化。Phase 1では以下の3言語から開始し、順
 
 | プラン | 月額 | 含む翻訳通話分数 | 超過料金/分 |
 |--------|------|-----------------|------------|
-| Free | 0 yen | 5 min（お試し） | 利用不可 |
-| Light | 980 yen | 60 min | 30 yen |
-| Standard | 2,980 yen | 300 min | 25 yen |
-| Business | 9,800 yen | 1,200 min | 20 yen |
+| Free | 0 yen | 3 min（お試し） | 利用不可 |
+| Light | 980 yen | 30 min | 40 yen |
+| Standard | 2,980 yen | 120 min | 35 yen |
+| Business | 9,800 yen | 500 min | 30 yen |
+Transcript保持期間:
+
+| プラン | 保持期間 |
+|--------|---------|
+| Free | 7日 |
+| Light | 30日 |
+| Standard | 90日 |
+| Business | 1年 |
+
 
 ### 3.8 プッシュ通知（Notification モジュール）
 
