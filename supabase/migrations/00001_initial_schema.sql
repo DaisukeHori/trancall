@@ -135,14 +135,31 @@ CREATE TABLE trancall_billing.subscriptions (
   monthly_price_yen       INTEGER NOT NULL DEFAULT 0,
   transcript_retention_days INTEGER NOT NULL DEFAULT 7,
   cancel_at_period_end    BOOLEAN NOT NULL DEFAULT FALSE,
+  -- 購入チャネル（レビューv9 M-001-NEW: 旧 iap_platform を置き換え）
+  -- 'free'              : 無料プラン
+  -- 'iap_apple'         : App Store IAP
+  -- 'iap_google'        : Google Play IAP
+  -- 'storekit_external' : 日本MSCA対応のStoreKit External Purchase（Stripe決済 + Apple月次レポート）
+  -- 'stripe_web'        : アプリ外Web Stripe（B2B契約・年間プラン）
+  purchase_channel        VARCHAR(20) NOT NULL DEFAULT 'free'
+                            CHECK (purchase_channel IN (
+                              'free', 'iap_apple', 'iap_google',
+                              'storekit_external', 'stripe_web'
+                            )),
   stripe_customer_id      VARCHAR(255),
   stripe_subscription_id  VARCHAR(255),
   iap_original_transaction_id VARCHAR(255),
-  iap_platform            VARCHAR(10) CHECK (iap_platform IN ('apple', 'google')),
   current_period_start    TIMESTAMPTZ NOT NULL DEFAULT now(),
   current_period_end      TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '30 days',
   created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- purchase_channel と外部ID列の整合性チェック
+ALTER TABLE trancall_billing.subscriptions ADD CONSTRAINT purchase_channel_id_consistency CHECK (
+  (purchase_channel = 'free' AND iap_original_transaction_id IS NULL AND stripe_subscription_id IS NULL)
+  OR (purchase_channel IN ('iap_apple', 'iap_google') AND iap_original_transaction_id IS NOT NULL)
+  OR (purchase_channel IN ('storekit_external', 'stripe_web') AND stripe_subscription_id IS NOT NULL)
 );
 
 -- =============================================================================
