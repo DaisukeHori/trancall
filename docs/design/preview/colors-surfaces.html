@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;font-family:var(--tc-font-sans)}
+  .row{display:grid;grid-template-columns:1fr 1fr}
+  .col{padding:18px}
+  .label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--tc-text-secondary);margin-bottom:10px}
+  .stack{border-radius:12px;overflow:hidden;border:1px solid var(--tc-border)}
+  .step{padding:14px 14px;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-family:var(--tc-font-mono)}
+  .light .step:nth-child(1){background:#FFFFFF;color:#1A1A1A}
+  .light .step:nth-child(2){background:#F5F5F5;color:#1A1A1A;border-top:1px solid #E5E5EA}
+  .light .step:nth-child(3){background:#E8E8E8;color:#1A1A1A;border-top:1px solid #E5E5EA}
+  .dark{border-color:#38383A}
+  .dark .step:nth-child(1){background:#1C1C1E;color:#F5F5F5}
+  .dark .step:nth-child(2){background:#2C2C2E;color:#F5F5F5;border-top:1px solid #38383A}
+  .dark .step:nth-child(3){background:#3A3A3C;color:#F5F5F5;border-top:1px solid #38383A}
+  .pill{font-weight:600;font-family:var(--tc-font-sans);font-size:11px}
+</style></head><body>
+<div class="row">
+  <div class="col" style="background:#fafafa">
+    <div class="label">Light · surfaces</div>
+    <div class="stack light">
+      <div class="step"><span class="pill">bgPrimary</span><span>#FFFFFF</span></div>
+      <div class="step"><span class="pill">bgSecondary</span><span>#F5F5F5</span></div>
+      <div class="step"><span class="pill">bgTertiary</span><span>#E8E8E8</span></div>
+    </div>
+  </div>
+  <div class="col" style="background:#0a0a0c">
+    <div class="label" style="color:#8E8E93">Dark · surfaces</div>
+    <div class="stack dark">
+      <div class="step"><span class="pill">bgPrimary</span><span>#1C1C1E</span></div>
+      <div class="step"><span class="pill">bgSecondary</span><span>#2C2C2E</span></div>
+      <div class="step"><span class="pill">bgTertiary</span><span>#3A3A3C</span></div>
+    </div>
+  </div>
+</div></body></html>

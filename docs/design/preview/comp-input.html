@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css">
+<style>html,body{margin:0;background:#fff;font-family:var(--tc-font-sans);color:#1A1A1A}
+.w{padding:22px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.field{display:flex;flex-direction:column;gap:4px}
+.label{font-size:14px;font-weight:500;color:#8E8E93}
+.input{min-height:44px;border:1px solid #E5E5EA;border-radius:8px;padding:10px 12px;font-size:16px;background:#fff;color:#1A1A1A;outline:none;font-family:var(--tc-font-sans)}
+.input.focus{border-color:#0A7AFF;border-width:1.5px}
+.input.error{border-color:#FF3B30;border-width:1.5px}
+.helper{font-size:12px;color:#8E8E93;margin-top:2px}
+.err{color:#FF3B30}
+</style></head><body><div class="w">
+  <div class="field">
+    <div class="label">表示名</div>
+    <input class="input focus" value="Daisuke" />
+    <div class="helper">focused · primary border</div>
+  </div>
+  <div class="field">
+    <div class="label">メールアドレス</div>
+    <input class="input error" value="not-an-email" />
+    <div class="helper err">メールアドレスの形式が正しくありません</div>
+  </div>
+</div></body></html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>TranCall — Mobile UI Kit</title>
+<link rel="stylesheet" href="../../colors_and_type.css"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=arrow_forward,call,call_end,close,gear,group,link,mail,mic,mic_off,phone,phone_disabled,phone_in_talk,search,settings,sync,translate,volume_down,volume_up,warning&display=block"/>
+<style>
+  .ms{font-family:'Material Symbols Rounded';font-weight:normal;font-style:normal;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+  .ms.fill{font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24}
+  .ms.bold{font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 24}
+</style>
+<style>
+  html,body{margin:0;background:#eef0f4;font-family:var(--tc-font-sans);color:#1A1A1A;min-height:100%}
+  .page{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px 64px;gap:18px}
+  .hdr{max-width:980px;width:100%;display:flex;align-items:center;gap:14px}
+  .hdr img{height:36px}
+  .hdr h1{font-size:18px;margin:0;font-weight:600;letter-spacing:-.01em}
+  .hdr .sub{font-size:13px;color:#8E8E93;margin-left:auto;font-family:var(--tc-font-mono)}
+  .stage{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .nav{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+  .nav button{padding:8px 12px;border-radius:9999px;border:1px solid #E5E5EA;background:#fff;cursor:pointer;font-size:13px;font-weight:500;font-family:var(--tc-font-sans)}
+  .nav button.active{background:#0A7AFF;color:#fff;border-color:#0A7AFF}
+  .phone{
+    width:375px;height:760px;border-radius:48px;background:#0a0a0c;
+    padding:12px;box-shadow:0 30px 60px rgba(20,30,60,.18),0 8px 24px rgba(0,0,0,.08);
+    position:relative;
+  }
+  .phone .notch{
+    position:absolute;top:18px;left:50%;transform:translateX(-50%);
+    width:120px;height:30px;background:#0a0a0c;border-radius:9999px;z-index:5;
+  }
+  .screen{
+    width:100%;height:100%;border-radius:38px;overflow:hidden;background:#fff;position:relative;
+    display:flex;flex-direction:column;
+  }
+  .palette{width:280px;display:flex;flex-direction:column;gap:10px;font-size:13px}
+  .palette .card{background:#fff;border:1px solid #E5E5EA;border-radius:12px;padding:12px}
+  .palette h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .palette p{margin:0;color:#8E8E93;font-size:12px;line-height:1.5}
+  .palette code{font-family:var(--tc-font-mono);font-size:11px}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="hdr">
+    <img src="../../assets/trancall-mark.svg" alt="TranCall"/>
+    <h1>Mobile UI Kit</h1>
+    <div class="sub">375 × 812 · iOS / Android portrait</div>
+  </div>
+  <div class="nav" id="nav"></div>
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div id="root" class="screen"></div></div>
+    <div class="palette">
+      <div class="card">
+        <h3>Click-through prototype</h3>
+        <p>Tap any contact or call row, accept an incoming ring, hang up, and the screens wire together. State is local and resets on reload.</p>
+      </div>
+      <div class="card">
+        <h3>Built from</h3>
+        <p><code>packages/ui-kit/src/components/*.tsx</code> — Button, Badge, Avatar, Card, ContactRow, CallCard, PlanCard, SubtitleOverlay, LanguagePicker.</p>
+      </div>
+      <div class="card">
+        <h3>Theme</h3>
+        <p>Light is the default; the In-call surface always uses the dark scheme (per brief: 字幕 is hero). Toggle dark mode from <em>設定</em>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="Tokens.jsx"></script>
+<script type="text/babel" src="Primitives.jsx"></script>
+<script type="text/babel" src="CallRow.jsx"></script>
+<script type="text/babel" src="SubtitleOverlay.jsx"></script>
+<script type="text/babel" src="Modals.jsx"></script>
+<script type="text/babel" src="screens/Login.jsx"></script>
+<script type="text/babel" src="screens/Onboarding.jsx"></script>
+<script type="text/babel" src="screens/Home.jsx"></script>
+<script type="text/babel" src="screens/InCall.jsx"></script>
+<script type="text/babel" src="screens/Incoming.jsx"></script>
+<script type="text/babel" src="screens/Contacts.jsx"></script>
+<script type="text/babel" src="screens/Settings.jsx"></script>
+
+<script type="text/babel">
+  function App() {
+    const [screen, setScreen] = React.useState("login");
+    const [dark, setDark] = React.useState(false);
+    const [peer, setPeer] = React.useState(null);
+    const [sheet, setSheet] = React.useState(null); // 'addContact' | 'lowBalance'
+    const theme = dark ? TC.dark : TC.light;
+
+    const NAV = [
+      ["login", "Login"], ["onboarding", "Onboarding"], ["home", "Home"], ["contacts", "連絡先"],
+      ["incoming", "Incoming"], ["incall", "In-call"], ["settings", "Settings"],
+    ];
+    const SHEETS = [
+      ["addContact", "連絡先追加 ▾"], ["lowBalance", "残量警告 ▾"],
+    ];
+
+    React.useEffect(() => {
+      const nav = document.getElementById("nav");
+      nav.innerHTML = "";
+      NAV.forEach(([id, label]) => {
+        const b = document.createElement("button");
+        b.textContent = label;
+        if (id === screen) b.classList.add("active");
+        b.onclick = () => setScreen(id);
+        nav.appendChild(b);
+      });
+      const sep = document.createElement("span");
+      sep.style.cssText = "width:1px;background:#E5E5EA;align-self:stretch;margin:0 2px";
+      nav.appendChild(sep);
+      SHEETS.forEach(([id, label]) => {
+        const b = document.createElement("button");
+        b.textContent = label;
+        if (id === sheet) b.classList.add("active");
+        b.onclick = () => setSheet(sheet === id ? null : id);
+        nav.appendChild(b);
+      });
+    }, [screen, sheet]);
+
+    let content = null;
+    if (screen === "login") content = <ScreenLogin theme={theme} onSignedIn={() => setScreen("onboarding")}/>;
+    else if (screen === "onboarding") content = <ScreenOnboarding theme={theme} onContinue={() => setScreen("home")}/>;
+    else if (screen === "home") content = <ScreenHome theme={theme} onOpenCall={(c) => { setPeer({ name: c.name, from: c.from, to: c.to }); setScreen("incall"); }} onCallContact={() => setScreen("contacts")} onNav={setScreen}/>;
+    else if (screen === "contacts") content = <ScreenContacts theme={theme} onNav={setScreen} onCallContact={(p) => { setPeer({ name: p.name, from: "JA", to: "EN" }); setScreen("incall"); }}/>;
+    else if (screen === "incoming") content = <ScreenIncoming theme={theme} peer={peer?.name || "山田 智子"} from={peer?.from || "JA"} to={peer?.to || "EN"} onAccept={() => setScreen("incall")} onDecline={() => setScreen("home")}/>;
+    else if (screen === "incall") content = <ScreenInCall theme={theme} peer={peer?.name || "山田 智子"} from={peer?.from || "JA"} to={peer?.to || "EN"} onEnd={() => setScreen("home")}/>;
+    else if (screen === "settings") content = <ScreenSettings theme={theme} onNav={setScreen} dark={dark} onToggleTheme={setDark}/>;
+
+    return <>{content}
+      <AddContactSheet open={sheet === "addContact"} onClose={() => setSheet(null)} theme={theme}/>
+      <LowBalanceSheet open={sheet === "lowBalance"} onClose={() => setSheet(null)} theme={theme}/>
+    </>;
+  }
+  ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

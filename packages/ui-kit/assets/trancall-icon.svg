@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E90FF"></stop>
+      <stop offset="1" stop-color="#0A6CE0"></stop>
+    </linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.6" flood-opacity=".18"></feDropShadow>
+    </filter>
+  </defs>
+  
+  <rect width="128" height="128" rx="28" fill="url(#bg)"></rect>
+
+  
+  <g filter="url(#sh)">
+    <path d="M22 32&#xA;             a14 14 0 0 1 14 -14&#xA;             h44&#xA;             a14 14 0 0 1 14 14&#xA;             v22&#xA;             a14 14 0 0 1 -14 14&#xA;             h-22&#xA;             l-12 12 v-12 h-10&#xA;             a14 14 0 0 1 -14 -14 z" fill="rgba(255,255,255,0.78)"></path>
+    <text x="58" y="56" text-anchor="middle" font-family="-apple-system, &#39;Hiragino Sans&#39;, system-ui, sans-serif" font-size="34" font-weight="700" fill="#0A6CE0">あ</text>
+  </g>
+
+  
+  <g filter="url(#sh)">
+    <path d="M44 60&#xA;             a14 14 0 0 1 14 -14&#xA;             h44&#xA;             a14 14 0 0 1 14 14&#xA;             v22&#xA;             a14 14 0 0 1 -14 14&#xA;             h-10 v12 l-12 -12&#xA;             h-22&#xA;             a14 14 0 0 1 -14 -14 z" fill="#FFFFFF"></path>
+    <text x="80" y="84" text-anchor="middle" font-family="-apple-system, &#39;SF Pro Display&#39;, system-ui, sans-serif" font-size="36" font-weight="700" fill="#0A6CE0">A</text>
+  </g>
+
+  
+  <circle cx="105" cy="33" r="6" fill="#34C759" stroke="#fff" stroke-width="2.5"></circle>
+</svg>
