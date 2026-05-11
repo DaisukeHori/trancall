@@ -123,9 +123,23 @@
     "viewTranscript": "查看完整文字记录",
     "exportTranscript": "导出"
   },
+  "callSummary": {
+    "title": "通话已结束",
+    "duration": "通话时长",
+    "translationCard": "翻译信息",
+    "translationSessions": "翻译会话数",
+    "billingCard": "计费详情",
+    "cost": "本次通话：约 {{cost}} 日元",
+    "remaining": "剩余 {{minutes}} 分钟（{{plan}} 套餐）",
+    "lowBalance": "余量不足",
+    "viewTranscript": "查看文字记录",
+    "callAgain": "再次通话",
+    "backToHome": "返回首页"
+  },
   "transcript": {
     "title": "文字记录",
     "search": "在文字记录中搜索...",
+    "searchPlaceholder": "输入关键词...",
     "both": "全部",
     "originalOnly": "仅原文",
     "translationOnly": "仅译文",
@@ -133,7 +147,21 @@
     "exportTxt": "TXT",
     "share": "分享",
     "deleted": "已删除",
-    "interruptedNote": "[翻译中断：{{seconds}}秒]"
+    "interruptedNote": "[翻译中断：{{seconds}}秒]",
+    "accessRevoked": "您对此文字记录的访问权限已失效",
+    "empty": "暂无文字记录",
+    "exportTitle": "选择导出格式",
+    "filter": {
+      "all": "全部",
+      "self": "我的发言",
+      "other": "对方发言"
+    },
+    "export": {
+      "pdf": "导出为 PDF",
+      "txt": "导出为 TXT",
+      "success": "导出完成",
+      "failed": "导出失败"
+    }
   },
   "billing": {
     "currentPlan": "当前套餐",

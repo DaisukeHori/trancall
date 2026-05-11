@@ -123,9 +123,23 @@
     "viewTranscript": "全文を表示",
     "exportTranscript": "エクスポート"
   },
+  "callSummary": {
+    "title": "通話を終了しました",
+    "duration": "通話時間",
+    "translationCard": "翻訳情報",
+    "translationSessions": "翻訳セッション数",
+    "billingCard": "課金詳細",
+    "cost": "今回のコスト: 約{{cost}}円",
+    "remaining": "残り{{minutes}}分（{{plan}}プラン）",
+    "lowBalance": "残り僅か",
+    "viewTranscript": "トランスクリプトを見る",
+    "callAgain": "もう一度通話",
+    "backToHome": "ホームへ戻る"
+  },
   "transcript": {
     "title": "トランスクリプト",
     "search": "トランスクリプト内を検索...",
+    "searchPlaceholder": "キーワードを入力...",
     "both": "両方",
     "originalOnly": "原文のみ",
     "translationOnly": "翻訳のみ",
@@ -133,7 +147,21 @@
     "exportTxt": "TXT",
     "share": "共有",
     "deleted": "削除済み",
-    "interruptedNote": "[翻訳中断: {{seconds}}秒]"
+    "interruptedNote": "[翻訳中断: {{seconds}}秒]",
+    "accessRevoked": "このトランスクリプトへのアクセス権が失効しています",
+    "empty": "トランスクリプトがありません",
+    "exportTitle": "エクスポート形式を選択",
+    "filter": {
+      "all": "全て",
+      "self": "自分の発話",
+      "other": "相手の発話"
+    },
+    "export": {
+      "pdf": "PDF でエクスポート",
+      "txt": "TXT でエクスポート",
+      "success": "エクスポートが完了しました",
+      "failed": "エクスポートに失敗しました"
+    }
   },
   "billing": {
     "currentPlan": "現在のプラン",

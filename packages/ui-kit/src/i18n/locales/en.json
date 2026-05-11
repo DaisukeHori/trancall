@@ -123,9 +123,23 @@
     "viewTranscript": "View Full Transcript",
     "exportTranscript": "Export"
   },
+  "callSummary": {
+    "title": "Call ended",
+    "duration": "Duration",
+    "translationCard": "Translation",
+    "translationSessions": "Translation sessions",
+    "billingCard": "Billing details",
+    "cost": "This call: ~{{cost}} yen",
+    "remaining": "{{minutes}} min remaining ({{plan}} plan)",
+    "lowBalance": "Low balance",
+    "viewTranscript": "View transcript",
+    "callAgain": "Call again",
+    "backToHome": "Back to home"
+  },
   "transcript": {
     "title": "Transcript",
     "search": "Search in transcript...",
+    "searchPlaceholder": "Search keywords...",
     "both": "Both",
     "originalOnly": "Original",
     "translationOnly": "Translation",
@@ -133,7 +147,21 @@
     "exportTxt": "TXT",
     "share": "Share",
     "deleted": "Deleted",
-    "interruptedNote": "[Translation interrupted: {{seconds}}s]"
+    "interruptedNote": "[Translation interrupted: {{seconds}}s]",
+    "accessRevoked": "Your access to this transcript has been revoked",
+    "empty": "No transcript available",
+    "exportTitle": "Choose export format",
+    "filter": {
+      "all": "All",
+      "self": "My speech",
+      "other": "Their speech"
+    },
+    "export": {
+      "pdf": "Export as PDF",
+      "txt": "Export as TXT",
+      "success": "Export complete",
+      "failed": "Export failed"
+    }
   },
   "billing": {
     "currentPlan": "Current Plan",
