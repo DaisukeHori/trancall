@@ -161,7 +161,7 @@ N人×M言語で最大 N×(M-1) セッション。同じ入力→出力の翻訳
 | room_id | UUID PK | |
 | status | VARCHAR | waiting / active / ended |
 | room_type | VARCHAR | audio / video |
-| translation_on | BOOLEAN | |
+| translation_enabled | BOOLEAN | デフォルト TRUE |
 | created_by | UUID FK | → profiles |
 | created_at | TIMESTAMPTZ | |
 | ended_at | TIMESTAMPTZ NULLABLE | |
@@ -197,37 +197,71 @@ UNIQUE制約: (user_id, contact_user_id)
 | id | UUID PK | |
 | user_id | UUID FK UNIQUE | → profiles |
 | plan_tier | VARCHAR | free/light/standard/business |
+| included_minutes | INTEGER | Free=5 (m-009 確定) / Light=30 / Standard=120 / Business=500 |
+| overage_rate_yen | INTEGER | プラン超過分の単価 |
+| monthly_price_yen | INTEGER | 税込月額 |
+| transcript_retention_days | INTEGER | Free=7 / Light=30 / Standard=90 / Business=365 |
+| purchase_channel | VARCHAR | free / iap_apple / iap_google / storekit_external / stripe_web (v10 M-001-NEW) |
 | stripe_customer_id | VARCHAR NULLABLE | |
 | stripe_subscription_id | VARCHAR NULLABLE | |
-| current_period_start | TIMESTAMPTZ | |
+| iap_original_transaction_id | VARCHAR NULLABLE | |
+| current_period_start | TIMESTAMPTZ | reserveMinutes の窓基準 |
 | current_period_end | TIMESTAMPTZ | |
+| cancel_at_period_end | BOOLEAN | |
 
-#### trancall_billing.usage_records
+`purchase_channel_id_consistency` CHECK 制約により、purchase_channel に応じた外部 ID 列の必須/null が保証される。
+
+#### trancall_billing.usage_windows (heartbeat方式)
+
+| カラム | 型 | 備考 |
+|--------|-----|------|
+| id | UUID PK | |
+| user_id | UUID FK | → profiles |
+| session_id | UUID | translation session の ID |
+| room_id | UUID | NOT NULL (v10 C-001-NEW) |
+| window_start | TIMESTAMPTZ | |
+| window_end | TIMESTAMPTZ | |
+| duration_seconds | INTEGER | 通常 30 秒 |
+| language_pair | VARCHAR | "ja-en" 等 |
+| amount_yen | INTEGER | 含有分内は 0、超過分のみ計上 |
+| idempotency_key | VARCHAR UNIQUE | `{sessionId}:heartbeat:{windowIndex}` 形式 |
+| recorded_at | TIMESTAMPTZ | BRIN index 対象 |
+
+旧 `usage_records` テーブルは廃止。利用量は append-only な `usage_windows` で記録し、heartbeat の冪等 INSERT で重複排除する。
+
+#### trancall_billing.usage_reservations
 
 | カラム | 型 | 備考 |
 |--------|-----|------|
 | id | UUID PK | |
 | user_id | UUID FK | → profiles |
 | session_id | UUID | |
-| room_id | UUID | |
-| duration_seconds | INTEGER | |
-| cost_yen | DECIMAL(10,2) | |
-| recorded_at | TIMESTAMPTZ | |
+| reserved_minutes | INTEGER | 通話開始時に予約する分数 |
+| consumed_minutes | INTEGER | 実消費分 |
+| status | VARCHAR | active / reconciled / expired |
+| created_at | TIMESTAMPTZ | |
+| reconciled_at | TIMESTAMPTZ NULLABLE | |
 
 #### trancall_transcript.segments
 
 | カラム | 型 | 備考 |
 |--------|-----|------|
-| id | UUID PK | |
+| segment_id | UUID PK | |
 | room_id | UUID FK | → rooms |
 | participant_id | UUID | |
 | speaker_name | VARCHAR | |
 | original_text | TEXT | |
 | translated_text | TEXT NULLABLE | |
-| language | VARCHAR | |
+| language_pair | VARCHAR | "ja-en" 形式 |
 | start_time_ms | INTEGER | 通話開始からのms |
 | end_time_ms | INTEGER | |
-| is_final | BOOLEAN | |
+| sequence_no | INTEGER | UNIQUE (room_id, participant_id, sequence_no) で冪等 upsert を実現 |
+| source_event_id | UUID | Agent からの event 識別 |
+| agent_session_id | UUID NULLABLE | translation session 識別 |
+| retention_until | TIMESTAMPTZ | プラン別保持期限、retention batch で削除対象 |
+| created_at | TIMESTAMPTZ | |
+
+DB 保存するのは final segment のみ。partial delta は LiveKit Data Channel で配信し、DB には書かない (v9 設計)。`is_final` カラムは設けず、DB 上の存在 = final 確定とする。
 
 
 #### trancall_transcript.transcript_access
