@@ -106,9 +106,11 @@ describe("validate()", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.details).toBeDefined();
-    expect(Array.isArray(result.error.details?.["issues"])).toBe(true);
     const issues = result.error.details?.["issues"];
-    expect((issues as unknown[]).length).toBeGreaterThan(0);
+    expect(Array.isArray(issues)).toBe(true);
+    if (Array.isArray(issues)) {
+      expect(issues.length).toBeGreaterThan(0);
+    }
   });
 
   it("複数フィールドの invalid データで全 path がメッセージに含まれる", () => {

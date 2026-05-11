@@ -61,6 +61,11 @@ describe("brandRoomId", () => {
     const result = brandRoomId(INVALID_UUID);
     expect(result.success).toBe(false);
   });
+
+  it("空文字で success が false になる", () => {
+    const result = brandRoomId(EMPTY_STRING);
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("brandParticipantId", () => {
@@ -71,6 +76,11 @@ describe("brandParticipantId", () => {
 
   it("不正文字列で success が false になる", () => {
     const result = brandParticipantId(INVALID_UUID);
+    expect(result.success).toBe(false);
+  });
+
+  it("空文字で success が false になる", () => {
+    const result = brandParticipantId(EMPTY_STRING);
     expect(result.success).toBe(false);
   });
 });
@@ -85,6 +95,11 @@ describe("brandTrackId", () => {
     const result = brandTrackId(INVALID_UUID);
     expect(result.success).toBe(false);
   });
+
+  it("空文字で success が false になる", () => {
+    const result = brandTrackId(EMPTY_STRING);
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("brandTranslationSessionId", () => {
@@ -95,6 +110,11 @@ describe("brandTranslationSessionId", () => {
 
   it("不正文字列で success が false になる", () => {
     const result = brandTranslationSessionId(INVALID_UUID);
+    expect(result.success).toBe(false);
+  });
+
+  it("空文字で success が false になる", () => {
+    const result = brandTranslationSessionId(EMPTY_STRING);
     expect(result.success).toBe(false);
   });
 });
