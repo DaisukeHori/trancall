@@ -293,7 +293,7 @@ const TrackPermissions = z.object({
 
 const TranslationConfig = z.object({
   sessionId: TranslationSessionIdSchema,
-  inputLanguage: InputLanguage,
+  inputLanguage: InputLanguage,     // OpenAIには送らない。内部の言語ペア判定専用。OpenAIは入力言語を自動検出
   outputLanguage: OutputLanguage,
   // voice選択は不可。GPT-RT-Translateはdynamic voice adaptation
   // safetyIdentifier: SHA-256ハッシュ化したユーザーID
@@ -316,7 +316,7 @@ const TranslationUsage = z.object({
   sessionId: TranslationSessionIdSchema,
   roomId: RoomIdSchema,
   participantId: ParticipantIdSchema,
-  inputLanguage: InputLanguage,
+  inputLanguage: InputLanguage,     // OpenAIには送らない。内部の言語ペア判定専用。OpenAIは入力言語を自動検出
   outputLanguage: OutputLanguage,
   durationSeconds: z.number().nonnegative(),
   startedAt: z.string().datetime(),
@@ -331,7 +331,7 @@ const TranslationStartedEvent = DomainEventBase.extend({
     roomId: RoomIdSchema,
     sourceParticipantId: ParticipantIdSchema,
     targetParticipantId: ParticipantIdSchema,
-    inputLanguage: InputLanguage,
+    inputLanguage: InputLanguage,     // OpenAIには送らない。内部の言語ペア判定専用。OpenAIは入力言語を自動検出
     outputLanguage: OutputLanguage,
   }),
 });
@@ -486,6 +486,7 @@ interface NotificationFacade {
 const LiveSubtitleDelta = z.object({
   roomId: RoomIdSchema,
   participantId: ParticipantIdSchema,
+  translationSessionId: TranslationSessionIdSchema.nullable(), // グループ通話時のセッション識別用
   speakerName: z.string(),
   originalDelta: z.string(),
   translatedDelta: z.string(),

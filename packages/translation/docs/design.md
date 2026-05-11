@@ -24,10 +24,14 @@ src/
 
 ## OpenAI WebSocket接続
 - URL: `wss://api.openai.com/v1/realtime/translations?model=gpt-realtime-translate`
-- Headers: `Authorization: Bearer`, `OpenAI-Safety-Identifier: SHA256(userId)`
-- 入力: base64 PCM16 24kHz mono
-- 出力: 200msフレームの翻訳音声 + transcript delta
+- Headers: `Authorization: Bearer`, `OpenAI-Safety-Identifier: SHA256(APP_SECRET + userId)`
+- セッション設定: `session.update` で `session.audio.output.language` のみ指定（入力言語は自動検出）
+- 音声送信: `session.input_audio_buffer.append` (base64 PCM16 24kHz mono)
+- 翻訳音声受信: `session.output_audio.delta` (200msフレーム base64 PCM16)
+- 翻訳文受信: `session.output_transcript.delta` / `session.output_transcript.done`
+- 原文受信: `session.input_transcript.delta` / `session.input_transcript.done`
 - silence連続投入（VADで切らない）
+- inputLanguageパラメータはOpenAI APIに存在しない（内部判定専用）
 
 ## 再接続
 - 指数バックオフ: 1s→2s→4s→8s→16s（最大5回）

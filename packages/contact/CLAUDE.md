@@ -13,3 +13,10 @@
 
 ## 関連する要件ID
 CONTACT-001〜CONTACT-008
+
+## 禁止依存
+
+- room を直接importしない
+- billing を直接importしない
+- translation を直接importしない
+- transcript を直接importしない

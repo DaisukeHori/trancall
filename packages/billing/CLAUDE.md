@@ -21,3 +21,9 @@ BILL-001〜BILL-010
 - Stripe API
 - App Store Server API (StoreKit 2)
 - Google Play Billing Library
+
+## 禁止依存
+
+- transcript を直接importしない（billing → transcript の依存禁止）
+- media を直接importしない（通話状態はイベント経由で取得）
+- notification を直接importしない

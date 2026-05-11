@@ -31,3 +31,10 @@ MEDIA-001〜MEDIA-006
 ## 外部依存
 - LiveKit Server SDK
 - LiveKit Client SDK (React Native)
+
+## 禁止依存
+
+- billing を直接importしない
+- contact を直接importしない
+- notification を直接importしない
+- auth を直接importしない

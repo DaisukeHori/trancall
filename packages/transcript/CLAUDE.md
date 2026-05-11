@@ -12,3 +12,10 @@
 
 ## 関連する要件ID
 SCRIPT-001〜SCRIPT-008
+
+## 禁止依存
+
+- billing を直接importしない
+- contact を直接importしない
+- notification を直接importしない
+- auth を直接importしない（ユーザー情報はイベントpayloadから取得）

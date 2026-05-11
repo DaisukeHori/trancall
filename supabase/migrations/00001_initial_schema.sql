@@ -154,7 +154,7 @@ CREATE TABLE trancall_billing.usage_windows (
   duration_seconds INTEGER NOT NULL,
   language_pair    VARCHAR(10) NOT NULL,  -- "ja-en"
   amount_yen       INTEGER NOT NULL DEFAULT 0,
-  idempotency_key  VARCHAR(100) NOT NULL UNIQUE,
+  idempotency_key  VARCHAR(200) NOT NULL UNIQUE,
   recorded_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -382,3 +382,64 @@ BEGIN
   RETURN deleted_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- =============================================================================
+-- 14. trancall_event.translation_events (Agent → Server outbox永続化)
+-- レビュー対応v1 C-001で合意したoutboxパターンの実装
+-- =============================================================================
+
+CREATE SCHEMA IF NOT EXISTS trancall_event;
+
+CREATE TABLE trancall_event.translation_events (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  idempotency_key VARCHAR(200) NOT NULL UNIQUE,
+  event_type      VARCHAR(40) NOT NULL CHECK (event_type IN (
+                    'translation.started', 'translation.ended',
+                    'translation.degraded', 'translation.recovered'
+                  )),
+  session_id      UUID NOT NULL,
+  room_id         UUID NOT NULL,
+  payload         JSONB NOT NULL,
+  agent_id        VARCHAR(100),
+  received_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  processed_at    TIMESTAMPTZ,
+  processing_error TEXT
+);
+
+CREATE INDEX idx_translation_events_received USING BRIN
+  ON trancall_event.translation_events(received_at);
+
+CREATE INDEX idx_translation_events_unprocessed
+  ON trancall_event.translation_events(received_at)
+  WHERE processed_at IS NULL;
+
+CREATE INDEX idx_translation_events_session
+  ON trancall_event.translation_events(session_id);
+
+ALTER TABLE trancall_event.translation_events ENABLE ROW LEVEL SECURITY;
+
+-- service_role のみ書き込み可能（Agent経由のinternal API）
+CREATE POLICY events_service_only ON trancall_event.translation_events
+  FOR ALL USING (FALSE);  -- 通常ユーザーはアクセス不可
+
+-- =============================================================================
+-- 15. trancall_auth.consent_versions (同意バージョン管理)
+-- レビュー v7 M-006
+-- =============================================================================
+
+CREATE TABLE trancall_auth.consent_versions (
+  version           VARCHAR(20) PRIMARY KEY,
+  effective_at      TIMESTAMPTZ NOT NULL,
+  retired_at        TIMESTAMPTZ,
+  description       TEXT NOT NULL,
+  policy_url        TEXT NOT NULL,
+  requires_reconsent BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+INSERT INTO trancall_auth.consent_versions (version, effective_at, description, policy_url)
+VALUES ('v1.0', now(), 'Initial consent: audio sent to OpenAI for translation', 'https://trancall.app/privacy');
+
+-- =============================================================================
+-- pgcrypto 拡張有効化（ローカル開発用、m-002）
+-- =============================================================================
+CREATE EXTENSION IF NOT EXISTS pgcrypto;

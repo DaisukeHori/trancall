@@ -195,9 +195,16 @@ Response: { "ok": true, "data": SubscriptionState }
 ### POST /api/billing/checkout
 
 ```
-Request: { "tier": "standard" }
+Request: { "tier": "standard", "paymentMethod": "stripe" | "iap" }
 Response: { "ok": true, "data": { "url": "https://checkout.stripe.com/..." } }
-注: アプリ内からは呼ばない（IAP使用）。Web版のみ。
+
+MSCA対応（日本市場）:
+- IAPとStripe（代替決済）を**併設**可能。アプリ内に両方の決済ボタンを置ける
+- IAP手数料: MSCA 21%（SBP適用時10%）
+- Stripe手数料: 3.6%（ただしStoreKit External Purchase Entitlement経由で26% Appleコミッション含む場合あり）
+- B2B向け: Webサブスク（Stripe 3.6%のみ）を優先提案
+
+日本以外の市場: IAP一本化（MSCA非適用）
 ```
 
 ### POST /api/billing/webhook/stripe

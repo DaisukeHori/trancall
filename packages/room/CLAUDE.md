@@ -16,3 +16,8 @@ ROOM-001〜ROOM-010
 - `room.created`
 - `room.participant_joined`
 - `room.participant_left`
+
+## 禁止依存
+
+- transcript を直接importしない
+- translation を直接importしない（翻訳開始はイベント経由）

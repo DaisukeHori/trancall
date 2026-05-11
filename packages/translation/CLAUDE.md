@@ -94,3 +94,11 @@ packages/translation/
 - WebSocket再接続ロジックは指数バックオフで実装
 - 翻訳セッションが異常終了した場合も `translation.ended` イベントを発行すること
 - PCM 24kHz モノラルはGPT-RT-Translateの要件。サンプルレートの変換はmediaモジュール側で行う
+
+## 禁止依存
+
+- billing を直接importしない（利用量はイベント発行で通知）
+- room を直接importしない
+- contact を直接importしない
+- notification を直接importしない
+- DB (Supabase) を直接importしない（Transportに依存しない設計）

@@ -181,7 +181,7 @@ class TranslationSession {
         // PCM 24kHz mono → base64
         const b64 = Buffer.from(frame.data).toString("base64");
         this.ws.send(JSON.stringify({
-          type: "input_audio_buffer.append",
+          type: "session.input_audio_buffer.append",  // session. prefix必須
           audio: b64,
         }));
       }
@@ -189,37 +189,51 @@ class TranslationSession {
   }
 
   private handleOpenAIResponses(room: Room): void {
-    const translatedTrack = new LocalAudioTrack();
+    const audioSource = new AudioSource(24000, 1);
+    const translatedTrack = LocalAudioTrack.createAudioTrack("translated", audioSource);
 
     this.ws.on("message", (raw: Buffer) => {
       const event = JSON.parse(raw.toString());
 
       switch (event.type) {
-        case "output_audio_buffer.audio_chunk": {
-          // 翻訳済み音声フレーム（200ms PCM16）
-          const pcm = Buffer.from(event.audio, "base64");
-          translatedTrack.publishFrame({
-            data: new Uint8Array(pcm),
-            sampleRate: 24000,
-            channels: 1,
-            format: "pcm16",
-          });
+        case "session.output_audio.delta": {
+          // 翻訳済み音声フレーム（200ms PCM16, base64）
+          const pcm = Buffer.from(event.delta, "base64");
+          audioSource.captureFrame(new AudioFrame(
+            new Int16Array(pcm.buffer, pcm.byteOffset, pcm.byteLength / 2),
+            24000, 1, pcm.byteLength / 2,
+          ));
           break;
         }
-        case "output_audio_buffer.transcript_delta": {
-          // 字幕デルタ → LiveKit data channel で配信
+        case "session.output_transcript.delta": {
+          // 翻訳文の delta → LiveKit data channel で配信
           room.localParticipant.publishData(JSON.stringify({
-            type: "subtitle.delta",
+            type: "subtitle.translated_delta",
             sessionId: this.id,
-            speakerName: this.config.sourceParticipantId,
-            translatedDelta: event.delta,
+            speakerParticipantId: this.config.sourceParticipantId,
+            delta: event.delta,
             isFinal: false,
-          }));
+          }), { reliable: true });
           break;
         }
-        case "output_audio_buffer.transcript_done": {
-          // 最終確定 → 内部APIでDB保存
+        case "session.input_transcript.delta": {
+          // 原文の delta（input transcription有効時）
+          room.localParticipant.publishData(JSON.stringify({
+            type: "subtitle.original_delta",
+            sessionId: this.id,
+            speakerParticipantId: this.config.sourceParticipantId,
+            delta: event.delta,
+          }), { reliable: true });
+          break;
+        }
+        case "session.output_transcript.done":
+        case "session.input_transcript.done": {
+          // 最終確定 → 内部APIでfinal segment保存
           this.persistFinalSegment(event);
+          break;
+        }
+        case "error": {
+          this.handleProviderError(event.error);
           break;
         }
       }
@@ -228,7 +242,7 @@ class TranslationSession {
     // Track Publish（命名規約: trans-{sourceId}-to-{lang}）
     room.localParticipant.publishTrack(translatedTrack, {
       name: `trans-${this.config.sourceParticipantId}-to-${this.config.outputLanguage}`,
-      source: "translation",
+      source: TrackSource.SOURCE_UNKNOWN,
     });
   }
 

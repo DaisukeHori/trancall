@@ -96,7 +96,7 @@ function percentile(values: number[], p: number): number {
 
 async function runGateCheck(): Promise<void> {
   const durationMin = Number(process.env["TEST_DURATION_MIN"] ?? "30");
-  const pairs = (process.env["LANGUAGE_PAIRS"] ?? "ja-en,ja-zh,ja-ko").split(",");
+  const pairs = (process.env["LANGUAGE_PAIRS"] ?? "ja-en,en-ja,ja-zh,zh-ja,ja-ko,ko-ja").split(",");
 
   console.log("=== TranCall Translation Agent Gate Check ===");
   console.log(`Duration: ${String(durationMin)} min`);
@@ -136,6 +136,25 @@ async function runGateCheck(): Promise<void> {
         threshold: "≤ 5000ms",
         actual: `${String(p99)}ms`,
       });
+
+      // ホップ別内訳（ボトルネック特定用）
+      const hopNames: (keyof LatencyBucket)[] = [
+        "captureToAgentMs", "agentToOpenAIMs",
+        "openAIFirstDeltaMs", "agentPublishMs",
+      ];
+      for (const hop of hopNames) {
+        const vals = buckets.map((b) => b[hop]);
+        const hp50 = percentile(vals, 50);
+        const hp95 = percentile(vals, 95);
+        results.push({
+          testName: `  └ ${hop} p50/p95 [${pair}]`,
+          passed: true, // ホップ別は情報提供のみ（pass/fail判定はend-to-endで）
+          metric: "p50/p95",
+          threshold: "info only",
+          actual: `${String(hp50)}ms / ${String(hp95)}ms`,
+          details: hp95 > 1000 ? "⚠ BOTTLENECK CANDIDATE" : undefined,
+        });
+      }
     } else {
       results.push({
         testName: `Latency [${pair}]`,
