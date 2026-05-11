@@ -57,15 +57,12 @@ i18nによるUI多言語化。Phase 1では以下の3言語から開始し、順
 
 ## 2. フェーズ定義
 
-### Phase 0 — PoC（技術検証）
-
-- LiveKit SFU + Translation Agent + GPT-RT-Translate の最小構成接続
-- 実機（iOS/Android）でのend-to-endレイテンシー測定（p50/p95/p99）
-- レイテンシーバジェット分解と目標値の確定
-- fallback仕様の策定（字幕先行、原音同時再生、翻訳OFF）
-
 ### Phase 1a — MVP Core（TestFlight / internal beta）
 
+Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証はPhase 1aの初期実装の中で行う。翻訳パイプラインの構築がそのままPoCになるため、独立フェーズにする意義が薄い。問題が出ればPhase 1a内で設計を修正する。
+
+- LiveKit SFU + Translation Agent + GPT-RT-Translate 接続（技術検証を兼ねる）
+- レイテンシー測定（p50/p95/p99）とバジェット分解
 - ユーザー登録・認証（Supabase Auth）
 - 連絡先管理（追加・検索・QRコード・招待リンク）
 - 1対1 foreground音声通話

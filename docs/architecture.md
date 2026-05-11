@@ -387,7 +387,7 @@ heartbeat方式に変更:
 
 ### Phase構成変更（C-004）
 
-Phase 0（PoC）→ Phase 1a（MVP Core）→ Phase 1b（バックグラウンド着信）→ Phase 1c（ストア公開）に再構成。詳細は requirements.md を参照。
+Phase 1a（MVP Core、技術検証を内包）→ Phase 1b（バックグラウンド着信）→ Phase 1c（ストア公開）に再構成。Phase 0（独立PoC）は設けない。翻訳パイプライン構築がそのままPoCになるため、独立フェーズにする意義が薄い。詳細は requirements.md を参照。
 
 ## 付録: 技術選定比較
 

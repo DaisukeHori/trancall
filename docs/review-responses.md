@@ -29,10 +29,11 @@ Agent → Server間にHTTP内部APIを追加する。
 
 **指摘:** 翻訳レイテンシー2秒以内は未検証の希望値。
 
-**対応: Phase 0（PoC）必須化**
+**対応: Phase 1a内で技術検証を実施**
 
-Phase 1aの前にPhase 0を追加。内容:
+Phase 0（独立PoC）は設けない。翻訳パイプラインの構築がそのままPoCになるため、独立フェーズにする意義が薄い。Phase 1aの初期タスクとしてレイテンシー測定と検証を行い、問題があればPhase 1a内で設計を修正する。
 
+Phase 1a初期タスク:
 - LiveKit SFU + Agent + GPT-RT-Translate の最小構成を組む
 - 実機（iOS/Android）で p50/p95/p99 レイテンシーを測定
 - バジェット分解: capture → uplink → agent queue → OpenAI first delta → republish → downlink
@@ -69,8 +70,7 @@ Phase 1aの前にPhase 0を追加。内容:
 
 | Phase | 内容 | ゴール |
 |-------|------|--------|
-| Phase 0 | LiveKit + GPT-RT-Translate 接続PoC、レイテンシー測定 | 技術検証完了 |
-| Phase 1a | Supabase Auth + Contacts/QR/InviteLink + foreground通話 + 翻訳 + 字幕 + usage計測 | TestFlight/internal beta |
+| Phase 1a | 技術検証（レイテンシー測定）+ Supabase Auth + Contacts/QR/InviteLink + foreground通話 + 翻訳 + 字幕 + usage計測 | TestFlight/internal beta |
 | Phase 1b | VoIP Push + CallKit + ConnectionService（バックグラウンド着信） | kill状態着信成功 |
 | Phase 1c | Stripe + iOS IAP + Google Play IAP + ストア公開準備 | App Store / Play Store公開 |
 | Phase 2 | グループ通話 + ビデオ + Chat | 機能拡張 |
@@ -206,7 +206,7 @@ Phase 1aから除外済み（C-004対応に含む）
 
 | ID | 質問 | 回答 |
 |----|------|------|
-| Q-001 | GPT-RT-Translate実API PoCは完了しているか？ | 未完了。Phase 0で実施する |
+| Q-001 | GPT-RT-Translate実API PoCは完了しているか？ | 未完了。Phase 1aの初期タスクとして実施する |
 | Q-002 | Transcriptはデフォルト保存かopt-inか？ | デフォルト保存 |
 | Q-003 | Phase 1のゴールは？ | Phase 1a = TestFlight/internal beta、Phase 1c = ストア公開 |
 | Q-004 | 課金対象は？ | 翻訳を利用する通話の両参加者ではなく、通話を開始した側（caller）が負担。ただし将来的に検討 |
