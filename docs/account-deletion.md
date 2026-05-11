@@ -24,7 +24,7 @@ DELETE /api/auth/account
 
 | データ | 処理 | タイミング | 理由 |
 |--------|------|----------|------|
-| profiles | 匿名化（displayName→"Deleted User", email→hash, avatar→null） | 即座 | 相手の連絡先リストに残る可能性 |
+| profiles | 匿名化（displayName→"Deleted User", email→sha256ハッシュ, avatar→null） | 即座 | 相手の連絡先リストや通話履歴に表示される名前を更新 |
 | contacts | 自分が所有する連絡先を全削除 | 即座 | |
 | block_list | 全削除 | 即座 | |
 | device_tokens | 全削除 | 即座 | Push停止 |
@@ -32,7 +32,7 @@ DELETE /api/auth/account
 | usage_windows | 保持（匿名化、user_idをnullに） | 30日後 | 課金監査用 |
 | usage_reservations | 全reconcile→削除 | 即座 | |
 | rooms | 変更なし（他参加者のデータとして残る） | — | |
-| participants | 匿名化（user_id→null, displayName→"Deleted User"） | 即座 | |
+| participants | **変更なし（user_idを維持）** | — | 履歴整合性。profilesの匿名化により表示名は自動的に"Deleted User"になる |
 | transcript segments | 保持（他参加者のaccessは維持） | retention_until | |
 | transcript_access | 自分のaccess行を削除 | 即座 | |
 | invite_links | 全revoke | 即座 | |

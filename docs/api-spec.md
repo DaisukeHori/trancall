@@ -195,37 +195,80 @@ Response: { "ok": true, "data": SubscriptionState }
 ### POST /api/billing/checkout
 
 ```
-Request: { "tier": "standard", "paymentMethod": "stripe" | "iap" }
-Response: { "ok": true, "data": { "url": "https://checkout.stripe.com/..." } }
+Request: {
+  "tier": "standard",
+  "paymentMethod": "iap" | "storekit_external" | "stripe_web"
+}
+
+Response (paymentMethod="iap"):
+{ "ok": true, "data": { "method": "iap", "productId": "trancall_standard_monthly" } }
+  → クライアントが App Store / Google Play の IAP フローを起動
+
+Response (paymentMethod="storekit_external"):
+{ "ok": true, "data": {
+    "method": "storekit_external",
+    "url": "https://checkout.stripe.com/...",
+    "externalPurchaseToken": "ept_...",     // Apple StoreKit External API用
+    "disclosureSheetRequired": true          // クライアントは Apple disclosure sheet を表示してから外部リンクを開く
+  }
+}
+
+Response (paymentMethod="stripe_web"):
+{ "ok": true, "data": { "method": "stripe_web", "url": "https://checkout.stripe.com/..." } }
+  → Web ブラウザで開く。アプリ外サイト / B2B 法人向け。
+```
 
 MSCA対応（日本市場）:
-- IAPとStripe（代替決済）を**併設**可能。アプリ内に両方の決済ボタンを置ける
-- IAP手数料: MSCA 21%（SBP適用時10%）
-- Stripe手数料: 3.6%（ただしStoreKit External Purchase Entitlement経由で26% Appleコミッション含む場合あり）
-- B2B向け: Webサブスク（Stripe 3.6%のみ）を優先提案
+- アプリ内で **IAP + StoreKit External Purchase** を**併設必須**（MSCAルール: side-by-side model）
+- 同じ画面に "Appleで購入" / "Webで購入" ボタンを並べる
+- 海外市場: `iap` のみ。`storekit_external` リクエストは `FORBIDDEN_IN_REGION` エラー
+- `stripe_web`: アプリ外サイトでの直接購入。B2B契約や年間プラン用
 
-日本以外の市場: IAP一本化（MSCA非適用）
+実効手数料:
+- IAP: MSCA 21% (SBP適用時 10%)
+- StoreKit External Purchase: 実効15-20% (Store Services Fee + Initial Acquisition Fee + CTC + Stripe 3.6%)
+- Stripe Web (アプリ外): 3.6%
+
+### POST /api/billing/storekit-external/report
+
+```
+Apple StoreKit External Purchase で発生した取引を Apple に月次報告するための内部記録エンドポイント。
+クライアント or Stripe Webhook 経由で取引完了通知を受け、その後に Apple External Purchase Server API に転送する。
+
+Request: {
+  "externalPurchaseToken": "ept_...",
+  "stripeSessionId": "cs_...",
+  "amountYen": 2980,
+  "occurredAt": "2026-05-11T10:00:00Z"
+}
+
+Response: { "ok": true, "data": { "queuedForAppleReport": true } }
+
+Apple月次レポート:
+- 毎月Appleが請求書を送付
+- 開発者は30日以内にApple-issued invoiceを支払う必要あり
+- 監査用に取引データを保持
 ```
 
 ### POST /api/billing/webhook/stripe
 
 ```
 Stripe Signature 検証
-idempotent by event.id
+idempotent by event.id (webhook_events.external_event_id で永続化)
 ```
 
 ### POST /api/billing/webhook/apple
 
 ```
 App Store Server Notifications V2
-idempotent by signedTransactionInfo
+idempotent by signedTransactionInfo (webhook_events.external_event_id で永続化)
 ```
 
 ### POST /api/billing/webhook/google
 
 ```
 Google Play Real-Time Developer Notifications
-idempotent by purchaseToken
+idempotent by purchaseToken (webhook_events.external_event_id で永続化)
 ```
 
 ## トランスクリプト（transcript）

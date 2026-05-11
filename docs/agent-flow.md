@@ -144,18 +144,20 @@ class TranslationSession {
       },
     });
 
-    // 2. セッション設定送信
+    // 2. セッション設定送信（公式構造）
+    // 注: /v1/realtime/translations エンドポイントは出力言語のみ指定する。
+    //     inputLanguage はOpenAIに送らない（70+言語を自動検出）。
+    //     内部の言語ペア判定にのみ使用する。
+    //     音声フォーマット（pcm16 24kHz）はエンドポイント側で固定されている。
     this.ws.on("open", () => {
       this.ws.send(JSON.stringify({
         type: "session.update",
         session: {
-          input_language: this.config.inputLanguage,
-          output_language: this.config.outputLanguage,
-          modalities: ["audio", "text"],
-          input_audio_format: "pcm16",
-          output_audio_format: "pcm16",
-          input_audio_sample_rate: 24000,
-          output_audio_sample_rate: 24000,
+          audio: {
+            output: {
+              language: this.config.outputLanguage,
+            },
+          },
         },
       }));
     });

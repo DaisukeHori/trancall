@@ -3,6 +3,10 @@
 -- Supabase PostgreSQL Migration
 -- =============================================================================
 
+-- 必要な拡張機能を先に有効化
+-- gen_random_uuid() は Postgres 13+ ではコア組み込み、12 以前は pgcrypto 必須
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- スキーマ作成
 CREATE SCHEMA IF NOT EXISTS trancall_auth;
 CREATE SCHEMA IF NOT EXISTS trancall_room;
@@ -10,6 +14,7 @@ CREATE SCHEMA IF NOT EXISTS trancall_contact;
 CREATE SCHEMA IF NOT EXISTS trancall_billing;
 CREATE SCHEMA IF NOT EXISTS trancall_transcript;
 CREATE SCHEMA IF NOT EXISTS trancall_notification;
+CREATE SCHEMA IF NOT EXISTS trancall_event;
 
 -- =============================================================================
 -- 1. trancall_auth.profiles
@@ -388,8 +393,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- レビュー対応v1 C-001で合意したoutboxパターンの実装
 -- =============================================================================
 
-CREATE SCHEMA IF NOT EXISTS trancall_event;
-
 CREATE TABLE trancall_event.translation_events (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   idempotency_key VARCHAR(200) NOT NULL UNIQUE,
@@ -440,11 +443,6 @@ INSERT INTO trancall_auth.consent_versions (version, effective_at, description, 
 VALUES ('v1.0', now(), 'Initial consent: audio sent to OpenAI for translation', 'https://trancall.app/privacy');
 
 -- =============================================================================
--- pgcrypto 拡張有効化（ローカル開発用、m-002）
--- =============================================================================
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- =============================================================================
 -- 16. trancall_contact.invite_links (招待リンク管理)
 -- =============================================================================
 
@@ -466,3 +464,38 @@ ALTER TABLE trancall_contact.invite_links ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY invite_links_self ON trancall_contact.invite_links
   FOR ALL USING (user_id = auth.uid());
+
+-- =============================================================================
+-- 17. trancall_billing.webhook_events (Stripe / Apple IAP / Google Play / StoreKit External)
+-- レビュー v8 M-003: webhook 重複処理防止のための idempotency 永続化
+-- =============================================================================
+
+CREATE TABLE trancall_billing.webhook_events (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider          VARCHAR(30) NOT NULL CHECK (provider IN (
+                      'stripe', 'apple_iap', 'google_play', 'storekit_external'
+                    )),
+  external_event_id VARCHAR(200) NOT NULL,
+  event_type        VARCHAR(100) NOT NULL,
+  payload           JSONB NOT NULL,
+  processed_at      TIMESTAMPTZ,
+  processing_error  TEXT,
+  received_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (provider, external_event_id)
+);
+
+-- BRIN for append-only
+CREATE INDEX idx_webhook_events_received USING BRIN
+  ON trancall_billing.webhook_events(received_at);
+
+-- 未処理イベント検索用
+CREATE INDEX idx_webhook_events_unprocessed
+  ON trancall_billing.webhook_events(received_at)
+  WHERE processed_at IS NULL;
+
+ALTER TABLE trancall_billing.webhook_events ENABLE ROW LEVEL SECURITY;
+
+-- service_role のみアクセス可
+CREATE POLICY webhook_events_service_only ON trancall_billing.webhook_events
+  FOR ALL USING (FALSE);
+

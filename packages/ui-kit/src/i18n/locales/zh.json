@@ -1,11 +1,150 @@
 {
-  "common": { "ok": "确定", "cancel": "取消", "save": "保存", "delete": "删除", "back": "返回", "next": "下一步", "done": "完成", "error": "错误", "retry": "重试", "loading": "加载中..." },
-  "auth": { "signIn": "登录", "signUp": "创建账号", "signOut": "退出登录", "email": "电子邮件", "password": "密码", "displayName": "显示名称", "nativeLanguage": "母语", "forgotPassword": "忘记密码？", "verifyEmail": "请验证您的邮箱", "invalidCredentials": "邮箱或密码不正确" },
-  "onboarding": { "title": "TranCall", "subtitle": "所有通话，用你的语言。", "chooseLanguage": "选择你的母语", "poweredBy": "GPT-Realtime-Translate: 13种输出语言" },
-  "home": { "recentCalls": "最近通话", "searchContacts": "搜索联系人...", "noRecentCalls": "没有最近的通话", "missed": "未接来电" },
-  "contacts": { "title": "联系人", "addContact": "添加联系人", "favorites": "收藏", "allContacts": "全部联系人", "searchById": "按TranCall ID或名称搜索...", "scanQr": "扫描二维码", "shareInvite": "分享邀请链接", "importContacts": "从设备导入", "block": "拉黑", "report": "举报", "unblock": "取消拉黑", "blocked": "已拉黑" },
-  "call": { "startCall": "开始通话", "endCall": "结束通话", "calling": "正在拨打...", "ringing": "响铃中...", "connecting": "连接中...", "inCall": "通话中", "mute": "静音", "unmute": "取消静音", "speaker": "扬声器", "decline": "拒绝", "accept": "接听", "callEnded": "通话结束", "callAgain": "再次拨打", "backToHome": "返回首页", "incomingCall": "来电", "translationReady": "翻译已就绪" },
-  "translation": { "enabled": "翻译开启", "disabled": "翻译关闭", "paused": "翻译暂停", "reconnecting": "正在重新连接翻译...", "stopped": "翻译已停止", "recovered": "翻译已恢复", "switchToOriginal": "切换到原声", "switchToTranslated": "切换到翻译", "subtitles": "字幕", "dynamicVoice": "翻译语音自动适配说话者" },
-  "consent": { "title": "关于翻译通话", "description": "使用TranCall的翻译功能，通话音频将被发送到OpenAI的服务器。", "details": "音频仅用于翻译处理，OpenAI不会存储。文字记录保存在TranCall服务器上（可在设置中禁用）。", "agree": "同意并继续", "decline": "不使用翻译通话", "learnMore": "了解更多" },
-  "permissions": { "microphoneTitle": "麦克风权限", "microphoneDescription": "通话需要使用麦克风", "notificationTitle": "通知权限", "notificationDescription": "接收来电通知需要此权限", "allow": "允许", "later": "稍后" }
+  "common": {
+    "ok": "确定",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "back": "返回",
+    "next": "下一步",
+    "done": "完成",
+    "error": "错误",
+    "retry": "重试",
+    "loading": "加载中..."
+  },
+  "auth": {
+    "signIn": "登录",
+    "signUp": "创建账号",
+    "signOut": "退出登录",
+    "email": "电子邮件",
+    "password": "密码",
+    "displayName": "显示名称",
+    "nativeLanguage": "母语",
+    "forgotPassword": "忘记密码？",
+    "verifyEmail": "请验证您的邮箱",
+    "invalidCredentials": "邮箱或密码不正确"
+  },
+  "onboarding": {
+    "title": "TranCall",
+    "subtitle": "所有通话，用你的语言。",
+    "chooseLanguage": "选择你的母语",
+    "poweredBy": "GPT-Realtime-Translate：支持13种输出语言"
+  },
+  "home": {
+    "recentCalls": "最近通话",
+    "searchContacts": "搜索联系人...",
+    "noRecentCalls": "没有最近的通话",
+    "missed": "未接来电"
+  },
+  "contacts": {
+    "title": "联系人",
+    "addContact": "添加联系人",
+    "favorites": "收藏",
+    "allContacts": "全部联系人",
+    "searchById": "按TranCall ID或名称搜索...",
+    "scanQr": "扫描二维码",
+    "shareInvite": "分享邀请链接",
+    "importContacts": "从设备导入",
+    "block": "拉黑",
+    "report": "举报",
+    "unblock": "取消拉黑",
+    "blocked": "已拉黑"
+  },
+  "call": {
+    "startCall": "开始通话",
+    "endCall": "结束通话",
+    "calling": "正在拨打...",
+    "ringing": "响铃中...",
+    "connecting": "连接中...",
+    "inCall": "通话中",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "speaker": "扬声器",
+    "decline": "拒绝",
+    "accept": "接听",
+    "callEnded": "通话结束",
+    "callAgain": "再次拨打",
+    "backToHome": "返回首页",
+    "incomingCall": "来电",
+    "translationReady": "翻译已就绪"
+  },
+  "translation": {
+    "enabled": "翻译开启",
+    "disabled": "翻译关闭",
+    "paused": "翻译暂停",
+    "reconnecting": "正在重新连接翻译...",
+    "stopped": "翻译已停止",
+    "recovered": "翻译已恢复",
+    "switchToOriginal": "切换到原声",
+    "switchToTranslated": "切换到翻译",
+    "subtitles": "字幕",
+    "dynamicVoice": "翻译语音自动适配说话者"
+  },
+  "precall": {
+    "title": "通话设置",
+    "translationDirection": "翻译方向",
+    "yourVoice": "您的声音 → 对方",
+    "theirVoice": "对方的声音 → 您",
+    "liveSubtitles": "实时字幕",
+    "estimatedCost": "预计费用",
+    "perMinute": "约 {{cost}} 日元/分钟",
+    "remainingMinutes": "剩余 {{minutes}} 分钟（{{plan}} 套餐）"
+  },
+  "summary": {
+    "callEnded": "通话结束",
+    "duration": "通话时长",
+    "cost": "费用",
+    "translationPair": "翻译",
+    "remaining": "剩余",
+    "viewTranscript": "查看完整文字记录",
+    "exportTranscript": "导出"
+  },
+  "transcript": {
+    "title": "文字记录",
+    "search": "在文字记录中搜索...",
+    "both": "全部",
+    "originalOnly": "仅原文",
+    "translationOnly": "仅译文",
+    "exportPdf": "PDF",
+    "exportTxt": "TXT",
+    "share": "分享",
+    "deleted": "已删除",
+    "interruptedNote": "[翻译中断：{{seconds}}秒]"
+  },
+  "billing": {
+    "currentPlan": "当前套餐",
+    "managePlan": "管理套餐",
+    "upgrade": "升级",
+    "remaining": "剩余 {{minutes}} 分钟",
+    "insufficientBalance": "翻译分钟数不足",
+    "upgradeToContinue": "是否升级套餐以继续翻译？",
+    "continueWithoutTranslation": "不使用翻译继续通话"
+  },
+  "settings": {
+    "title": "设置",
+    "profile": "个人资料",
+    "nativeLanguage": "母语",
+    "showSubtitles": "显示字幕",
+    "notifications": "通知",
+    "plan": "套餐",
+    "about": "关于 TranCall",
+    "privacy": "隐私政策",
+    "terms": "服务条款",
+    "deleteAccount": "删除账号"
+  },
+  "consent": {
+    "title": "关于翻译通话",
+    "description": "使用TranCall的翻译功能，通话音频将被发送到OpenAI的服务器。",
+    "details": "音频仅用于翻译处理，OpenAI不会存储。文字记录保存在TranCall服务器上（可在设置中禁用）。",
+    "agree": "同意并继续",
+    "decline": "不使用翻译通话",
+    "learnMore": "了解更多"
+  },
+  "permissions": {
+    "microphoneTitle": "麦克风权限",
+    "microphoneDescription": "通话需要使用麦克风",
+    "notificationTitle": "通知权限",
+    "notificationDescription": "接收来电通知需要此权限",
+    "allow": "允许",
+    "later": "稍后"
+  }
 }
