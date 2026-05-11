@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;font-family:var(--tc-font-sans)}
+  .row{display:grid;grid-template-columns:1fr 1fr}
+  .col{padding:20px}
+  .light{background:#fff}
+  .dark{background:#1C1C1E}
+  .label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin-bottom:10px}
+  .light .label{color:#8E8E93}
+  .dark .label{color:#8E8E93}
+  .stack{display:flex;flex-direction:column;gap:8px}
+  .item{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid}
+  .light .item{border-color:#E5E5EA}
+  .dark .item{border-color:#38383A}
+  .key{font-weight:600;font-size:13px;font-family:var(--tc-font-mono)}
+  .val{font-size:11px;font-family:var(--tc-font-mono);opacity:.6}
+  .p1{font-size:20px;font-weight:600}
+</style></head><body>
+<div class="row">
+  <div class="col light">
+    <div class="label">Light · text</div>
+    <div class="stack">
+      <div class="item"><span class="p1" style="color:#1A1A1A">textPrimary</span><span class="val" style="color:#1A1A1A">#1A1A1A</span></div>
+      <div class="item"><span class="p1" style="color:#8E8E93">textSecondary</span><span class="val" style="color:#8E8E93">#8E8E93</span></div>
+      <div class="item"><span class="p1" style="color:#C7C7CC">textTertiary</span><span class="val" style="color:#C7C7CC">#C7C7CC</span></div>
+    </div>
+  </div>
+  <div class="col dark">
+    <div class="label">Dark · text</div>
+    <div class="stack">
+      <div class="item"><span class="p1" style="color:#F5F5F5">textPrimary</span><span class="val" style="color:#F5F5F5">#F5F5F5</span></div>
+      <div class="item"><span class="p1" style="color:#8E8E93">textSecondary</span><span class="val" style="color:#8E8E93">#8E8E93</span></div>
+      <div class="item"><span class="p1" style="color:#636366">textTertiary</span><span class="val" style="color:#636366">#636366</span></div>
+    </div>
+  </div>
+</div></body></html>

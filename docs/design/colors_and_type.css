@@ -1,0 +1,216 @@
+/* ============================================================
+   TranCall Design System — Foundations
+   Extracted from packages/ui-kit/src/tokens.ts (single source of truth)
+   ------------------------------------------------------------
+   - Light + Dark schemes
+   - 8-step spacing (4 → 64)
+   - 5-step radius scale (4 / 8 / 12 / 16 / full)
+   - Typography preset: heading1 / heading2 / heading3 / body /
+     bodySmall / caption / captionSmall / mono
+   - Call-specific tokens (actionSize 56, controlSize 48)
+   ============================================================ */
+
+:root {
+  /* ---------- Light scheme (default) ---------- */
+  --tc-primary:        #0A7AFF;
+  --tc-primary-bg:     #E6F1FB;
+  --tc-secondary:      #8E8E93;
+  --tc-secondary-bg:   #F5F5F5;
+  --tc-success:        #34C759;
+  --tc-success-bg:     #EAF3DE;
+  --tc-danger:         #FF3B30;
+  --tc-danger-bg:      #FCEBEB;
+  --tc-warning:        #FF9500;
+  --tc-warning-bg:     #FAEEDA;
+
+  --tc-bg-primary:     #FFFFFF;
+  --tc-bg-secondary:   #F5F5F5;
+  --tc-bg-tertiary:    #E8E8E8;
+
+  --tc-text-primary:   #1A1A1A;
+  --tc-text-secondary: #8E8E93;
+  --tc-text-tertiary:  #C7C7CC;
+
+  --tc-border:         #E5E5EA;
+
+  --tc-subtitle-bg:           rgba(0,0,0,0.7);
+  --tc-subtitle-text:         #FFFFFF;
+  --tc-subtitle-original:     #AAAAAA;
+  --tc-subtitle-translated:   #FFFFFF;
+
+  /* ---------- Spacing (8-step) ---------- */
+  --tc-space-4:  4px;
+  --tc-space-8:  8px;
+  --tc-space-12: 12px;
+  --tc-space-16: 16px;
+  --tc-space-24: 24px;
+  --tc-space-32: 32px;
+  --tc-space-48: 48px;
+  --tc-space-64: 64px;
+
+  /* ---------- Radii ---------- */
+  --tc-radius-4:   4px;
+  --tc-radius-8:   8px;
+  --tc-radius-12: 12px;
+  --tc-radius-16: 16px;
+  --tc-radius-full: 9999px;
+
+  /* ---------- Call tokens ---------- */
+  --tc-action-size:  56px;   /* Answer / decline */
+  --tc-control-size: 48px;   /* Mute / speaker */
+  --tc-min-tap:      44px;   /* iOS HIG minimum hit target */
+
+  /* ---------- Elevation ---------- */
+  /* iOS-style soft elevation; matches Card.tsx (offset 0,2 / opacity 0.08 / radius 4) */
+  --tc-shadow-card: 0 2px 4px rgba(0,0,0,0.08);
+  --tc-shadow-modal: 0 12px 32px rgba(0,0,0,0.14);
+  --tc-shadow-fab:   0 6px 16px rgba(10,122,255,0.32);
+
+  /* ---------- Type system ----------
+     Font families: undefined in tokens.ts (system fonts).
+     Mirror the iOS / Material defaults the platform would supply. */
+  --tc-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                  "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP",
+                  "Segoe UI", Roboto, system-ui, sans-serif;
+  --tc-font-mono: ui-monospace, "SF Mono", "JetBrains Mono",
+                  "Roboto Mono", Menlo, Consolas, monospace;
+
+  /* Sizes */
+  --tc-fs-h1: 28px;
+  --tc-fs-h2: 18px;
+  --tc-fs-h3: 16px;
+  --tc-fs-body: 16px;
+  --tc-fs-body-sm: 14px;
+  --tc-fs-caption: 12px;
+  --tc-fs-caption-sm: 10px;
+  --tc-fs-mono: 14px;
+
+  /* Weights */
+  --tc-fw-regular: 400;
+  --tc-fw-medium:  500;
+  --tc-fw-semibold: 600;
+  --tc-fw-bold:    700;
+
+  /* Line-heights */
+  --tc-lh-tight: 1.2;
+  --tc-lh-normal: 1.4;
+  --tc-lh-relaxed: 1.5;
+
+  color-scheme: light;
+}
+
+/* ---------- Dark scheme override ---------- */
+:root[data-theme="dark"],
+.tc-dark {
+  --tc-primary:        #64B5F6;
+  --tc-primary-bg:     #0C447C;
+  --tc-secondary:      #8E8E93;
+  --tc-secondary-bg:   #2C2C2E;
+  --tc-success:        #34C759;
+  --tc-success-bg:     #1A3A1A;
+  --tc-danger:         #FF3B30;
+  --tc-danger-bg:      #3A1A1A;
+  --tc-warning:        #FF9500;
+  --tc-warning-bg:     #3A2A0A;
+
+  --tc-bg-primary:     #1C1C1E;
+  --tc-bg-secondary:   #2C2C2E;
+  --tc-bg-tertiary:    #3A3A3C;
+
+  --tc-text-primary:   #F5F5F5;
+  --tc-text-secondary: #8E8E93;
+  --tc-text-tertiary:  #636366;
+
+  --tc-border:         #38383A;
+
+  --tc-subtitle-bg:    rgba(0,0,0,0.85);
+
+  --tc-shadow-card:    0 2px 4px rgba(0,0,0,0.4);
+  --tc-shadow-modal:   0 12px 32px rgba(0,0,0,0.55);
+  --tc-shadow-fab:     0 6px 16px rgba(100,181,246,0.32);
+
+  color-scheme: dark;
+}
+
+/* ============================================================
+   Semantic type roles
+   ============================================================ */
+.tc-h1, h1.tc {
+  font-family: var(--tc-font-sans);
+  font-size: var(--tc-fs-h1);
+  font-weight: var(--tc-fw-bold);
+  line-height: var(--tc-lh-tight);
+  letter-spacing: -0.02em;
+  color: var(--tc-text-primary);
+  margin: 0;
+}
+.tc-h2, h2.tc {
+  font-family: var(--tc-font-sans);
+  font-size: var(--tc-fs-h2);
+  font-weight: var(--tc-fw-semibold);
+  line-height: var(--tc-lh-tight);
+  color: var(--tc-text-primary);
+  margin: 0;
+}
+.tc-h3, h3.tc {
+  font-family: var(--tc-font-sans);
+  font-size: var(--tc-fs-h3);
+  font-weight: var(--tc-fw-semibold);
+  line-height: var(--tc-lh-normal);
+  color: var(--tc-text-primary);
+  margin: 0;
+}
+.tc-body, p.tc {
+  font-family: var(--tc-font-sans);
+  font-size: var(--tc-fs-body);
+  font-weight: var(--tc-fw-regular);
+  line-height: var(--tc-lh-relaxed);
+  color: var(--tc-text-primary);
+  margin: 0;
+}
+.tc-body-sm {
+  font-family: var(--tc-font-sans);
+  font-size: var(--tc-fs-body-sm);
+  font-weight: var(--tc-fw-regular);
+  line-height: var(--tc-lh-normal);
+  color: var(--tc-text-secondary);
+}
+.tc-caption {
+  font-family: var(--tc-font-sans);
+  font-size: var(--tc-fs-caption);
+  font-weight: var(--tc-fw-medium);
+  line-height: var(--tc-lh-normal);
+  color: var(--tc-text-secondary);
+}
+.tc-caption-sm {
+  font-family: var(--tc-font-sans);
+  font-size: var(--tc-fs-caption-sm);
+  font-weight: var(--tc-fw-medium);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tc-text-secondary);
+}
+.tc-mono {
+  font-family: var(--tc-font-mono);
+  font-size: var(--tc-fs-mono);
+  font-weight: var(--tc-fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tabular numerics for durations / costs / counters */
+.tc-tnum { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   Utility surfaces
+   ============================================================ */
+.tc-surface {
+  background: var(--tc-bg-primary);
+  color: var(--tc-text-primary);
+  font-family: var(--tc-font-sans);
+}
+.tc-card {
+  background: var(--tc-bg-primary);
+  border: 1px solid var(--tc-border);
+  border-radius: var(--tc-radius-12);
+  box-shadow: var(--tc-shadow-card);
+}

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64" width="240" height="64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A7AFF"></stop>
+      <stop offset="1" stop-color="#64B5F6"></stop>
+    </linearGradient>
+  </defs>
+  
+  <g transform="translate(8,8)">
+    <rect x="0" y="0" width="48" height="48" rx="12" fill="url(#g)"></rect>
+    <path d="M14 18c0-2 1.5-3.5 3.5-3.5h2c1.4 0 2.6 1 2.9 2.4l.6 2.7c.2 1-.2 2-1 2.6l-1.6 1.1c1.2 2.6 3.3 4.7 5.9 5.9l1.1-1.6c.6-.8 1.6-1.2 2.6-1l2.7.6c1.4.3 2.4 1.5 2.4 2.9v2c0 2-1.5 3.5-3.5 3.5C21.3 36.5 14 29.2 14 18z" fill="#fff"></path>
+    <circle cx="36.5" cy="14.5" r="3" fill="#34C759" stroke="#fff" stroke-width="1.5"></circle>
+  </g>
+  
+  <g transform="translate(68,42)" fill="#1A1A1A" font-family="-apple-system,BlinkMacSystemFont,&#39;SF Pro Display&#39;,&#39;Hiragino Sans&#39;,sans-serif" font-weight="700" font-size="26" letter-spacing="-0.5">
+    <text x="0" y="0">TranCall</text>
+  </g>
+</svg>

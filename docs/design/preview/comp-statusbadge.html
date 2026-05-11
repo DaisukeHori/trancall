@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css">
+<style>html,body{margin:0;background:#1C1C1E;font-family:var(--tc-font-sans);color:#F5F5F5}
+.w{padding:24px;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.bar{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 10px;border-radius:9999px;font-size:13px;font-weight:600;backdrop-filter:blur(8px)}
+.dot{width:8px;height:8px;border-radius:50%}
+.s{background:rgba(52,199,89,.18);color:#34C759}.s .dot{background:#34C759;box-shadow:0 0 10px #34C759}
+.w-{background:rgba(255,149,0,.18);color:#FF9500}.w- .dot{background:#FF9500;animation:p 1.4s ease-in-out infinite}
+.d{background:rgba(255,59,48,.2);color:#FF3B30}.d .dot{background:#FF3B30}
+.pair{margin-left:6px;font-family:var(--tc-font-mono);font-size:11px;opacity:.8;font-weight:500}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.35}}
+</style></head><body><div class="w">
+  <div class="bar s"><span class="dot"></span>Translating<span class="pair">JA → EN</span></div>
+  <div class="bar w-"><span class="dot"></span>Reconnecting…<span class="pair">JA → EN</span></div>
+  <div class="bar d"><span class="dot"></span>Stopped<span class="pair">tap to resume</span></div>
+</div></body></html>

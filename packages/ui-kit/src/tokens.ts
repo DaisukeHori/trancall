@@ -94,7 +94,7 @@ export const typography = {
   },
   caption: {
     fontSize: 12,
-    fontWeight: "400" as const,
+    fontWeight: "500" as const,
     fontFamily: undefined,
   },
   captionSmall: {

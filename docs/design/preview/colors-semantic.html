@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:#fff;font-family:var(--tc-font-sans)}
+  .wrap{padding:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .sw{border-radius:12px;border:1px solid var(--tc-border);overflow:hidden}
+  .fg{padding:14px 14px 12px;color:#fff;display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px}
+  .fg .badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600}
+  .bg{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-size:11px;font-family:var(--tc-font-mono);color:#1A1A1A}
+  .label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--tc-text-secondary);padding:0 4px 6px}
+</style></head><body>
+<div class="wrap">
+  <div>
+    <div class="label">Success</div>
+    <div class="sw">
+      <div class="fg" style="background:#34C759">● Translating <span class="badge" style="background:#EAF3DE;color:#34C759">success</span></div>
+      <div class="bg" style="background:#EAF3DE"><span>#34C759</span><span>#EAF3DE</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="label">Warning</div>
+    <div class="sw">
+      <div class="fg" style="background:#FF9500">● Reconnecting <span class="badge" style="background:#FAEEDA;color:#FF9500">warning</span></div>
+      <div class="bg" style="background:#FAEEDA"><span>#FF9500</span><span>#FAEEDA</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="label">Danger</div>
+    <div class="sw">
+      <div class="fg" style="background:#FF3B30">● Stopped <span class="badge" style="background:#FCEBEB;color:#FF3B30">danger</span></div>
+      <div class="bg" style="background:#FCEBEB"><span>#FF3B30</span><span>#FCEBEB</span></div>
+    </div>
+  </div>
+</div></body></html>

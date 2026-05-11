@@ -12,7 +12,13 @@ trancall/
 ├── docs/                          # プロジェクトドキュメント
 │   ├── requirements.md            # 要件定義書
 │   ├── architecture.md            # アーキテクチャ設計書
-│   └── design/                    # Claude Design テンプレート
+│   ├── module-contracts.md        # モジュール間 facade/event/repository 契約 (canonical)
+│   └── design/                    # TranCall Design System (canonical UI 仕様)
+│       ├── design-system.md       # ★ 全画面の UI 仕様 (colors/typography/spacing/a11y) 主要参照
+│       ├── colors_and_type.css    # CSS custom properties (web mirror)
+│       ├── SKILL.md               # Claude Design Skill manifest
+│       ├── preview/*.html         # トークン/コンポーネント視覚プレビュー (20 件)
+│       └── tokens.md / wireframes/ / screens/ / components/ など
 ├── packages/                      # モジュラーモノリスの各モジュール
 │   ├── shared-kernel/             # Event Bus, DI, 共通型
 │   ├── auth/                      # 認証・ユーザー管理
@@ -69,6 +75,21 @@ trancall/
 - Git email: `nvidia.homeftp.net@gmail.com`
 - コミットメッセージ: Conventional Commits (feat/fix/refactor/docs/chore)
 - 例: `feat(translation): add GPT-RT-Translate WebSocket connection`
+
+### UI / デザインシステム (Layer 4 mobile 着手時に厳守)
+
+- **唯一の canonical UI 仕様**: `docs/design/design-system.md`
+  - colors / typography / spacing / radii / elevation / animation / a11y / 状態 / 文言ガイド (ja/en) を完全規定
+  - 旧 `docs/design/tokens.md` 等は補助参照、矛盾時は `design-system.md` を正とする
+- **共通コンポーネント**: `@trancall/ui-kit` を必ず経由 (`Button` / `Input` / `Card` / `ContactRow` / `CallCard` / `SubtitleOverlay` / `LanguagePicker` / `PlanCard` 等)
+  - 画面内で直接スタイルを書かず、tokens (`@trancall/ui-kit` の `colors` / `spacing` / `typography` / `radii`) のみ参照
+- **ブランドアセット**: `packages/ui-kit/assets/trancall-icon.svg` / `trancall-mark.svg`
+- **画面実装の素材**: `apps/mobile/_design-ref/` (react-babel 用の jsx mockup)
+  - 7 screens (Onboarding / Login / Home / Contacts / Incoming / InCall / Settings) + 共通コンポーネント
+  - **`_` prefix の意味**: 配置物は実装の参照素材であり、本実装ファイルではない (RN への移植時に StyleSheet/Pressable に書き換え)
+- **i18n**: `@trancall/ui-kit/src/i18n/locales/{ja,en,zh}.json` を canonical、画面内に直書きしない (文言は ja/en/zh 全て翻訳)
+- **禁止**: Claude / Anthropic / OpenAI のロゴ表示 (consent 画面でテキストとして "OpenAI" 言及のみ可)、装飾 emoji、派手なアニメ、独自 color palette
+- **必須**: 翻訳 ON/OFF バッジ、語ペア (`JA → EN`) ステータス表示、課金残量表示
 
 ## 技術スタック
 

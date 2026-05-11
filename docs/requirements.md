@@ -285,6 +285,22 @@ Transcript保持期間:
 
 ## 5. 画面一覧
 
+### 5.0 UI 仕様の単一情報源
+
+**全画面の UI 仕様は `docs/design/design-system.md` に従う** (Sprint 1 Layer 4 から canonical)。
+
+- colors / typography / spacing / radii / elevation / animation / a11y / 文言ガイドを完全規定
+- 共通コンポーネント (`Button` / `Input` / `Card` / `ContactRow` / `CallCard` / `SubtitleOverlay` / `LanguagePicker` / `PlanCard` 等) は `@trancall/ui-kit` を必ず経由
+- 画面実装の参照素材は `apps/mobile/_design-ref/` (jsx mockup、RN 移植元)
+- 視覚プレビュー: `docs/design/preview/*.html` (20 件)
+
+**全通話画面で必須の状態表示** (発信側 / 着信側 / in-call / summary):
+- 翻訳 ON/OFF バッジ
+- 語ペア (`JA → EN`) ステータス
+- 課金残量 (`残り N 分（{plan}）`)
+
+詳細は `docs/architecture.md` Section 8.0 (UI / Design System 参照) も併読のこと。
+
 ### 5.1 Phase 1 画面（全12画面）
 
 | 画面ID | 画面名 | 概要 |

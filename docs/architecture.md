@@ -327,6 +327,34 @@ segment本体はimmutable。ユーザーごとの可視性・削除・export権�
 
 ## 8. クライアントアーキテクチャ（apps/mobile）
 
+### 8.0 UI / Design System (canonical 参照、Layer 4 で厳守)
+
+**唯一の UI 仕様 source of truth**: `docs/design/design-system.md`
+- colors / typography / spacing / radii / elevation / animation / a11y / 文言ガイドを完全規定
+- 旧 `docs/design/tokens.md` 等は補助参照、矛盾時は `design-system.md` を正とする
+
+**実装ルール**:
+- 共通コンポーネントは必ず `@trancall/ui-kit` 経由 (`Button` / `Input` / `Card` / `ContactRow` / `CallCard` / `SubtitleOverlay` / `LanguagePicker` / `PlanCard` 等)
+- 画面内で直接スタイルを書かず、`@trancall/ui-kit` の tokens (`colors` / `spacing` / `typography` / `radii`) のみ参照
+- 文言は `@trancall/ui-kit/src/i18n/locales/{ja,en,zh}.json` から取得 (画面内直書き禁止)
+- ブランドアセット: `packages/ui-kit/assets/trancall-icon.svg` / `trancall-mark.svg`
+- 画面実装の参照素材: `apps/mobile/_design-ref/` (react-babel jsx mockup、RN への移植元、`_` prefix は実装参照素材を示す)
+- light / dark テーマ対応必須
+- WCAG 2.1 AA (コントラスト 4.5:1)、全 Pressable に `accessibilityLabel` + `accessibilityRole`
+
+**通話関連 UI で必須の表示**:
+- 翻訳 ON/OFF バッジ (in-call / pre-call / summary 全画面で常時)
+- 語ペア (`JA → EN`) ステータス表示
+- 課金残量表示 (`残り N 分（{plan}）`)
+- 状態色: 翻訳 ON `primary` / Translating `success` / Reconnecting `warning` / Stopped `danger`
+
+**禁止事項**:
+- Claude / Anthropic / OpenAI ロゴの画面表示 (consent 画面で "OpenAI" テキスト言及のみ可)
+- 装飾 emoji (例外: `LanguagePicker` の国旗 emoji のみ言語タグとして許可)
+- 派手なアニメーション (許可: `degraded→recovered` 200-250ms cross-fade、`Reconnecting` 1.4s opacity pulse、bottom-sheet スライドのみ)
+- iOS-style backdrop-filter blur (Android RN で patchy なため不採用)
+- 翻訳状態をあいまいに表示すること
+
 ### 8.1 状態管理
 
 - AuthStore (Zustand): ログイン状態、プロフィール
