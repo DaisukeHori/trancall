@@ -169,6 +169,8 @@ Side effects:
 
 ### GET /api/rooms/history?limit=20&before=2026-05-11T00:00:00Z
 
+> **未実装 (Phase 2 予定)**: `RoomFacade.history` メソッドが未実装のため、このエンドポイントは Layer 3-A スコープ外。Phase 2 で実装予定。
+
 ```
 Response: { "ok": true, "data": RoomState[] }
 ```
@@ -234,6 +236,8 @@ MSCA対応（日本市場）:
 - Stripe Web (アプリ外): 3.6%
 
 ### POST /api/billing/storekit-external/report
+
+> **未実装 (Phase 2 予定)**: `BillingFacade` に対応メソッドがないため、このエンドポイントは Layer 3-A スコープ外。Phase 2 で実装予定。
 
 ```
 Apple StoreKit External Purchase で発生した取引を Apple に月次報告するための内部記録エンドポイント。
