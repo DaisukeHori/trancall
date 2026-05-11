@@ -346,7 +346,7 @@ interface EventBus {
 - `DeviceTokenRepository`: `upsert` / `findActiveByUserId` / `revoke` / `delete`
 - `PushLogRepository`: `write`
 - `ApnsAdapter` (`createApnsAdapter` factory): `sendVoipPush` / `sendNormalPush` (410 Gone → `NOTIFICATION_DEVICE_TOKEN_INVALID`、`.voip` topic suffix を自動付与)
-- `FcmAdapter` (`createFcmAdapter` factory): `send` (firebase-admin の `messaging.send` ラッパー)
+- `FcmAdapter` (`createFcmAdapter` factory): `sendData` (firebase-admin の `messaging.send` ラッパー、data-only payload)
 
 ### 4.6 transcript が要求する Repository
 
