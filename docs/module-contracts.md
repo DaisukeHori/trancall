@@ -120,7 +120,11 @@ export interface BillingFacade {
   getSubscription(userId: UserId): Promise<Result<SubscriptionState, AppError>>;
   recordUsage(cmd: RecordUsageCommand): Promise<Result<SubscriptionState, AppError>>;
   canStartCall(userId: UserId): Promise<Result<true, AppError>>;
-  reserveMinutes(userId: UserId, minutes: number): Promise<Result<true, AppError>>;
+  reserveMinutes(
+    userId: UserId,
+    sessionId: TranslationSessionId,
+    minutes: number,
+  ): Promise<Result<true, AppError>>;
   reconcile(
     userId: UserId,
     sessionId: TranslationSessionId,
@@ -141,7 +145,7 @@ export interface BillingFacade {
 
 **契約注釈**:
 - `createCheckoutSession` の `channel` 引数は `docs/schemas.ts` の元定義より拡張 (3 チャネル設計 v9 で必要)
-- `reserveMinutes` の `sessionId` は引数になし。実装で session ID を発行する内部ロジックの場合、別途 `reserveMinutesWithSession` を server 側で wrap する必要あり (`apps/server` の TODO)
+- `reserveMinutes` は呼び出し側 (room/server) が事前生成した `sessionId` を受け取り、reservation と usage を 1 通話単位で紐付ける。同一 `sessionId` で 2 回 reserve しても冪等 (PR #15 で実装側を `reserveMinutesWithSession` 経由に統一済み)
 
 ### 2.4 ContactFacade
 `packages/contact/src/facade.ts`

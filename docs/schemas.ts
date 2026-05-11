@@ -445,7 +445,12 @@ interface BillingFacade {
   getSubscription(userId: UserId): Promise<ResultOf<typeof SubscriptionState>>;
   recordUsage(cmd: z.infer<typeof RecordUsageCommand>): Promise<ResultOf<typeof SubscriptionState>>;
   canStartCall(userId: UserId): Promise<Result<true, AppError>>;
-  reserveMinutes(userId: UserId, minutes: number): Promise<Result<true, AppError>>;
+  // sessionId は呼び出し側 (room/server) が事前生成。同一 sessionId で 2 回 reserve しても冪等。
+  reserveMinutes(
+    userId: UserId,
+    sessionId: TranslationSessionId,
+    minutes: number,
+  ): Promise<Result<true, AppError>>;
   reconcile(userId: UserId, sessionId: TranslationSessionId): Promise<ResultOf<typeof SubscriptionState>>;
   refundMinutes(sessionId: TranslationSessionId): Promise<Result<true, AppError>>;
   // 3 チャネル設計: stripe_web (アプリ外 Web) / storekit_external (日本 MSCA アプリ内)
