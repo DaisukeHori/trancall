@@ -264,3 +264,43 @@ export function buildSessionEndedEvent(args: {
     reason: args.reason,
   };
 }
+
+export function buildTranscriptDeltaEvent(args: {
+  agentJobId: string;
+  roomId: string;
+  sourceParticipantId: string;
+  outputLanguage: OutputLanguage;
+  sequenceNo: number;
+  text: string;
+  isFinal: boolean;
+  spokenAt: Date;
+}): TranscriptDeltaPayload {
+  return {
+    type: "transcript.delta",
+    agentJobId: args.agentJobId,
+    roomId: args.roomId,
+    sourceParticipantId: args.sourceParticipantId,
+    outputLanguage: args.outputLanguage,
+    sequenceNo: args.sequenceNo,
+    text: args.text,
+    isFinal: args.isFinal,
+    spokenAt: args.spokenAt.toISOString(),
+  };
+}
+
+export function buildAgentMetricsEvent(args: {
+  agentJobId: string;
+  roomId: string;
+  latencyMs: AgentMetricsPayload["latencyMs"];
+  memoryRssBytes: number;
+  collectedAt: Date;
+}): AgentMetricsPayload {
+  return {
+    type: "agent.metrics",
+    agentJobId: args.agentJobId,
+    roomId: args.roomId,
+    latencyMs: args.latencyMs,
+    memoryRssBytes: args.memoryRssBytes,
+    collectedAt: args.collectedAt.toISOString(),
+  };
+}
