@@ -29,7 +29,23 @@
     "nativeLanguage": "母语",
     "forgotPassword": "忘记密码？",
     "verifyEmail": "请验证您的邮箱",
-    "invalidCredentials": "邮箱或密码不正确"
+    "invalidCredentials": "邮箱或密码不正确",
+    "errors": {
+      "displayNameRequired": "请输入显示名称",
+      "emailInvalid": "邮箱地址不正确",
+      "passwordTooShort": "密码至少8个字符",
+      "consentRequired": "需要同意服务条款和隐私政策"
+    },
+    "consent": {
+      "and": "和",
+      "agree": "同意",
+      "back": "返回",
+      "checkboxLabel": "同意服务条款和隐私政策"
+    },
+    "signupVerificationEmailSent": "已发送验证邮件。请查看您的收件箱。",
+    "placeholders": {
+      "displayName": "张三"
+    }
   },
   "onboarding": {
     "title": "TranCall",
@@ -161,6 +177,10 @@
     "AUTH_EMAIL_NOT_VERIFIED": "请验证您的邮箱",
     "AUTH_TOKEN_EXPIRED": "会话已过期，请重新登录",
     "AUTH_CONSENT_REQUIRED": "继续操作需要同意服务条款",
+    "AUTH_SESSION_MISSING": "无法获取会话。",
+    "AUTH_SESSION_INVALID": "会话数据无效。",
+    "RESPONSE_PARSE_ERROR": "无法解析服务器响应。",
+    "HTTP_ERROR": "HTTP错误: {{status}}",
     "ROOM_NOT_FOUND": "未找到通话",
     "ROOM_ALREADY_ENDED": "此通话已结束",
     "ROOM_FULL": "通话已满员",
@@ -184,6 +204,9 @@
     "RATE_LIMITED": "请求过于频繁，请稍候",
     "INTERNAL_ERROR": "发生错误，请重试",
     "NETWORK_ERROR": "无法连接，请检查网络"
+  },
+  "dev": {
+    "notImplementedYet": "尚未实现 (Layer 4-B)"
   },
   "language": {
     "en": "英语",

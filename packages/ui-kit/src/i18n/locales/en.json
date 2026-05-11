@@ -29,7 +29,23 @@
     "nativeLanguage": "Native Language",
     "forgotPassword": "Forgot Password?",
     "verifyEmail": "Please verify your email",
-    "invalidCredentials": "Invalid email or password"
+    "invalidCredentials": "Invalid email or password",
+    "errors": {
+      "displayNameRequired": "Display name is required",
+      "emailInvalid": "Invalid email address",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "consentRequired": "Agreement to terms and privacy policy is required"
+    },
+    "consent": {
+      "and": "and",
+      "agree": "I agree to",
+      "back": "Back to",
+      "checkboxLabel": "Agree to Terms of Service and Privacy Policy"
+    },
+    "signupVerificationEmailSent": "Verification email sent. Please check your inbox.",
+    "placeholders": {
+      "displayName": "John Doe"
+    }
   },
   "onboarding": {
     "title": "TranCall",
@@ -161,6 +177,10 @@
     "AUTH_EMAIL_NOT_VERIFIED": "Please verify your email",
     "AUTH_TOKEN_EXPIRED": "Session expired. Please sign in again.",
     "AUTH_CONSENT_REQUIRED": "Please agree to the terms to continue",
+    "AUTH_SESSION_MISSING": "Could not get session.",
+    "AUTH_SESSION_INVALID": "Invalid session data.",
+    "RESPONSE_PARSE_ERROR": "Cannot parse server response.",
+    "HTTP_ERROR": "HTTP error: {{status}}",
     "ROOM_NOT_FOUND": "Call not found",
     "ROOM_ALREADY_ENDED": "This call has ended",
     "ROOM_FULL": "The call is full",
@@ -184,6 +204,9 @@
     "RATE_LIMITED": "Too many requests. Please wait a moment.",
     "INTERNAL_ERROR": "An error occurred. Please try again.",
     "NETWORK_ERROR": "Cannot connect. Please check your network."
+  },
+  "dev": {
+    "notImplementedYet": "Not implemented yet (Layer 4-B)"
   },
   "language": {
     "en": "English",

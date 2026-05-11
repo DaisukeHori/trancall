@@ -1,0 +1,45 @@
+{
+  "name": "@trancall/app-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "App.tsx",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "build:ios": "eas build --platform ios",
+    "build:android": "eas build --platform android",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ App.tsx --ext .ts,.tsx",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.0.4",
+    "@react-navigation/bottom-tabs": "^7.0.0",
+    "@react-navigation/native": "^7.0.0",
+    "@react-navigation/native-stack": "^7.0.0",
+    "@supabase/supabase-js": "^2.49.0",
+    "@tanstack/react-query": "^5.80.0",
+    "@trancall/shared-kernel": "workspace:*",
+    "@trancall/ui-kit": "workspace:*",
+    "expo": "~54.0.0",
+    "expo-localization": "~15.0.3",
+    "expo-secure-store": "~14.2.4",
+    "expo-status-bar": "~1.12.1",
+    "i18next": "^23.16.8",
+    "react": "19.0.0",
+    "react-i18next": "^15.5.1",
+    "react-native": "0.76.9",
+    "react-native-safe-area-context": "^5.7.0",
+    "react-native-screens": "~4.25.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@testing-library/react-native": "^13.2.0",
+    "@types/react": "~19.0.0",
+    "vitest": "^3.2.0"
+  }
+}
