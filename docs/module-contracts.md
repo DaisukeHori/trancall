@@ -253,21 +253,40 @@ export interface TranslationFacade {
 - `shouldStartSession(ja, ja) === false` (同言語ペアは翻訳セッション不要)
 - `getUsage` の引数は `agentJobId` (UUID 文字列)、`TranslationSessionId` ではない (Agent 側で生成される job ID と一致)
 
-### 2.8 RoomFacade (Layer 2 で実装予定、現状未実装)
+### 2.8 RoomFacade (Sprint 1 Layer 2 実装済み)
 
-`packages/room/` は Sprint 0 では空。Layer 2 で以下の interface を実装予定:
+`packages/room/src/facade.ts`
 
 ```ts
-// 計画 (実装未確定)
 export interface RoomFacade {
-  createCall(creatorId: UserId, inviteeIds: UserId[], opts: { translationEnabled: boolean }): Promise<Result<RoomState, AppError>>;
+  createCall(
+    creatorId: UserId,
+    inviteeIds: UserId[],
+    opts: { translationEnabled: boolean },
+  ): Promise<Result<RoomState, AppError>>;
   joinCall(roomId: RoomId, userId: UserId): Promise<Result<RoomState, AppError>>;
   endCall(roomId: RoomId): Promise<Result<RoomState, AppError>>;
   getState(roomId: RoomId): Promise<Result<RoomState, AppError>>;
 }
 ```
 
-依存先: `BillingFacade` (canStartCall / reserveMinutes / reconcile)、`MediaFacade` (createRoom / issueAccessToken)、`NotificationFacade` (sendIncomingCall)。
+依存先: `BillingFacade` (canStartCall)、`MediaFacade` (createRoom / deleteRoom)、`NotificationFacade` (sendIncomingCall)。
+
+要求 Repository:
+- `RoomRepository`: `insert` / `findById` / `updateStatus`
+- `ParticipantRepository`: `upsert` / `findByRoomId` / `setLeftAtForAll`
+
+要求: `EventBus` (publish インターフェース)
+
+**契約注釈**:
+- `createCall` は `billing.canStartCall` 失敗時に `BILLING_INSUFFICIENT_BALANCE` を返す
+- `media.createRoom` 失敗時は rooms を status='ended' にロールバックして `ROOM_MEDIA_CREATE_FAILED` を返す
+- `sendIncomingCall` は best-effort (失敗しても createCall は成功)
+- `joinCall` は `waiting → active` 状態遷移を担う (最初の non-host join 時)
+- `endCall` は冪等 (既に ended なら OK を返す)
+- `media.deleteRoom` は best-effort (失敗しても endCall は成功)
+- `billing.reserveMinutes` / `billing.reconcile` は Layer 3 server 側の責務 (room facade では呼ばない)
+- `notification.sendMissedCall` は Layer 3 server 側の責務 (inviteeIds を room が保持しないため)
 
 ---
 
