@@ -8,6 +8,7 @@ Phase 1 MVP の全12画面のワイヤーフレームを格納する。
 |---------|------|
 | core-screens.html | SCR-001〜006（Onboarding, Home, In-call, Incoming, Contacts, Settings） |
 | contact-call-flow.html | SCR-007〜012（Add contact, Contact profile, Pre-call, Calling, Summary, Transcript） |
+| permission-consent.html | 追加画面（マイク権限, 通知権限, 翻訳同意(発信者), 翻訳同意(着信者), マイク拒否状態, 残高不足） |
 
 ## 閲覧方法
 

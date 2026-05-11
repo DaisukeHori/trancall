@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TranCall Wireframes — Permission & Consent (追加画面)</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f5;padding:20px;color:#1a1a1a}
+h1{font-size:20px;font-weight:500;text-align:center;margin:0 0 16px}
+.nav{display:flex;justify-content:center;gap:4px;flex-wrap:wrap;margin:0 0 16px}
+.nav button{padding:6px 12px;border-radius:8px;border:1px solid #ddd;font-size:12px;background:#fff;cursor:pointer}
+.nav button.sel{background:#e6f1fb;color:#185fa5;border-color:#85b7eb}
+.wrap{display:flex;flex-wrap:wrap;gap:20px;justify-content:center}
+.card{width:280px}
+.label{font-size:12px;color:#888;margin:0 0 6px;text-align:center}
+.phone{width:260px;height:520px;border:2px solid #333;border-radius:28px;overflow:hidden;position:relative;background:#fff;margin:0 auto}
+.status{height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11px;color:#888}
+.body{padding:0 16px;height:calc(100% - 28px);overflow:hidden;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.icon-lg{font-size:48px;margin:0 0 16px}
+.h1{font-size:20px;font-weight:600;margin:0 0 8px}
+.desc{font-size:13px;color:#888;line-height:1.6;margin:0 0 20px;max-width:220px}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;border-radius:10px;border:1px solid #ddd;font-size:14px;background:#fff;width:100%;margin:6px 0;cursor:pointer}
+.btn-p{background:#0A7AFF;color:#fff;border-color:transparent;font-weight:500}
+.btn-t{background:transparent;border:none;color:#888;font-size:13px}
+.btn-g{background:#34C759;color:#fff;border-color:transparent;font-weight:500}
+.consent-point{display:flex;align-items:flex-start;gap:8px;text-align:left;margin:6px 0;font-size:12px;color:#555;line-height:1.5}
+.consent-point .icon{font-size:16px;flex-shrink:0;margin-top:1px}
+.consent-box{background:#f9f9f9;border-radius:10px;padding:14px;margin:12px 0;width:100%}
+.link{font-size:12px;color:#0A7AFF;margin:8px 0;cursor:pointer}
+.bottom-sheet{position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:16px 16px 0 0;padding:20px 16px;box-shadow:0 -4px 20px rgba(0,0,0,0.1);text-align:center}
+.bottom-sheet .h2{font-size:16px;font-weight:600;margin:0 0 8px}
+.bottom-sheet .desc{font-size:12px;margin:0 0 12px}
+.avatar-lg{width:64px;height:64px;font-size:22px;border-radius:50%;background:#e6f1fb;display:flex;align-items:center;justify-content:center;font-weight:500;color:#185fa5;margin:0 auto 8px}
+.badge{font-size:10px;padding:2px 8px;border-radius:10px;background:#e6f1fb;color:#185fa5;display:inline-block}
+.circle-btn{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;border:none}
+.circle-btn.red{background:#FF3B30;color:#fff}
+.circle-btn.green{background:#34C759;color:#fff}
+@media(prefers-color-scheme:dark){
+body{background:#1a1a1a;color:#e5e5e5}
+.phone{background:#222;border-color:#555}
+.btn{background:#333;border-color:#444;color:#e5e5e5}
+.btn-p{background:#0A7AFF;color:#fff}
+.btn-g{background:#34C759;color:#fff}
+.btn-t{color:#888}
+.consent-box{background:#2c2c2e}
+.consent-point{color:#aaa}
+.desc{color:#aaa}
+.bottom-sheet{background:#2c2c2e;box-shadow:0 -4px 20px rgba(0,0,0,0.4)}
+.avatar-lg{background:#0c447c;color:#b5d4f4}
+.badge{background:#0c447c;color:#b5d4f4}
+}
+</style>
+</head>
+<body>
+<h1>TranCall — Permission & Consent Screens</h1>
+<div class="nav" id="nav"></div>
+<div class="wrap" id="wrap"></div>
+<script>
+const S=[
+{id:"mic",label:"Microphone Permission",html:`<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body">
+<div class="icon-lg">&#127908;</div>
+<div class="h1">マイクへのアクセス</div>
+<div class="desc">TranCallで通話するには、マイクの使用許可が必要です。音声は翻訳処理にのみ使用されます。</div>
+<div class="btn btn-p" style="width:80%">許可する</div>
+<div class="btn-t" style="margin-top:8px">あとで</div>
+</div></div>`},
+
+{id:"notif",label:"Notification Permission",html:`<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body">
+<div class="icon-lg">&#128276;</div>
+<div class="h1">通知の許可</div>
+<div class="desc">着信通知を受け取るために、通知の許可が必要です。許可しないと、アプリを開いていない時に着信を受けられません。</div>
+<div class="btn btn-p" style="width:80%">許可する</div>
+<div class="btn-t" style="margin-top:8px">あとで</div>
+</div></div>`},
+
+{id:"consent",label:"Translation Consent",html:`<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body" style="justify-content:flex-start;padding-top:40px">
+<div class="icon-lg">&#128737;</div>
+<div class="h1">翻訳通話について</div>
+<div class="consent-box">
+<div class="consent-point"><span class="icon">&#127760;</span><span>通話音声はOpenAI社のサーバーに送信され、翻訳処理が行われます</span></div>
+<div class="consent-point"><span class="icon">&#128274;</span><span>音声は翻訳のためにのみ使用され、OpenAI側では保存されません</span></div>
+<div class="consent-point"><span class="icon">&#128196;</span><span>文字起こし（トランスクリプト）はTranCallサーバーに保存されます（設定で無効化可能）</span></div>
+<div class="consent-point"><span class="icon">&#128338;</span><span>保存期間はご利用プランにより異なります（Free: 7日, Light: 30日, Standard: 90日, Business: 1年）</span></div>
+</div>
+<div class="link">プライバシーポリシーを読む ›</div>
+<div class="btn btn-p" style="width:90%;margin-top:12px">同意して続ける</div>
+<div class="btn-t" style="margin-top:4px">翻訳なしで通話する</div>
+</div></div>`},
+
+{id:"consent-callee",label:"Callee Consent (応答後)",html:`<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body" style="padding:0;justify-content:flex-end">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f5f5f5;width:100%">
+<div style="font-size:13px;color:#888;margin-bottom:8px">Connecting...</div>
+<div class="avatar-lg" style="width:72px;height:72px;font-size:26px">JW</div>
+<div style="font-size:16px;font-weight:500;margin-top:8px">John Wang</div>
+<div style="margin:6px 0"><span class="badge">EN→JA</span></div>
+</div>
+<div class="bottom-sheet">
+<div class="h2">翻訳通話の同意</div>
+<div class="desc" style="max-width:none;font-size:12px;color:#888">この通話では音声がOpenAIに送信され、リアルタイム翻訳が行われます。</div>
+<div class="btn btn-g" style="font-size:13px;padding:10px">同意して翻訳通話を開始</div>
+<div class="btn" style="font-size:12px;padding:8px;color:#888">翻訳なしで通話する</div>
+<div class="link" style="font-size:11px;margin-top:4px">詳しく見る</div>
+</div>
+</div>`},
+
+{id:"mic-denied",label:"Mic Denied State",html:`<div class="phone"><div class="status"><span>9:41</span><span>&#9679;</span></div><div class="body">
+<div class="icon-lg" style="opacity:0.4">&#127908;</div>
+<div class="h1" style="font-size:16px">マイクが許可されていません</div>
+<div class="desc" style="font-size:12px">通話するにはマイクの使用許可が必要です。設定アプリから許可してください。</div>
+<div class="btn btn-p" style="width:80%;font-size:13px">設定を開く</div>
+<div class="btn-t" style="margin-top:4px;font-size:12px">戻る</div>
+</div></div>`},
+
+{id:"low-balance",label:"Low Balance (通話中)",html:`<div class="phone"><div class="status"><span style="color:#34C759">● Translating</span><span>9:41</span></div><div class="body" style="padding:0;justify-content:flex-end">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f5f5f5;width:100%">
+<div class="avatar-lg">JW</div>
+<div style="font-size:16px;font-weight:500;margin-top:6px">John Wang</div>
+<div style="font-family:monospace;font-size:14px;color:#888;margin:4px 0">12:42</div>
+<div style="background:#fff;border-radius:8px;padding:8px 12px;font-size:12px;margin:8px 16px;border:1px solid #eee;width:calc(100% - 32px)">
+<div style="color:#888;font-size:11px">&#9888; 翻訳分数が残り2分です</div>
+</div>
+</div>
+<div class="bottom-sheet">
+<div class="h2" style="font-size:14px">翻訳分数が不足しています</div>
+<div class="desc" style="font-size:12px;color:#888;max-width:none">残り約2分で翻訳が停止します。プランをアップグレードして翻訳を続けますか？</div>
+<div class="btn btn-p" style="font-size:12px;padding:10px">プランをアップグレード</div>
+<div class="btn" style="font-size:12px;padding:8px;color:#888">翻訳なしで通話を続ける</div>
+<div class="btn-t" style="font-size:11px;margin-top:2px">通話を終了する</div>
+</div>
+</div>`}
+];
+const nav=document.getElementById("nav");const wrap=document.getElementById("wrap");
+function show(id){nav.querySelectorAll("button").forEach(b=>b.classList.toggle("sel",b.dataset.id===id));if(id==="all"){wrap.innerHTML=S.map(s=>'<div class="card"><p class="label">'+s.label+'</p>'+s.html+'</div>').join("");return}const s=S.find(x=>x.id===id);wrap.innerHTML='<div class="card" style="width:320px"><p class="label">'+s.label+'</p>'+s.html+'</div>';}
+const ab=document.createElement("button");ab.textContent="All";ab.dataset.id="all";ab.className="sel";ab.onclick=()=>show("all");nav.appendChild(ab);
+S.forEach(s=>{const b=document.createElement("button");b.textContent=s.label.split(" ")[0];b.dataset.id=s.id;b.onclick=()=>show(s.id);nav.appendChild(b)});show("all");
+</script>
+</body>
+</html>
