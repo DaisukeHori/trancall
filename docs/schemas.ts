@@ -468,7 +468,7 @@ const NotificationTarget = z.discriminatedUnion("platform", [
   z.object({
     platform: z.literal("ios"),
     voipToken: z.string().min(1),
-    bundleId: z.string(),
+    bundleId: z.string().min(1),
   }),
   z.object({
     platform: z.literal("android"),
