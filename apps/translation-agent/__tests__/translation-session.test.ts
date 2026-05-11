@@ -270,6 +270,26 @@ describe("TranslationSession: pushAudioFrame()", () => {
       session.pushAudioFrame("data");
     }).not.toThrow();
   });
+
+  it("pushAudioFrame() → agentToOpenAI バッファに値が追加される", async () => {
+    const { config, apiClient } = makeConfig({ metricsIntervalMs: 1000 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    session.pushAudioFrame("base64data==");
+
+    // agentToOpenAI にデータが入ったことを metrics 送信で確認
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(3);
+
+    const metricsCalls = apiClient.calls.filter((c) => c.type === "agent.metrics");
+    expect(metricsCalls.length).toBeGreaterThanOrEqual(1);
+
+    const metricsCall = metricsCalls[0];
+    if (!metricsCall || metricsCall.type !== "agent.metrics") return;
+    expect(metricsCall.latencyMs.agentToOpenAI.length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("TranslationSession: transcript.delta 送信", () => {

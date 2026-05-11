@@ -201,10 +201,12 @@ export class TranslationSession extends EventEmitter {
     }
     const now = Date.now();
     this.lastAudioSentAt = now;
-    // agentToOpenAI: 直前の captureToAgent 計測がある場合のみ計測
-    // (シンプルな実装: フレーム送信時刻を記録し、次の audio.delta で差分を取る)
+    // openAIFirstDelta 計測用: フレーム送信時刻を記録し、最初の audio.delta で差分を取る
     this.openAIRequestSentAt = now;
+    // agentToOpenAI 計測: sendAudioFrame() の実行時間（Agent → OpenAI WS 送信遅延）
+    const sendStart = Date.now();
     this.openaiClient.sendAudioFrame(pcm16Base64);
+    this.latencyBuffers.agentToOpenAI.push(Date.now() - sendStart);
   }
 
   /**
