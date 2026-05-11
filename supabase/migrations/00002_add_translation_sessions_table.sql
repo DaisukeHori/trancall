@@ -14,6 +14,9 @@ CREATE TABLE trancall_event.translation_sessions (
   ended_at              TIMESTAMPTZ,
   duration_ms           INTEGER,
   billable_seconds      INTEGER,
+  -- ended_reason: Agent 側 internal-api-client.ts の TranslationSessionEndedSchema では `reason` キー名で送信される。
+  -- Server 側 (apps/server) で受信時に `reason` → `ended_reason` カラムへマッピングする必要あり。
+  -- 列名を `reason` にしなかった理由: PostgreSQL の予約語との衝突回避と、テーブル列が「session が終わった理由」であることを明示するため。
   ended_reason          VARCHAR(40),
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );

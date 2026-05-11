@@ -5,13 +5,13 @@
 -- ---------------------------------------------------------------------------
 -- 1. usage_windows: 当期サイクル検索高速化
 -- billing-detail.md の reserveMinutes SQL は current_period_start/end を
--- WHERE 条件で使うため、user_id + recorded_at の partial index を追加。
--- PostgreSQL 15+ では BRIN と B-tree の組み合わせで対応。
--- 60日以内の行は頻繁にアクセスされるので partial index で絞る。
+-- WHERE 条件で使うため、user_id + recorded_at の index が必要。
+-- ※ 当初 WHERE recorded_at > now() - INTERVAL '60 days' の partial index を
+--    検討したが、now() は VOLATILE 関数であるため PostgreSQL の
+--    "functions in index predicate must be marked IMMUTABLE" エラーが発生する。
+--    00001_initial_schema.sql の idx_usage_windows_user
+--    (user_id, recorded_at DESC) で代替済みのため、ここでは作成しない。
 -- ---------------------------------------------------------------------------
-CREATE INDEX idx_usage_windows_user_recent
-  ON trancall_billing.usage_windows(user_id, recorded_at DESC)
-  WHERE recorded_at > now() - INTERVAL '60 days';
 
 -- ---------------------------------------------------------------------------
 -- 2. participants: 通話履歴ソート用
