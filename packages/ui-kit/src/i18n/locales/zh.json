@@ -9,7 +9,15 @@
     "done": "完成",
     "error": "错误",
     "retry": "重试",
-    "loading": "加载中..."
+    "loading": "加载中...",
+    "search": "搜索",
+    "close": "关闭",
+    "confirm": "确认",
+    "edit": "编辑",
+    "send": "发送",
+    "share": "分享",
+    "copy": "复制",
+    "unknown": "未知"
   },
   "auth": {
     "signIn": "登录",
@@ -77,7 +85,8 @@
     "switchToOriginal": "切换到原声",
     "switchToTranslated": "切换到翻译",
     "subtitles": "字幕",
-    "dynamicVoice": "翻译语音自动适配说话者"
+    "dynamicVoice": "翻译语音自动适配说话者",
+    "unavailable": "翻译不可用"
   },
   "precall": {
     "title": "通话设置",
@@ -146,5 +155,49 @@
     "notificationDescription": "接收来电通知需要此权限",
     "allow": "允许",
     "later": "稍后"
+  },
+  "errors": {
+    "AUTH_INVALID_CREDENTIALS": "邮箱或密码不正确",
+    "AUTH_EMAIL_NOT_VERIFIED": "请验证您的邮箱",
+    "AUTH_TOKEN_EXPIRED": "会话已过期，请重新登录",
+    "AUTH_CONSENT_REQUIRED": "继续操作需要同意服务条款",
+    "ROOM_NOT_FOUND": "未找到通话",
+    "ROOM_ALREADY_ENDED": "此通话已结束",
+    "ROOM_FULL": "通话已满员",
+    "ROOM_USER_BLOCKED": "无法拨打此联系人",
+    "BILLING_INSUFFICIENT_BALANCE": "翻译分钟数不足，请升级套餐",
+    "BILLING_SUBSCRIPTION_EXPIRED": "订阅已过期",
+    "BILLING_PAYMENT_FAILED": "支付失败，请检查支付方式",
+    "BILLING_INVALID_RECEIPT": "购买信息验证失败",
+    "BILLING_CHANNEL_NOT_AVAILABLE": "您所在地区不支持所选购买渠道",
+    "TRANSLATION_PROVIDER_ERROR": "无法连接翻译服务",
+    "TRANSLATION_RATE_LIMITED": "翻译暂时暂停",
+    "TRANSLATION_SAFETY_STOP": "翻译已停止",
+    "TRANSLATION_SESSION_LIMIT": "当前服务繁忙，请稍候",
+    "CONTACT_ALREADY_EXISTS": "已在联系人列表中",
+    "CONTACT_NOT_FOUND": "未找到用户",
+    "CONTACT_SELF_ADD": "无法将自己添加为联系人",
+    "CONTACT_USER_BLOCKED": "此操作不可用",
+    "NOTIFICATION_PUSH_DELIVERY_FAILED": "通知发送失败",
+    "NOTIFICATION_DEVICE_TOKEN_INVALID": "通知令牌无效，正在重新注册...",
+    "VALIDATION_ERROR": "请检查输入内容",
+    "RATE_LIMITED": "请求过于频繁，请稍候",
+    "INTERNAL_ERROR": "发生错误，请重试",
+    "NETWORK_ERROR": "无法连接，请检查网络"
+  },
+  "language": {
+    "en": "英语",
+    "es": "西班牙语",
+    "pt": "葡萄牙语",
+    "fr": "法语",
+    "ja": "日语",
+    "ru": "俄语",
+    "zh": "中文",
+    "de": "德语",
+    "ko": "韩语",
+    "hi": "印地语",
+    "id": "印尼语",
+    "vi": "越南语",
+    "it": "意大利语"
   }
 }
