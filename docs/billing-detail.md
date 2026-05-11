@@ -4,21 +4,30 @@
 
 ### 通話開始時: reserveMinutes
 
+パラメータ:
+- `$1` = `user_id`
+- `$2` = (予約セッションID、INSERT用)
+
 ```sql
--- 1. 残量チェック
-SELECT included_minutes - COALESCE(
-  (SELECT SUM(duration_seconds) / 60 FROM trancall_billing.usage_windows
-   WHERE user_id = $1 AND recorded_at >= $2), 0
-) AS remaining
-FROM trancall_billing.subscriptions
-WHERE user_id = $1;
+-- 1. 残量チェック（当期課金サイクル内の消費量と含有分を比較）
+-- レビュー v10 M-002-NEW: $2 が何かを明示するため、SQL を current_period_start 起点の JOIN 形式に書き換え
+-- レビュー v10 m-001-NEW: 整数除算で 60秒未満が消えるバグを回避するため CEIL(...::numeric / 60) で切り上げ
+SELECT
+  s.included_minutes - COALESCE(CEIL(SUM(u.duration_seconds)::numeric / 60), 0) AS remaining
+FROM trancall_billing.subscriptions s
+LEFT JOIN trancall_billing.usage_windows u
+  ON u.user_id = s.user_id
+  AND u.recorded_at >= s.current_period_start
+  AND u.recorded_at <  s.current_period_end
+WHERE s.user_id = $1
+GROUP BY s.included_minutes;
 
 -- 2. remaining >= 1 なら予約作成
 INSERT INTO trancall_billing.usage_reservations
   (user_id, session_id, reserved_minutes, status)
 VALUES ($1, $2, LEAST(5, remaining), 'active');
 
--- 3. remaining < 1 なら INSUFFICIENT_BALANCE エラー
+-- 3. remaining < 1 なら BILLING_INSUFFICIENT_BALANCE エラー
 ```
 
 ### 通話中: heartbeat (30秒ごと)
@@ -145,11 +154,14 @@ Client: 「翻訳分数が不足しています」ダイアログ（通話中に
 
 ### チャネル別の DB 状態
 
-| 購入チャネル | subscriptions テーブルへの記録 |
-|------------|------------------------------|
-| IAP (Apple) | iap_original_transaction_id, iap_platform='apple' |
-| IAP (Google) | iap_original_transaction_id, iap_platform='google' |
-| StoreKit External | stripe_subscription_id + iap_platform='apple' (Apple月次レポート対象) |
-| Stripe Web | stripe_subscription_id のみ |
+`subscriptions.purchase_channel` カラムでチャネルを明示し、外部ID列は実際に使うものだけ NOT NULL になる(`purchase_channel_id_consistency` CHECK 制約で整合性保証)。
 
-注: 1ユーザーに対して subscriptions 行は1つのみ（user_id UNIQUE 制約）。プラン変更時は同じ行を update。
+| 購入チャネル | purchase_channel | iap_original_transaction_id | stripe_subscription_id |
+|------------|------------------|---------------------------|------------------------|
+| Free（無料プラン） | 'free' | NULL | NULL |
+| IAP (Apple) | 'iap_apple' | "abc123..." | NULL |
+| IAP (Google) | 'iap_google' | "xyz789..." | NULL |
+| StoreKit External | 'storekit_external' | NULL | "sub_..." |
+| Stripe Web | 'stripe_web' | NULL | "sub_..." |
+
+注: 1ユーザーに対して subscriptions 行は1つのみ（user_id UNIQUE 制約）。プラン変更時は同じ行を update。チャネル変更時は purchase_channel + 該当する外部ID列も同時に更新する必要がある（CHECK制約で強制）。

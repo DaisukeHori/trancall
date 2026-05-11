@@ -261,6 +261,7 @@ class TranslationSession {
         body: JSON.stringify({
           sessionId: this.id,
           userId: this.config.sourceParticipantId,
+          roomId: this.config.roomId,
           windowStart: new Date(this.startedAt.getTime() + (elapsed - 30) * 1000).toISOString(),
           durationSeconds: 30,
           languagePair: `${this.config.inputLanguage}-${this.config.outputLanguage}`,

@@ -21,9 +21,11 @@
 ### 課金（billing）
 | コード | HTTP | retryable | 画面での表示 |
 |--------|------|-----------|------------|
-| INSUFFICIENT_BALANCE | 402 | false | 「翻訳分数が不足しています。プランをアップグレードしてください」 |
-| SUBSCRIPTION_EXPIRED | 402 | false | 「サブスクリプションが期限切れです」 |
-| PAYMENT_FAILED | 402 | true | 「決済に失敗しました。お支払い方法を確認してください」 |
+| BILLING_INSUFFICIENT_BALANCE | 402 | false | 「翻訳分数が不足しています。プランをアップグレードしてください」 |
+| BILLING_SUBSCRIPTION_EXPIRED | 402 | false | 「サブスクリプションが期限切れです」 |
+| BILLING_PAYMENT_FAILED | 402 | true | 「決済に失敗しました。お支払い方法を確認してください」 |
+| BILLING_INVALID_RECEIPT | 400 | false | 「購入情報の検証に失敗しました」 |
+| BILLING_CHANNEL_NOT_AVAILABLE | 400 | false | 「この地域では選択された購入チャネルを利用できません」（例: 海外からの storekit_external 要求） |
 
 ### 翻訳（translation）
 | コード | HTTP | retryable | 画面での表示 |
@@ -39,13 +41,13 @@
 | CONTACT_ALREADY_EXISTS | 409 | false | 「すでに連絡先に追加されています」 |
 | CONTACT_NOT_FOUND | 404 | false | 「ユーザーが見つかりません」 |
 | CONTACT_SELF_ADD | 400 | false | 「自分を連絡先に追加できません」 |
-| USER_BLOCKED | 403 | false | 操作不可（理由は明示しない）|
+| CONTACT_USER_BLOCKED | 403 | false | 操作不可（理由は明示しない）|
 
 ### 通知（notification）
 | コード | HTTP | retryable | 画面での表示 |
 |--------|------|-----------|------------|
-| PUSH_DELIVERY_FAILED | 502 | true | サーバー内部リトライ（ユーザーには表示しない）|
-| DEVICE_TOKEN_INVALID | 400 | false | トークン再登録を要求 |
+| NOTIFICATION_PUSH_DELIVERY_FAILED | 502 | true | サーバー内部リトライ（ユーザーには表示しない）|
+| NOTIFICATION_DEVICE_TOKEN_INVALID | 400 | false | トークン再登録を要求 |
 
 ### 共通
 | コード | HTTP | retryable | 画面での表示 |

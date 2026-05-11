@@ -5,7 +5,11 @@
 - ベースURL: `https://api.trancall.app/api`（Phase 1aではVercel or セルフホスト）
 - 認証: `Authorization: Bearer <supabase_access_token>`（内部APIは`X-Agent-Token`）
 - レスポンス: 全て `Result<T, AppError>` 形式のJSON
-- エラーコード: `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN`, `RATE_LIMITED`, `INSUFFICIENT_BALANCE`, `PROVIDER_ERROR`, `INTERNAL_ERROR`
+- エラーコード命名規約（レビュー v10 M-003-NEW で統一）:
+  - **ドメイン共通**: `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN`, `RATE_LIMITED`, `INTERNAL_ERROR`, `NETWORK_ERROR`
+  - **ドメイン固有**: `AUTH_*`, `ROOM_*`, `CONTACT_*`, `TRANSLATION_*`, `BILLING_*`
+  - 旧名との対応: `INSUFFICIENT_BALANCE` → `BILLING_INSUFFICIENT_BALANCE`、`PROVIDER_ERROR` → `TRANSLATION_PROVIDER_ERROR`
+- 完全なコード一覧と HTTP ステータス・retryable 判定・UI 表示文言は [docs/error-handling.md](./error-handling.md) を **単一の参照源** とする
 
 ## 認証（auth）
 
@@ -323,6 +327,7 @@ Headers: X-Agent-Token, X-Idempotency-Key
 Request: {
   "sessionId": "uuid",
   "userId": "uuid",
+  "roomId": "uuid",
   "windowStart": "2026-05-11T10:00:00Z",
   "durationSeconds": 30,
   "languagePair": "ja-en"
