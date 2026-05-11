@@ -65,6 +65,7 @@ Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証�
 - client-side sidecar方式（端末→OpenAI直接）とserver-side Agent方式の両方を実装しレイテンシー比較
 - レイテンシー測定（p50/p95/p99）とバジェット分解
 - Expo SDK 53 + New Architecture + LiveKit RN SDK のビルド・実機動作検証
+- CallKit/ConnectionService/Bluetooth/バックグラウンド復帰の実現性検証（1画面技術検証アプリで確認、実装はPhase 1b）
 - ユーザー登録・認証（Supabase Auth）
 - 連絡先管理（追加・検索・QRコード・招待リンク）
 - 1対1 foreground音声通話
@@ -143,6 +144,9 @@ Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証�
 | CONTACT-006 | 連絡先ごとの通話履歴（日時、時間、コスト）を閲覧できる | Must |
 | CONTACT-007 | 連絡先を削除できる | Must |
 | CONTACT-008 | 自分のQRコードを表示できる | Must |
+| CONTACT-009 | ユーザーをブロックできる（着信拒否+連絡先非表示） | Must |
+| CONTACT-010 | ユーザーを通報できる（スパム・迷惑通話） | Must |
+| CONTACT-011 | email verification必須（匿名通話防止、App Storeガイドライン1.1.6対応） | Must |
 
 ### 3.3 通話管理（Room モジュール）
 
@@ -205,7 +209,7 @@ Phase 0（独立PoC）は設けない。レイテンシー測定と技術検証�
 | BILL-004 | プラン超過分は従量課金とする | Must |
 | BILL-005 | iOS App Store In-App Purchaseに対応する | Must |
 | BILL-006 | Google Play In-App Purchaseに対応する | Must |
-| BILL-007 | Webからの直接課金はStripeを使用する | Must |
+| BILL-007 | Webサイト（アプリ外）からの直接課金はStripeを使用する。アプリ内にStripe決済導線は置かない（App Storeガイドライン準拠） | Must |
 | BILL-008 | 通話開始前に残り分数とコスト見積もりを表示する | Must |
 | BILL-009 | 残り分数が0の場合、翻訳通話を開始できない（通知あり） | Must |
 | BILL-010 | 通話終了後にコストサマリーを表示する | Must |
@@ -428,9 +432,9 @@ Apple/Google の30%プラットフォーム手数料を考慮した価格設定:
 | プラン | 月額(税込) | 翻訳分数 | 超過/分 | 原価率(目安) |
 |--------|----------|---------|---------|------------|
 | Free | 0 yen | 5 min | 利用不可 | - |
-| Light | 980 yen | 60 min | 30 yen | ~88% |
-| Standard | 2,980 yen | 300 min | 25 yen | ~70% |
-| Business | 9,800 yen | 1,200 min | 20 yen | ~58% |
+
+
+
 
 ---
 

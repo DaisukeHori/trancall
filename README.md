@@ -24,11 +24,11 @@ TranCallはGPT-Realtime-Translateを活用したリアルタイム翻訳付きVo
 
 ```
 trancall/
-├── packages/           # ドメインモジュール（11モジュール）
+├── packages/           # ドメインモジュール（10モジュール + 1 deprecated）
 │   ├── shared-kernel/  # 共通型・EventBus・DI
 │   ├── auth/           # 認証・ユーザー管理
 │   ├── room/           # 通話セッション管理
-│   ├── signaling/      # LiveKit接続制御
+│   ├── signaling/      # [DEPRECATED] media/adapters/livekitに統合
 │   ├── media/          # 音声トラック抽象化 + Transport Adapter
 │   ├── translation/    # GPT-RT-Translate接続
 │   ├── billing/        # 課金（Stripe + IAP）

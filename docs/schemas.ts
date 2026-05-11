@@ -34,7 +34,7 @@ const OutputLanguage = z.enum([
 type OutputLanguage = z.infer<typeof OutputLanguage>;
 
 // 入力言語は70+あるが、主要なもののみ列挙（残りはstringで受け入れ）
-const InputLanguage = z.string().min(2).max(10);
+const InputLanguage = z.union([z.literal("auto"), z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/)]);
 type InputLanguage = z.infer<typeof InputLanguage>;
 
 // --- ドメインイベント基底 ---
@@ -417,6 +417,13 @@ const TranscriptSegment = z.object({
   startTime: z.number(),    // 通話開始からのミリ秒
   endTime: z.number(),
   isFinal: z.boolean(),
+  retentionUntil: z.string().datetime().nullable(),
+  deletedAt: z.string().datetime().nullable(),
+  consentVersion: z.string().nullable(),
+  sourceEventId: z.string().uuid().nullable(),
+  sequenceNo: z.number().int().nonnegative(),
+  languagePair: z.string(),              // "en-ja" 形式
+  agentSessionId: z.string().uuid().nullable(),
 });
 type TranscriptSegment = z.infer<typeof TranscriptSegment>;
 

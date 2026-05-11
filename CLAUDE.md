@@ -3,7 +3,7 @@
 ## プロジェクト概要
 
 TranCallはGPT-Realtime-Translateを活用したリアルタイム翻訳付きVoIP通話アプリ。
-モジュラーモノリスアーキテクチャで構築し、Zodスキーマで全モジュール境界を定義する。
+モジュラーモノリスアーキテクチャ（10モジュール + 4アプリ）で構築し、Zodスキーマで全モジュール境界を定義する。
 
 ## リポジトリ構造
 
@@ -40,7 +40,10 @@ trancall/
 ### 型安全性
 
 - `as any`, `as unknown`, `@ts-ignore`, `@ts-expect-error` は禁止
-- 型アサーション (`as SomeType`) も禁止 — ESLint `assertionStyle: "never"`
+- 型アサーション (`as SomeType`) は原則禁止 — ESLint `assertionStyle: "never"`
+- 例外: `adapters/*` と `schemas/brand.ts` 内の境界変換ヘルパーのみ許可
+  - `fromLiveKitTrackSid()`, `parseOpenAIEvent()`, `toPcm24Frame()`, `brandUuid()`, `parseEnv()` 等
+  - 通常のドメインコードでは型アサーション禁止を維持
 - 外部入力は必ず Zod `safeParse()` でバリデーション
 - 例外throwの代わりにResult型 (`{ ok: true, data } | { ok: false, error }`) を使用
 - TSConfig: `strict: true`, `noUncheckedIndexedAccess: true`
