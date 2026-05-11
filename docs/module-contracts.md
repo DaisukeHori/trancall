@@ -279,7 +279,7 @@ export interface RoomFacade {
 要求: `EventBus` (publish インターフェース)
 
 **契約注釈**:
-- `createCall` は `billing.canStartCall` 失敗時に `BILLING_INSUFFICIENT_BALANCE` を返す
+- `createCall` は `billing.canStartCall` 失敗時、billing が返す `AppError` をそのまま pass-through する (room module は独自 error code を作らない、billing owner code を再利用)
 - `media.createRoom` 失敗時は rooms を status='ended' にロールバックして `ROOM_MEDIA_CREATE_FAILED` を返す
 - `sendIncomingCall` は best-effort (失敗しても createCall は成功)
 - `joinCall` は `waiting → active` 状態遷移を担う (最初の non-host join 時)
@@ -308,6 +308,7 @@ export interface RoomFacade {
 ### 3.2 EventBus 契約
 
 ```ts
+// Layer 3 server で提供する統合 EventBus 型 (publish + subscribe)
 interface EventBus {
   publish(event: DomainEvent): Promise<void>;
   subscribe<T extends DomainEvent["type"]>(
@@ -315,6 +316,11 @@ interface EventBus {
     handler: (event: Extract<DomainEvent, { type: T }>) => Promise<void>,
   ): () => void;  // unsubscribe 関数を返す
 }
+
+// 各 publisher module (room など) は publish のみを要求する narrowed interface を内部定義する。
+// 例: packages/room/src/event-bus.ts は `interface EventBus { publish(event: RoomDomainEvent) }` のみ。
+// これにより room モジュールは自身が発行するイベント型のみを知る (Interface Segregation)。
+// Layer 3 server で提供する統合 EventBus 実装は、各モジュール固有 narrowed interface を満たす。
 ```
 
 実装場所: Layer 3 server で in-process EventBus を提供 (`apps/server/src/event-bus.ts` 予定)。
