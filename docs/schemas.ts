@@ -126,6 +126,10 @@ function validate<T extends z.ZodType>(
 // 4. auth モジュール
 // =============================================================================
 
+// SignUpCommand / SignInCommand は Sprint 1 で AuthFacade が getProfile のみに縮退後、
+// Server 側 facade からは利用されない。Mobile / Web クライアント側で Supabase Auth client SDK
+// を呼ぶ際の入力バリデーション用に残置 (REST API 経由ではなく client から直接 Supabase Auth)。
+// 詳細は docs/module-contracts.md Section 2.1 と docs/api-spec.md の signup/signin セクション参照。
 const SignUpCommand = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
@@ -153,6 +157,8 @@ const UserProfile = z.object({
 });
 type UserProfile = z.infer<typeof UserProfile>;
 
+// AuthSession は Supabase Auth クライアント SDK 戻り値の型表現用 (client 側で使用)。
+// Server 側の AuthFacade は getProfile のみで AuthSession を返さない。
 const AuthSession = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),
@@ -461,23 +467,28 @@ interface BillingFacade {
 const NotificationTarget = z.discriminatedUnion("platform", [
   z.object({
     platform: z.literal("ios"),
-    voipToken: z.string(),
+    voipToken: z.string().min(1),
     bundleId: z.string(),
   }),
   z.object({
     platform: z.literal("android"),
-    fcmToken: z.string(),
+    fcmToken: z.string().min(1),
   }),
 ]);
 type NotificationTarget = z.infer<typeof NotificationTarget>;
 
+// Sprint 1 で notification 実装に合わせ callerTrancallId / callerLanguage / timestamp を追加。
+// バリデーション強度も実装に合わせて .min(1) を必須箇所に付与。
 const IncomingCallNotification = z.object({
   roomId: RoomIdSchema,
-  callerName: z.string(),
+  callerName: z.string().min(1),
   callerAvatarUrl: z.string().url().nullable(),
+  callerTrancallId: z.string().min(1),
   roomType: z.enum(["audio", "video"]),
   translationEnabled: z.boolean(),
-  languagePair: z.string(),
+  languagePair: z.string().min(1),
+  callerLanguage: z.string().min(1),
+  timestamp: z.string().datetime(),
 });
 
 // 不在着信通知の body フォーマット: "{callerName} ({callerTrancallId})" (docs/notification-detail.md 厳守)
@@ -700,7 +711,7 @@ export {
   // Billing
   PlanTier, PlanConfig, SubscriptionState, UsageWindow, RecordUsageCommand,
   // Notification
-  NotificationTarget, IncomingCallNotification,
+  NotificationTarget, IncomingCallNotification, MissedCallPayload,
   // Transcript
   LiveSubtitleDelta, TranscriptSegment, TranscriptAccess, FullTranscript,
   // Contact
