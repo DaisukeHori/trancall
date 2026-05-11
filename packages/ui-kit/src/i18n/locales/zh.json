@@ -29,7 +29,19 @@
     "nativeLanguage": "母语",
     "forgotPassword": "忘记密码？",
     "verifyEmail": "请验证您的邮箱",
-    "invalidCredentials": "邮箱或密码不正确"
+    "invalidCredentials": "邮箱或密码不正确",
+    "errors": {
+      "displayNameRequired": "请输入显示名称",
+      "emailInvalid": "邮箱地址不正确",
+      "passwordTooShort": "密码至少8个字符",
+      "consentRequired": "需要同意服务条款和隐私政策"
+    },
+    "consent": {
+      "and": "和",
+      "agree": "同意",
+      "back": "返回",
+      "checkboxLabel": "同意服务条款和隐私政策"
+    }
   },
   "onboarding": {
     "title": "TranCall",

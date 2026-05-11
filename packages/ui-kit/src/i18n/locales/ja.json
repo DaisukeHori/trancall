@@ -29,7 +29,19 @@
     "nativeLanguage": "母国語",
     "forgotPassword": "パスワードを忘れた方",
     "verifyEmail": "メール認証を完了してください",
-    "invalidCredentials": "メールアドレスまたはパスワードが正しくありません"
+    "invalidCredentials": "メールアドレスまたはパスワードが正しくありません",
+    "errors": {
+      "displayNameRequired": "表示名を入力してください",
+      "emailInvalid": "メールアドレスが正しくありません",
+      "passwordTooShort": "パスワードは8文字以上です",
+      "consentRequired": "利用規約とプライバシーポリシーへの同意が必要です"
+    },
+    "consent": {
+      "and": "および",
+      "agree": "に同意します",
+      "back": "へ戻る",
+      "checkboxLabel": "利用規約とプライバシーポリシーに同意する"
+    }
   },
   "onboarding": {
     "title": "TranCall",

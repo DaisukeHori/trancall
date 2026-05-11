@@ -29,7 +29,19 @@
     "nativeLanguage": "Native Language",
     "forgotPassword": "Forgot Password?",
     "verifyEmail": "Please verify your email",
-    "invalidCredentials": "Invalid email or password"
+    "invalidCredentials": "Invalid email or password",
+    "errors": {
+      "displayNameRequired": "Display name is required",
+      "emailInvalid": "Invalid email address",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "consentRequired": "Agreement to terms and privacy policy is required"
+    },
+    "consent": {
+      "and": "and",
+      "agree": "I agree to",
+      "back": "Back to",
+      "checkboxLabel": "Agree to Terms of Service and Privacy Policy"
+    }
   },
   "onboarding": {
     "title": "TranCall",
