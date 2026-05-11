@@ -5,7 +5,7 @@
  * trancall_room.participants テーブルへのアクセスを管理する。
  */
 
-import type { Result, AppError, RoomId, UserId } from "@trancall/shared-kernel";
+import type { Result, AppError, RoomId } from "@trancall/shared-kernel";
 import type { ParticipantRow, UpsertParticipantCommand } from "../schemas.js";
 
 export interface ParticipantRepository {

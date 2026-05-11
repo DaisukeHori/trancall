@@ -24,7 +24,6 @@ import type { ReservationRepository } from "../repositories/reservation-reposito
 import {
   calcUsedMinutes,
   calcRemainingMinutes,
-  calcRemainingSeconds,
 } from "./plan-calculator.js";
 
 export interface ReservationServiceDeps {

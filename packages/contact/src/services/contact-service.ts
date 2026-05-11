@@ -7,7 +7,6 @@ import {
   type AppError,
   type UserId,
   err,
-  ok,
 } from "@trancall/shared-kernel";
 
 import type { ContactEntry } from "../schemas.js";

@@ -18,7 +18,6 @@ import type { AppError } from "@trancall/shared-kernel";
 import {
   type TranscriptSegment,
   type LiveSubtitleDelta,
-  TranscriptSegmentSchema,
   LiveSubtitleDeltaSchema,
   FullTranscriptSchema,
 } from "./schemas.js";

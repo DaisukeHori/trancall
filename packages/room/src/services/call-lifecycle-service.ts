@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { Result, AppError, UserId, RoomId } from "@trancall/shared-kernel";
-import { RoomIdSchema, UserIdSchema, err, ok } from "@trancall/shared-kernel";
+import { RoomIdSchema, UserIdSchema, err } from "@trancall/shared-kernel";
 import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade, IncomingCallNotification } from "@trancall/notification";

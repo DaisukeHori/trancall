@@ -10,5 +10,28 @@
     "test": "vitest run",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/helmet": "^11.1.1",
+    "@supabase/supabase-js": "^2.43.4",
+    "@trancall/auth": "workspace:*",
+    "@trancall/billing": "workspace:*",
+    "@trancall/contact": "workspace:*",
+    "@trancall/media": "workspace:*",
+    "@trancall/notification": "workspace:*",
+    "@trancall/room": "workspace:*",
+    "@trancall/shared-kernel": "workspace:*",
+    "@trancall/transcript": "workspace:*",
+    "@trancall/translation": "workspace:*",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.8"
   }
 }
