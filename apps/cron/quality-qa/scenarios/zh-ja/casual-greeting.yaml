@@ -1,0 +1,64 @@
+scenario_id: TC-S1-ja-zh
+scenario: S1
+name: 日常会話 / Casual Greeting (中文 → 日本語)
+source_lang: zh
+target_lang: ja
+context: "10-turn daily conversation in Chinese covering self-introduction and hobbies. Evaluates fluency and context retention."
+audio_url: null
+expected_keywords:
+  - "はじめまして"
+  - "北京"
+  - "写真"
+  - "富士山"
+  - "Instagram"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "你好，我叫李明，很高兴认识你。"
+    expected_translation: "こんにちは、李明と申します。はじめまして。"
+    eval_point: "中国語の自己紹介の自然な日本語化"
+  - turn: 2
+    speaker: B
+    script_text: "はじめまして、田中です。どこからいらっしゃいましたか？"
+    expected_translation: "你好，我叫田中。请问您来自哪里？"
+    eval_point: "丁寧な質問の中国語への翻訳"
+  - turn: 3
+    speaker: A
+    script_text: "我来自北京。这是我第一次来日本，非常兴奋。"
+    expected_translation: "北京から来ました。日本に来るのは初めてで、とても興奮しています。"
+    eval_point: "固有名詞 (北京) の保持 + 感情表現"
+  - turn: 4
+    speaker: B
+    script_text: "そうですか！北京はどんな街ですか？"
+    expected_translation: "原来如此！北京是个什么样的城市？"
+    eval_point: "疑問文の自然な翻訳"
+  - turn: 5
+    speaker: A
+    script_text: "北京是一座历史悠久的城市，有故宫、天安门广场，非常壮观。"
+    expected_translation: "北京は歴史ある都市で、故宮や天安門広場があり、とても壮大です。"
+    eval_point: "固有名詞 (故宮、天安門広場) の正確な翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "いつか行ってみたいです。趣味は何ですか？"
+    expected_translation: "我也想去看看。您的兴趣爱好是什么？"
+    eval_point: "丁寧な疑問表現の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "我的爱好是摄影，特别喜欢拍风景照。听说富士山很美。"
+    expected_translation: "趣味は写真撮影で、特に風景写真が好きです。富士山はとても美しいと聞きました。"
+    eval_point: "固有名詞 (富士山) + 趣味の自然な日本語化"
+  - turn: 8
+    speaker: B
+    script_text: "富士山は素晴らしいですよ。Instagramに投稿していますか？"
+    expected_translation: "富士山确实很美。您会把照片发到Instagram上吗？"
+    eval_point: "SNS 固有名詞 (Instagram) の保持"
+  - turn: 9
+    speaker: A
+    script_text: "是的，我在Instagram上发过很多照片，粉丝已经超过了一千人。"
+    expected_translation: "はい、Instagramにたくさんの写真を投稿しています。フォロワーがすでに1000人を超えました。"
+    eval_point: "SNS + 数値 (1000人) の正確な翻訳"
+  - turn: 10
+    speaker: B
+    script_text: "すごいですね！ぜひフォローします。またお話しましょう。"
+    expected_translation: "太厉害了！我一定关注您。我们下次再聊吧。"
+    eval_point: "締めくくり表現の自然な翻訳"

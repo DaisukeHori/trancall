@@ -1,0 +1,65 @@
+scenario_id: TC-S5-ja-zh
+scenario: S5
+name: 中国語混在 (英語固有名詞含む) / Code-Switching & Ambient Passthrough (中文 → 日本語)
+source_lang: zh
+target_lang: ja
+context: "10-turn conversation with English brand names and loanwords mixed into Chinese speech. Tests ambient passthrough behavior."
+audio_url: null
+expected_keywords:
+  - "Thank you"
+  - "PowerPoint"
+  - "deadline"
+  - "スケジュール"
+  - "Excel"
+ambient_passthrough_check: true
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今天非常感谢大家的参与。"
+    expected_translation: "本日はご参加いただきありがとうございます。"
+    eval_point: "通常の zh→ja 翻訳"
+  - turn: 2
+    speaker: A
+    script_text: "首先，我想说一句 \"Thank you for your patience.\"，谢谢大家的耐心等待。"
+    expected_translation: "まず、\"Thank you for your patience.\" とお伝えしたいです。皆さんのご忍耐に感謝します。"
+    eval_point: "英語フレーズ混入。ambient passthrough で原音が届くことを確認"
+  - turn: 3
+    speaker: B
+    script_text: "もちろんです。続けてください。"
+    expected_translation: "当然可以。请继续。"
+    eval_point: "前ターンの混入後も B→A 方向の翻訳は通常通り"
+  - turn: 4
+    speaker: A
+    script_text: "接下来的议程有3点。第一点是关于 \"product launch plan\" 的讨论。"
+    expected_translation: "次のアジェンダは3点です。一つ目は「product launch plan」についての議論です。"
+    eval_point: "英語固有名詞句 (product launch plan) の混入処理"
+  - turn: 5
+    speaker: A
+    script_text: "第二点是Q2的 sales target，第三点是 marketing budget 的分配。"
+    expected_translation: "二つ目はQ2のsales target、三つ目はmarketing budgetの配分です。"
+    eval_point: "英語ビジネス用語の複数混入"
+  - turn: 6
+    speaker: B
+    script_text: "了解しました。PowerPointの資料はありますか？"
+    expected_translation: "好的，我明白了。有PowerPoint的资料吗？"
+    eval_point: "固有名詞 (PowerPoint) を含む通常の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "有的，我用 Excel 做了一份数据报告。\"Deadline\" 是下周五。"
+    expected_translation: "はい、Excelでデータレポートを作りました。「Deadline」は来週金曜日です。"
+    eval_point: "英単語 (Excel, Deadline) の自然な処理"
+  - turn: 8
+    speaker: A
+    script_text: "我们需要在 schedule 上确认几个 \"milestone\"。"
+    expected_translation: "スケジュール上でいくつかの「milestone」を確認する必要があります。"
+    eval_point: "英語外来語 (schedule, milestone) の混入処理"
+  - turn: 9
+    speaker: B
+    script_text: "わかりました。他に何かありますか？"
+    expected_translation: "好的，我知道了。还有其他要说的吗？"
+    eval_point: "通常の翻訳継続"
+  - turn: 10
+    speaker: A
+    script_text: "以上就是今天的内容。最后以 \"Thank you all!\" 结束。"
+    expected_translation: "以上が本日の内容です。最後に「Thank you all!」で締めくくりましょう。"
+    eval_point: "締めくくりの英語フレーズ混入"

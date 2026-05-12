@@ -1,0 +1,65 @@
+scenario_id: TC-S2-ja-zh
+scenario: S2
+name: ビジネス会議 / Business Meeting (中文 → 日本語)
+source_lang: zh
+target_lang: ja
+context: "10-turn business negotiation in Chinese with technical terminology. Evaluates accuracy and fluency of business terms."
+audio_url: null
+expected_keywords:
+  - "仕様"
+  - "納期"
+  - "割引"
+  - "キャンセル条項"
+  - "デジタル署名"
+  - "保証期間"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "非常感谢您今天抽时间。我想就新产品向您提出一个方案。"
+    expected_translation: "本日はお時間をいただきありがとうございます。新製品についてご提案させていただきます。"
+    eval_point: "中国語ビジネス敬語の自然な日本語化"
+  - turn: 2
+    speaker: B
+    script_text: "もちろんです。仕様と価格について教えていただけますか？"
+    expected_translation: "当然可以。请告诉我规格和价格方面的信息。"
+    eval_point: "仕様・価格の専門用語"
+  - turn: 3
+    speaker: A
+    script_text: "好的。本产品的交货期是从下单起六周，报价为不含税250万日元。"
+    expected_translation: "はい。本製品の納期は発注から6週間、見積もり金額は税別で250万円になります。"
+    eval_point: "納期・税別・大きな数値の正確な翻訳"
+  - turn: 4
+    speaker: B
+    script_text: "わかりました。価格の交渉は可能ですか？予算に限りがありまして。"
+    expected_translation: "明白了。价格可以商议吗？我们的预算有限。"
+    eval_point: "交渉・予算の語彙の翻訳"
+  - turn: 5
+    speaker: A
+    script_text: "如果订购10台以上，可以享受5%的折扣。此外，取消条款可以通过书面确认。"
+    expected_translation: "10台以上のご発注であれば、5%の割引が可能です。また、キャンセル条項については書面でご確認いただけます。"
+    eval_point: "数量条件・キャンセル条項の翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "承知しました。まず購買チームの承認が必要になります。"
+    expected_translation: "好的，我知道了。需要先得到采购团队的批准。"
+    eval_point: "組織内手続きの語彙の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "获得批准后，我们将起草正式合同。也可以支持数字签名。"
+    expected_translation: "ご承認後、正式な契約書を作成いたします。デジタル署名での対応も可能です。"
+    eval_point: "契約・デジタル署名の翻訳"
+  - turn: 8
+    speaker: B
+    script_text: "わかりました。この製品の保証期間はどのくらいですか？"
+    expected_translation: "好的，我明白了。这款产品的保修期有多长？"
+    eval_point: "保証期間の語彙の翻訳"
+  - turn: 9
+    speaker: A
+    script_text: "产品质保期为一年。另外还提供延长保修选项。"
+    expected_translation: "製品保証は1年間です。延長保証オプションも別途ご用意しています。"
+    eval_point: "保証・オプションの翻訳"
+  - turn: 10
+    speaker: B
+    script_text: "ありがとうございます。提案書を確認し、今週末までにご回答します。"
+    expected_translation: "谢谢。我们会确认方案，并在本周末之前给您答复。"
+    eval_point: "締めくくり + 期限の翻訳"

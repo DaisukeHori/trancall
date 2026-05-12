@@ -1,9 +1,9 @@
 /**
  * fixture-validation.test.ts
  *
- * 13 言語 × 5 シナリオ = 65 ケースの YAML fixture を検証する。
+ * 14 言語ペア × 5 シナリオ = 70 ケースの YAML fixture を検証する。
  *
- * - 全 65 ファイルが存在すること
+ * - 全 70 ファイルが存在すること
  * - 各 fixture が ScenarioFixtureSchema に準拠していること
  * - scenario_id が一意であること
  * - 各 fixture が 10 ターンを持つこと (または少なくとも 1 ターン以上)
@@ -46,7 +46,7 @@ function collectFixtureFiles(dir: string): string[] {
 const EXPECTED_LANG_PAIRS = [
   "ja-en", "ja-es", "ja-pt", "ja-fr", "ja-ru", "ja-zh",
   "ja-de", "ja-ko", "ja-hi", "ja-id", "ja-vi", "ja-it",
-  "en-ja",
+  "en-ja", "zh-ja",
 ] as const;
 
 const EXPECTED_SCENARIOS = [
@@ -59,14 +59,14 @@ const EXPECTED_SCENARIOS = [
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe("YAML fixture validation (65 cases)", () => {
+describe("YAML fixture validation (70 cases)", () => {
   const fixtureFiles = collectFixtureFiles(SCENARIOS_DIR);
 
-  it("should have exactly 65 fixture files", () => {
-    expect(fixtureFiles.length).toBe(65);
+  it("should have exactly 70 fixture files", () => {
+    expect(fixtureFiles.length).toBe(70);
   });
 
-  it("should have all 13 language pair directories", () => {
+  it("should have all 14 language pair directories", () => {
     const dirs = readdirSync(SCENARIOS_DIR).filter((e) =>
       statSync(join(SCENARIOS_DIR, e)).isDirectory()
     );
@@ -141,8 +141,8 @@ describe("YAML fixture validation (65 cases)", () => {
     }
   });
 
-  it("Phase 1a priority fixtures (ja-en, en-ja, ja-zh) should have all 5 scenarios with full 10 turns", () => {
-    const priorityPairs = ["ja-en", "en-ja", "ja-zh"];
+  it("Phase 1a priority fixtures (ja-en, en-ja, ja-zh, zh-ja) should have all 5 scenarios with full 10 turns", () => {
+    const priorityPairs = ["ja-en", "en-ja", "ja-zh", "zh-ja"];
     for (const pair of priorityPairs) {
       const langDir = join(SCENARIOS_DIR, pair);
       const files = readdirSync(langDir).filter((f) => f.endsWith(".yaml"));
