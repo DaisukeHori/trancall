@@ -2,11 +2,13 @@
  * SCR-012 — Full Transcript
  *
  * Displays the complete transcript for a completed call with:
- *   - Compact header (caller name + date + duration)
+ *   - Compact header (caller name + date + duration + export button)
  *   - Search bar
  *   - Speaker filter (All / Self / Other)
  *   - Transcript segment list with search highlighting
  *   - Export bottom-sheet (PDF / TXT)
+ *   - expo-file-system: base64 → cacheDirectory file
+ *   - expo-sharing: shareAsync() 共有シート
  *   - Access revoked banner
  */
 
@@ -22,6 +24,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { Badge, Button, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { TranscriptSearchBar } from "../components/transcript-search-bar.js";
@@ -117,13 +121,43 @@ export function FullTranscriptScreen({ navigation, route }: Props) {
 
       const result = await exportTranscript(roomId, format, session.accessToken);
 
-      setExportLoading(false);
-      setShowExportModal(false);
+      if (!result.ok) {
+        setExportLoading(false);
+        setShowExportModal(false);
+        setExportMessage({ type: "error", text: t("transcript.export.error") });
+        return;
+      }
 
-      if (result.ok) {
-        setExportMessage({ type: "success", text: t("transcript.export.success") });
-      } else {
-        setExportMessage({ type: "error", text: t("transcript.export.failed") });
+      // Determine filename: use server-provided or build a default
+      const ext = format === "pdf" ? "pdf" : "txt";
+      const filename = result.data.filename ?? `trancall-transcript-${roomId.slice(0, 8)}.${ext}`;
+      const fileUri = `${FileSystem.cacheDirectory ?? ""}${filename}`;
+
+      try {
+        await FileSystem.writeAsStringAsync(fileUri, result.data.contentBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (!isAvailable) {
+          setExportLoading(false);
+          setShowExportModal(false);
+          setExportMessage({ type: "error", text: t("transcript.export.error") });
+          return;
+        }
+
+        setExportLoading(false);
+        setShowExportModal(false);
+
+        await Sharing.shareAsync(fileUri, {
+          mimeType: result.data.mime,
+          dialogTitle: t("transcript.export.share"),
+          UTI: format === "pdf" ? "com.adobe.pdf" : "public.plain-text",
+        });
+      } catch {
+        setExportLoading(false);
+        setShowExportModal(false);
+        setExportMessage({ type: "error", text: t("transcript.export.error") });
       }
     },
     [session, exportTranscript, roomId, t],
@@ -182,7 +216,20 @@ export function FullTranscriptScreen({ navigation, route }: Props) {
             {formatDate(calledAt)} · {formatDuration(callDurationMs)}
           </Text>
         </View>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          {!isAccessRevoked && transcript != null && (
+            <TouchableOpacity
+              accessibilityLabel={t("transcript.export.button")}
+              accessibilityRole="button"
+              onPress={() => { setShowExportModal(true); }}
+              style={styles.exportHeaderButton}
+            >
+              <Text style={[styles.exportHeaderText, { color: c.primary }]}>
+                {t("transcript.export.button")}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Access revoked banner */}
@@ -529,6 +576,15 @@ const styles = StyleSheet.create({
   },
   exportBar: {
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  exportHeaderButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    alignItems: "flex-end",
+  },
+  exportHeaderText: {
+    fontSize: 16,
+    fontWeight: "500",
   },
   modalBackdrop: {
     flex: 1,

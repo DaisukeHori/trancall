@@ -192,7 +192,7 @@ describe("exportTranscript()", () => {
     }
   });
 
-  it("sends POST with correct format body", async () => {
+  it("sends GET with format as query parameter (T-21)", async () => {
     mockFetch.mockResolvedValueOnce(
       makeJsonResponse({
         ok: true,
@@ -203,8 +203,30 @@ describe("exportTranscript()", () => {
     await exportTranscript(ROOM_ID, "txt", ACCESS_TOKEN);
 
     const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(callArgs[1].method).toBe("POST");
-    expect(JSON.parse(callArgs[1].body as string)).toEqual({ format: "txt" });
+    expect(callArgs[1].method).toBe("GET");
+    const calledUrl = callArgs[0];
+    expect(calledUrl).toContain("format=txt");
+    expect(calledUrl).toContain(`/api/transcripts/${ROOM_ID}/export`);
+  });
+
+  it("returns filename from server response when present", async () => {
+    mockFetch.mockResolvedValueOnce(
+      makeJsonResponse({
+        ok: true,
+        data: {
+          contentBase64: "base64data==",
+          mime: "application/pdf",
+          filename: "trancall-transcript-20260512-1000-550e8400.pdf",
+        },
+      }),
+    );
+
+    const result = await exportTranscript(ROOM_ID, "pdf", ACCESS_TOKEN);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.filename).toBe("trancall-transcript-20260512-1000-550e8400.pdf");
+    }
   });
 
   it("returns error on server failure", async () => {

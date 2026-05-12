@@ -181,10 +181,13 @@
       "other": "Their speech"
     },
     "export": {
+      "button": "Export",
       "pdf": "Export as PDF",
       "txt": "Export as TXT",
+      "share": "Share transcript",
       "success": "Export complete",
-      "failed": "Export failed"
+      "failed": "Export failed",
+      "error": "Export failed. Please try again later."
     }
   },
   "billing": {

@@ -2,7 +2,7 @@
  * Transcript API — wraps server REST endpoints with Zod validation.
  *
  * GET  /api/transcripts/:roomId
- * POST /api/transcripts/:roomId/export
+ * GET  /api/transcripts/:roomId/export?format=pdf|txt  (T-10)
  * DELETE /api/transcripts/:roomId/access
  */
 
@@ -58,6 +58,7 @@ const ExportResponseSchema = z.object({
   data: z.object({
     contentBase64: z.string(),
     mime: z.string(),
+    filename: z.string().optional(),
   }),
 });
 
@@ -71,6 +72,8 @@ export type ExportFormat = "pdf" | "txt";
 export interface ExportResult {
   contentBase64: string;
   mime: string;
+  /** Suggested filename from server (e.g. trancall-transcript-20260512-1000-550e8400.pdf) */
+  filename?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +117,9 @@ export async function searchSegments(
 
 /**
  * Export transcript as PDF or TXT.
- * POST /api/transcripts/:roomId/export
+ * GET /api/transcripts/:roomId/export?format=pdf|txt  (Sprint 3 T-10)
+ *
+ * Returns base64-encoded file content, MIME type, and optional filename.
  */
 export async function exportTranscript(
   roomId: string,
@@ -122,11 +127,10 @@ export async function exportTranscript(
   accessToken: string,
 ): Promise<Result<ExportResult>> {
   const result = await apiFetch(
-    `/api/transcripts/${encodeURIComponent(roomId)}/export`,
+    `/api/transcripts/${encodeURIComponent(roomId)}/export?format=${encodeURIComponent(format)}`,
     ExportResponseSchema,
     {
-      method: "POST",
-      body: { format },
+      method: "GET",
       accessToken,
     },
   );
