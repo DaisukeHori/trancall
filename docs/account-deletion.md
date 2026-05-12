@@ -39,12 +39,24 @@ DELETE /api/auth/account
 | report_events | 保持（abuse対応用） | 1年 | |
 | translation_events | 保持（課金監査用） | 1年 | |
 | consent_versions | 同意記録を保持 | 法定保持期間 | GDPR要件 |
+| user_consents | user_id を匿名 UUID に置換（anonymize）後、保持 | auth.users 物理削除前に即座に anonymize / 物理削除は法定保持期間後の別バッチ | GDPR 要件: auth.users 物理削除と同時に削除しない。ON DELETE NO ACTION FK のため退会フロー側で明示的に anonymize を実行する必要あり |
 
 ### Supabase Auth
 ```sql
 -- auth.users は Supabase Admin API で削除
 -- CASCADE で profiles が削除される（profiles.user_id FK）
 -- ただし匿名化を先に実行してからauth.users削除
+
+-- 【重要】user_consents の anonymize を auth.users 削除より先に実行すること
+-- user_consents.user_id FK は ON DELETE NO ACTION のため、profiles 削除前に
+-- user_id を匿名 UUID（GDPR 保持用の固定 UUID 等）に置換する必要がある。
+-- 物理削除は法定保持期間（各国法令に準拠）後の別バッチで処理する。
+--
+-- 退会フロー擬似コード（サーバー側）:
+--   1. user_consents.user_id を GDPR_ANON_UUID に UPDATE（anonymize）
+--   2. profiles を匿名化（displayName → "Deleted User", email → sha256 等）
+--   3. auth.users を Supabase Admin API で削除（CASCADE で profiles 削除）
+--   4. 法定保持期間後のバッチ: user_consents WHERE user_id = GDPR_ANON_UUID AND recorded_at < (now() - retention_period) を DELETE
 ```
 
 ### 猶予期間

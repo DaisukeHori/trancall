@@ -21,7 +21,9 @@
 
 CREATE TABLE trancall_auth.user_consents (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID        NOT NULL REFERENCES trancall_auth.profiles(user_id) ON DELETE CASCADE,
+  user_id     UUID        NOT NULL REFERENCES trancall_auth.profiles(user_id),
+                -- ON DELETE NO ACTION (default): 退会時の同意記録は法定保持期間まで保持 (account-deletion.md / GDPR要件)。
+                -- 退会フロー側で意図的に anonymize/delete を制御する。
   scope       VARCHAR(30) NOT NULL
                 CHECK (scope IN (
                   'legal_terms', 'privacy_policy', 'voice_to_openai',
