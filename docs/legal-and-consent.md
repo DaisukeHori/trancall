@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | LEGAL-CONSENT-001 |
-| Status | Draft v1.0 (2026-05-12) |
+| Status | Draft v1.1 (2026-05-12) |
 | Sprint | Sprint 2 D7 |
 | 上位文書 | `docs/architecture.md` §5.5 §9 / `docs/requirements.md` §2 Phase 1a 完了基準 / `docs/module-contracts.md` v1.1.0 §2.1 AuthFacade |
 | 関連文書 | `docs/account-deletion.md` (退会 canonical) / `docs/billing-ui-flow.md` v1.2 (IAP 規約) / `docs/notification-detail.md` v1.3 (Push 同意) / `docs/native-call-bridge.md` v1.4 (CallKit / VoIP Push) |
@@ -161,8 +161,8 @@ export type ConsentScope = z.infer<typeof ConsentScopeSchema>;
 export const LegalDocumentVersionSchema = z.object({
   /** scope 識別子 */
   scope: ConsentScopeSchema,
-  /** バージョン文字列。YYYY-MM-DD 形式 */
-  version: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** バージョン文字列。`YYYY-MM-DD` または同日複数改訂時 `YYYY-MM-DD-rN` 形式 */
+  version: z.string().regex(/^\d{4}-\d{2}-\d{2}(-r\d+)?$/),  // YYYY-MM-DD または YYYY-MM-DD-rN (同日複数改訂時)
   /**
    * 規約本文の URL。legal_terms / privacy_policy のみ必須。
    * voice_to_openai 等は null を許容。
@@ -202,7 +202,7 @@ export const ConsentRecordSchema = z.object({
    * 同意したドキュメントのバージョン (YYYY-MM-DD)。
    * LegalDocumentVersionSchema.version と整合させる。
    */
-  version: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  version: z.string().regex(/^\d{4}-\d{2}-\d{2}(-r\d+)?$/),  // YYYY-MM-DD または YYYY-MM-DD-rN (同日複数改訂時)
   /** 同意が記録された日時 (UTC) */
   recordedAt: z.iso.datetime(),
   /**
@@ -342,7 +342,8 @@ CREATE POLICY user_consents_self_read ON trancall_auth.user_consents
   FOR SELECT USING (user_id = auth.uid());
 
 -- supabase/migrations/00008_extend_consent_versions.sql
--- 既存 consent_versions テーブルに scope 列を追加
+-- 既存 consent_versions テーブルに scope 列を追加 + PK 再構成
+-- 既存 PK (version 単一) は scope 追加後に同一 version で複数 scope を許可するため複合 PK に再構成
 ALTER TABLE trancall_auth.consent_versions
   ADD COLUMN scope VARCHAR(30) NOT NULL DEFAULT 'legal_terms'
     CHECK (scope IN (
@@ -352,6 +353,15 @@ ALTER TABLE trancall_auth.consent_versions
     )),
   ADD COLUMN supersedes VARCHAR(20),
   ADD COLUMN change_summary TEXT;
+
+-- 既存シード行 version='v1.0' は本書の YYYY-MM-DD 形式と乖離するため data migration
+UPDATE trancall_auth.consent_versions
+  SET version = '2026-01-01'
+  WHERE version = 'v1.0';
+
+-- PK 再構成: (version) 単一 → (version, scope) 複合
+ALTER TABLE trancall_auth.consent_versions DROP CONSTRAINT consent_versions_pkey;
+ALTER TABLE trancall_auth.consent_versions ADD PRIMARY KEY (version, scope);
 ```
 
 ---
@@ -513,7 +523,10 @@ Sprint 3 migration で以下を INSERT する:
 
 ```sql
 INSERT INTO trancall_auth.consent_versions
-  (version, scope, effective_at, description, policy_url, requires_reconsent, change_summary)
+  (version, scope, description, policy_url, requires_reconsent, change_summary)
+  -- ※ effective_at は既存テーブルの DEFAULT now() が適用される (migration 00001 §15 で定義)
+  -- ※ migration 00008 で追加した列: scope / supersedes / change_summary
+  -- ※ 既存列: version / effective_at / retired_at / description / policy_url / requires_reconsent
 VALUES
   ('2026-05-12', 'legal_terms',
    '2026-05-12T00:00:00Z',
@@ -598,7 +611,7 @@ mobile → POST /api/auth/consents
   │ 翻訳 API に送信します。                                            │
   │                                                                   │
   │ • 翻訳完了後、音声は OpenAI に保存されません                       │
-  │   (OpenAI 零保持ポリシー)                                          │
+  │   (OpenAI Zero Data Retention 合意による、§9.1 注記参照)            │
   │ • 文字起こしは TranCall 側で最大 {plan_retention_days} 日間        │
   │   保存されます (Settings から変更可)                               │
   │ • 詳細は [プライバシーポリシー] をご確認ください                   │
@@ -611,9 +624,9 @@ mobile → POST /api/auth/consents
 mobile → POST /api/auth/consents
   Body: [
     { scope: "voice_to_openai",      version: "2026-05-12",
-      source: "onboarding" or "incoming_call_first_time" },
+      source: "incoming_call_first_time" },
     { scope: "transcript_retention", version: "2026-05-12",
-      source: "onboarding" or "incoming_call_first_time" },
+      source: "incoming_call_first_time" },
   ]
     ↓ (200 OK)
 [通話開始 → Translation Agent 起動]
@@ -977,13 +990,18 @@ TranCall 側においても通話音声は保存しません。
 GDPR における合法的処理の根拠は **同意 (consent, Art. 6(1)(a))** を主とし、
 翻訳サービス提供の **契約履行 (Art. 6(1)(b))** を補として位置付ける（外部弁護士確認後）。
 
+**⚠️ OpenAI Zero Data Retention (ZDR) 合意の前提**:
+本書 §6.2 §8.2 §8.3 で繰り返し言及している「OpenAI が音声を保存しない」記述は、**TranCall と OpenAI 間で Zero Data Retention (ZDR) 合意を締結している前提**である。OpenAI のデフォルト API ポリシーは「abuse 監視目的で最大 30 日保管」であり、ZDR 合意は Enterprise/Scale Tier 契約または API 個別申請が必要 (https://platform.openai.com/docs/models/how-we-use-your-data)。**ZDR 合意未締結のまま本機能を公開することを禁止する**。法務確認時に ZDR 契約証跡を Apple App Review note (D6 §10.1) に添付できる状態とする。
+
 ### 9.2 同意のタイミングと優先度
 
 | フロー | タイミング | source |
 |---|---|---|
-| 発信 | 発信ボタンタップ直後、通話確立前 | `onboarding` (初回) |
-| 着信応答 | CXAnswerCallAction 後、音声有効化前 | `incoming_call_first_time` |
-| 2 回目以降の発信 | `voice_to_openai` が `isUpToDate=true` なら Consent Screen をスキップ | — |
+| 発信 (初回) | 発信ボタンタップ直後、通話確立前 (Onboarding 画面直後のケースも `onboarding`) | `onboarding` |
+| 着信応答 (初回) | CXAnswerCallAction 後、音声有効化前 | `incoming_call_first_time` |
+| 2 回目以降の発信 / 着信 | `voice_to_openai` が `isUpToDate=true` なら Consent Screen をスキップ | — |
+| Settings から再同意 | Settings → プライバシー → 同意管理 → 「もう一度同意する」 | `settings_screen` |
+| 規約改訂時 | 起動時バナーから新版同意 | `terms_revision_prompt` |
 
 ### 9.3 同意の有効期限と再取得
 
@@ -1254,7 +1272,7 @@ mobile → POST /api/auth/consents
 // (Phase 1 では手動 SQL で代替可)
 router.post("/internal/legal-documents", requireAdminAuth, async (req) => {
   const parsed = LegalDocumentVersionSchema.safeParse(req.body);
-  if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+  if (!parsed.success) return res.status(400).json({ error: parsed.error });
 
   await legalDocVersionRepo.insert(parsed.data);
   // 全 active ユーザーへのバナー表示は getRequiredConsents() の呼び出し時に自動反映される
@@ -1277,6 +1295,7 @@ router.post("/internal/legal-documents", requireAdminAuth, async (req) => {
 | `AUTH_CONSENT_REVOKED` | auth | 403 | false | 通話中または機能利用中にユーザーが Settings で同意を取消した | 機能停止 toast + Consent Screen への誘導 |
 | `AUTH_LEGAL_DOC_UNAVAILABLE` | auth | 503 | true | 規約本文の URL (trancall.app/terms 等) がサーバーエラー | 「サーバーが混雑しています。後で再試行してください」 |
 | `AUTH_CONSENT_VERSION_MISMATCH` | auth | 409 | false | 同意済みのバージョンより新バージョンが公開済 | 再同意フロー (§13) を起動 |
+| `AUTH_CONSENT_IRREVOCABLE` | auth | 422 | false | 取消不可 scope (`legal_terms` / `privacy_policy`) に `revokeConsent()` を呼び出した | 「この同意は取り消せません。退会はアカウント削除から行ってください」toast、Settings → アカウント削除へ誘導 |
 
 `AUTH_CONSENT_REQUIRED` はすでに `docs/module-contracts.md` §5 に記載があるが、本書でより詳細な発生条件と UI 動作を canonical に確定する。
 
@@ -1303,6 +1322,10 @@ router.post("/internal/legal-documents", requireAdminAuth, async (req) => {
     "AUTH_CONSENT_VERSION_MISMATCH": {
       "title": "規約が更新されました",
       "message": "最新の規約にご同意いただく必要があります。"
+    },
+    "AUTH_CONSENT_IRREVOCABLE": {
+      "title": "この同意は取り消せません",
+      "message": "ご利用を中止する場合は、アカウント削除をご検討ください。"
     }
   }
 }
@@ -1327,6 +1350,10 @@ router.post("/internal/legal-documents", requireAdminAuth, async (req) => {
     "AUTH_CONSENT_VERSION_MISMATCH": {
       "title": "Terms Updated",
       "message": "Please review and accept the updated terms."
+    },
+    "AUTH_CONSENT_IRREVOCABLE": {
+      "title": "This consent cannot be revoked",
+      "message": "To discontinue use, please consider deleting your account."
     }
   }
 }
@@ -1351,6 +1378,10 @@ router.post("/internal/legal-documents", requireAdminAuth, async (req) => {
     "AUTH_CONSENT_VERSION_MISMATCH": {
       "title": "条款已更新",
       "message": "请查看并接受最新条款。"
+    },
+    "AUTH_CONSENT_IRREVOCABLE": {
+      "title": "此同意无法撤销",
+      "message": "如需停止使用，请考虑删除账户。"
     }
   }
 }
@@ -1542,3 +1573,4 @@ appId: app.trancall
 | バージョン | 日付 | 内容 |
 |---|---|---|
 | v1.0 | 2026-05-12 | Sprint 2 D7 設計書 初版。スコープ: `ConsentScope` (7 種) / `ConsentRecord` / `LegalDocumentVersion` / `RequiredConsentView` Zod スキーマ定義。`AuthFacade` 拡張 4 メソッド (`recordConsent` / `hasConsent` / `revokeConsent` / `getRequiredConsents`) の contract + 契約注釈。DB スキーマ拡張要件 (migration 00007 / 00008)。同意フロー UI シーケンス 4 種 (Onboarding / 初回通話前 / 規約改訂時 / Settings)。着信者同意フロー (M2-015 対応)。利用規約 15 条骨子 (ja/en/zh)。プライバシーポリシー 12 条骨子 (ja/en/zh)。OpenAI 音声送信同意 (App Store 5.1.2 対策、零保持ポリシー明示)。トランスクリプト保持期間同意 (プラン別)。退会・データ削除同意 (`docs/account-deletion.md` 参照)。Apple アカウント削除 5.1.1(v) 遵守、grace period UI 要件。規約改訂時の再同意フロー (30 日バナー + 強制再同意)。エラーコード 4 種 (`AUTH_CONSENT_REQUIRED` / `AUTH_CONSENT_REVOKED` / `AUTH_LEGAL_DOC_UNAVAILABLE` / `AUTH_CONSENT_VERSION_MISMATCH`)。i18n エラー文言 ja / en / zh。単体テスト・統合テスト・E2E Maestro フロー 3 種。法務レビューチェックリスト 15 項目。**法的有効性は外部弁護士確認後に確定。本書は骨子と実装 spec を提供する。** |
+| v1.1 | 2026-05-12 | Round 1 レビュー (Opus A/B/C 並列) 指摘 Critical 2 + Warning 5 を反映。**Critical**: (A+C 重複) §14.1 / §14.2 (ja/en/zh) に `AUTH_CONSENT_IRREVOCABLE` (422, false、`legal_terms` / `privacy_policy` への revokeConsent 拒否) を追加。(A) §3.4 migration 00008 に PK 再構成 (`version` 単一 → `(version, scope)` 複合) + 既存 `v1.0` シード行を `2026-01-01` に data migration するステートメント追加。**Warning**: (A) `LegalDocumentVersionSchema.version` regex を `/^\d{4}-\d{2}-\d{2}(-r\d+)?$/` に拡張し §5.2 の `-rN` サフィックス対応 + コメント補足。(A) §9.1 に OpenAI Zero Data Retention (ZDR) 合意の前提を明記し、未締結状態での公開を禁止する条件を追加。(C) §5.3 INSERT の列リストを既存テーブル列に限定し migration 00008 の ADD COLUMN との整合を確保 + コメント補足。(C) §6.2 / §9.2 source enum の混在 (`"onboarding" or "incoming_call_first_time"`) を `incoming_call_first_time` 単独に修正し、source enum の意味を §9.2 表に網羅追記。(C) §11.4 example の Zod `parsed.ok` を `parsed.success` に修正 (Zod v4 仕様)。**B Critical** (`module-contracts.md` v1.1.0 への AuthFacade / DomainEvent / error code 反映欠如) は Sprint 2 D20 `module-contracts.md v1.3.0` 統合拡張 PR で対応予定 (本書はその先行 spec)。 |
