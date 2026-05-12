@@ -1,6 +1,7 @@
 // SCR-002 — Home: Recent calls + search
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   SafeAreaView,
@@ -30,11 +31,21 @@ export function HomeScreen({ navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const recentCalls = useRecentCallsStore((state) => state.recentCalls);
-  const load = useRecentCallsStore((state) => state.load);
+  const isLoading = useRecentCallsStore((state) => state.isLoading);
+  const isLoadingMore = useRecentCallsStore((state) => state.isLoadingMore);
+  const nextCursor = useRecentCallsStore((state) => state.nextCursor);
+  const refresh = useRecentCallsStore((state) => state.refresh);
+  const loadMore = useRecentCallsStore((state) => state.loadMore);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void refresh();
+  }, [refresh]);
+
+  const handleEndReached = useCallback(() => {
+    if (nextCursor != null && !isLoadingMore) {
+      void loadMore();
+    }
+  }, [nextCursor, isLoadingMore, loadMore]);
 
   const filteredCalls = searchQuery.trim().length === 0
     ? recentCalls
@@ -48,6 +59,15 @@ export function HomeScreen({ navigation }: Props) {
   // e.g. const remainingMinutes = useBillingStore(state => state.remainingMinutes);
   const remainingMinutes: number = useRecentCallsStore((state) => state.recentCalls.length > 1000 ? 0 : 0);
   const showLowBalanceWarning = remainingMinutes > 0 && remainingMinutes <= LOW_BALANCE_THRESHOLD_MINUTES;
+
+  const renderFooter = useCallback(() => {
+    if (!isLoadingMore) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color={c.primary} />
+      </View>
+    );
+  }, [isLoadingMore, c.primary]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: c.bgPrimary }]}>
@@ -80,7 +100,11 @@ export function HomeScreen({ navigation }: Props) {
       </View>
 
       {/* Call list */}
-      {filteredCalls.length === 0 ? (
+      {isLoading && recentCalls.length === 0 ? (
+        <View style={styles.centerLoader}>
+          <ActivityIndicator size="large" color={c.primary} />
+        </View>
+      ) : filteredCalls.length === 0 ? (
         <EmptyState
           title={t("home.empty.title")}
           subtitle={t("home.empty.subtitle")}
@@ -93,8 +117,6 @@ export function HomeScreen({ navigation }: Props) {
             <RecentCallRow
               call={item}
               onPress={() => {
-                // TODO Phase 2: navigate to ContactProfile when contacts store integrates
-                // For now, find contact by userId and navigate
                 navigation.navigate("ContactProfile", {
                   contact: {
                     id: item.contactUserId,
@@ -117,6 +139,9 @@ export function HomeScreen({ navigation }: Props) {
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={renderFooter}
         />
       )}
 
@@ -162,6 +187,15 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 100,
+  },
+  centerLoader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerLoader: {
+    paddingVertical: 16,
+    alignItems: "center",
   },
   fab: {
     position: "absolute",
