@@ -90,6 +90,8 @@ interface DegradedState {
   reason: DegradedReason | null;
   degradedSince: number | null;
   lastOutputAudioAt: number | null;
+  /** D1 §7.2: recovered 条件が最初に成立した時刻 (null = 未計測) */
+  recoveredSince: number | null;
 }
 
 // --- 本体 ---
@@ -129,6 +131,7 @@ export class TranslationSession extends EventEmitter {
     reason: null,
     degradedSince: null,
     lastOutputAudioAt: null,
+    recoveredSince: null,
   };
   private degradedCheckTimer: NodeJS.Timeout | null = null;
 
@@ -482,22 +485,32 @@ export class TranslationSession extends EventEmitter {
         this.postDegradedEvent(currentDegradedReason);
       }
     } else {
-      // D1 §7.2: recovered 判定 - WS connected + 1 秒以内に 1 つ以上 delta 受信
+      // D1 §7.2: recovered 判定 - WS connected + 1 秒以内に 1 つ以上 delta 受信 が RECOVERED_WINDOW_MS 継続
       if (this.degradedState.isDegraded) {
         const isConnected = clientState === "open";
         const recentDelta = this.degradedState.lastOutputAudioAt !== null &&
           now - this.degradedState.lastOutputAudioAt <= 1000;
         if (isConnected && recentDelta) {
-          const degradedDurationMs = this.degradedState.degradedSince !== null
-            ? now - this.degradedState.degradedSince
-            : 0;
-          this.config.logger.info("TranslationSession: recovered", { degradedDurationMs });
-          this.degradedState.isDegraded = false;
-          this.degradedState.reason = null;
-          this.degradedState.degradedSince = null;
-          this.emit("recovered");
-          // Server に recovered 通知
-          this.postRecoveredEvent(degradedDurationMs);
+          if (this.degradedState.recoveredSince === null) {
+            // recovered 条件が初めて成立 → タイマー開始
+            this.degradedState.recoveredSince = now;
+          } else if (now - this.degradedState.recoveredSince >= TranslationSession.RECOVERED_WINDOW_MS) {
+            // RECOVERED_WINDOW_MS (3秒) 継続 → recovered 確定
+            const degradedDurationMs = this.degradedState.degradedSince !== null
+              ? now - this.degradedState.degradedSince
+              : 0;
+            this.config.logger.info("TranslationSession: recovered", { degradedDurationMs });
+            this.degradedState.isDegraded = false;
+            this.degradedState.reason = null;
+            this.degradedState.degradedSince = null;
+            this.degradedState.recoveredSince = null;
+            this.emit("recovered");
+            // Server に recovered 通知
+            this.postRecoveredEvent(degradedDurationMs);
+          }
+        } else {
+          // recovered 条件が成立しなくなった → タイマーリセット
+          this.degradedState.recoveredSince = null;
         }
       }
     }

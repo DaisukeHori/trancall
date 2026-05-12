@@ -522,6 +522,131 @@ describe("TranslationSession: T10 degraded/recovered 判定", () => {
   });
 });
 
+describe("TranslationSession: T10 recovered 3 秒継続条件 (D1 §7.2)", () => {
+  it("recovered 条件成立後 1 秒経過では recovered イベントが発火しない", async () => {
+    // degradedCheckIntervalMs=500 で 500ms ごとにチェック
+    const { config } = makeConfig({ degradedCheckIntervalMs: 500 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // degraded 状態にする
+    ws.emit("reconnecting", 1, 1000);
+    await waitNextTick(2);
+
+    const recoveredSpy = vi.fn();
+    session.on("recovered", recoveredSpy);
+
+    // WS を open 状態にし、lastOutputAudioAt を直近に設定して recovered 条件を成立させる
+    ws.getState = () => "open";
+    // lastOutputAudioAt を「今」に設定するため audio.delta を emit
+    ws.emit("audio.delta", { audioBase64: "audio1", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    // 1 秒経過 (3 秒未満) → checkDegradedStatus が 2 回実行されるが recovered はまだ
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(4);
+
+    expect(recoveredSpy).not.toHaveBeenCalled();
+
+    await session.end("participant_left");
+  });
+
+  it("recovered 条件成立後 3 秒以上経過で recovered イベントが発火する", async () => {
+    const { config } = makeConfig({ degradedCheckIntervalMs: 500 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // degraded 状態にする
+    ws.emit("reconnecting", 1, 1000);
+    await waitNextTick(2);
+
+    const recoveredSpy = vi.fn();
+    session.on("recovered", recoveredSpy);
+
+    // WS を open 状態にし、audio.delta で lastOutputAudioAt を直近に設定
+    ws.getState = () => "open";
+    ws.emit("audio.delta", { audioBase64: "audio1", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    // 3 秒以上経過 (各チェック時に lastOutputAudioAt を更新して条件を維持)
+    // 500ms ごとにチェック → 3000ms 経過で最低 6 回チェック
+    // チェックのたびに audio.delta で lastOutputAudioAt を更新する必要がある
+    for (let i = 0; i < 7; i++) {
+      vi.advanceTimersByTime(500);
+      ws.emit("audio.delta", { audioBase64: `audio${i}`, receivedAt: Date.now() });
+      await waitNextTick(3);
+    }
+
+    expect(recoveredSpy).toHaveBeenCalledTimes(1);
+
+    await session.end("participant_left");
+  });
+
+  it("条件成立 → 2 秒経過で条件非成立 → 再度成立 → 3 秒経過で recovered 発火 (タイマーリセット動作)", async () => {
+    const { config } = makeConfig({ degradedCheckIntervalMs: 500 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // degraded 状態にする
+    ws.emit("reconnecting", 1, 1000);
+    await waitNextTick(2);
+
+    const recoveredSpy = vi.fn();
+    session.on("recovered", recoveredSpy);
+
+    // フェーズ1: recovered 条件成立 (WS open + 直近 delta)
+    ws.getState = () => "open";
+    ws.emit("audio.delta", { audioBase64: "audio0", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    // 2 秒経過 (3 秒未満) → recovered まだ発火しない
+    for (let i = 0; i < 4; i++) {
+      vi.advanceTimersByTime(500);
+      ws.emit("audio.delta", { audioBase64: `audio${i}`, receivedAt: Date.now() });
+      await waitNextTick(3);
+    }
+    expect(recoveredSpy).not.toHaveBeenCalled();
+
+    // フェーズ2: 条件非成立 → lastOutputAudioAt を 2 秒以上前に強制して recovered 条件を破る
+    // checkDegradedStatus の次回チェックで recoveredSince がリセットされる
+    // ws.getState を "reconnecting" に戻して degraded 条件を再成立させる（recovered 判定をキャンセル）
+    // ただし isDegraded は既に true なので degraded イベントは再発火しない
+    // lastOutputAudioAt を古くするため、新しい audio.delta を送らずに時間を進める
+    vi.advanceTimersByTime(1500); // 1.5秒進める → lastOutputAudioAt が 1.5秒前になり recentDelta=false
+    await waitNextTick(3);
+    // この時点で recoveredSince は null にリセットされているはず
+
+    expect(recoveredSpy).not.toHaveBeenCalled();
+
+    // フェーズ3: 再度 recovered 条件成立
+    ws.emit("audio.delta", { audioBase64: "audio_restart", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    // 3 秒以上経過 → recovered 発火
+    for (let i = 0; i < 7; i++) {
+      vi.advanceTimersByTime(500);
+      ws.emit("audio.delta", { audioBase64: `audio_r${i}`, receivedAt: Date.now() });
+      await waitNextTick(3);
+    }
+
+    expect(recoveredSpy).toHaveBeenCalledTimes(1);
+
+    await session.end("participant_left");
+  });
+});
+
 describe("TranslationSession: transcript.delta 送信", () => {
   it("transcript.delta イベント → postTranscriptDelta が呼ばれる (isFinal=false)", async () => {
     const { config, apiClient } = makeConfig();
