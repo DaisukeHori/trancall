@@ -23,6 +23,8 @@ import {
   type SessionStartedPayload,
   type SessionEndedPayload,
   type AgentMetricsPayload,
+  type TranslationDegradedPayload,
+  type TranslationRecoveredPayload,
 } from "../schemas.js";
 import type { TranslationSessionRepository } from "../repositories/translation-session-repository.js";
 import type { AgentMetricsRepository } from "../repositories/agent-metrics-repository.js";
@@ -61,6 +63,12 @@ export async function handleAgentEvent(
 
     case "agent.metrics":
       return handleAgentMetrics(event, deps.metricsRepo);
+
+    case "translation.degraded":
+      return handleTranslationDegraded(event);
+
+    case "translation.recovered":
+      return handleTranslationRecovered(event);
 
     default: {
       // exhaustive check — TypeScript が未処理 type を検出する
@@ -169,6 +177,20 @@ async function handleSessionEnded(
     return result;
   }
 
+  return { ok: true, data: true };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function handleTranslationDegraded(_event: TranslationDegradedPayload): Result<true> {
+  // EventBus.publish は Server 側ハンドラ (apps/server) が担当。
+  // この translation パッケージは EventBus に非依存のため、
+  // ここでは ok: true を返すのみ。Server 側で DomainEvent を発行する。
+  return { ok: true, data: true };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function handleTranslationRecovered(_event: TranslationRecoveredPayload): Result<true> {
+  // EventBus.publish は Server 側ハンドラ (apps/server) が担当。
   return { ok: true, data: true };
 }
 

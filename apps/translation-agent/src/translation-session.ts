@@ -35,6 +35,8 @@ import {
   buildSessionStartedEvent,
   buildTranscriptDeltaEvent,
   buildAgentMetricsEvent,
+  buildDegradedEvent,
+  buildRecoveredEvent,
   type AgentMetricsPayload,
   type InternalApiClient,
 } from "./internal-api-client.js";
@@ -45,8 +47,13 @@ import { OpenAIWsClient } from "./openai-ws-client.js";
 
 export interface TranslationSessionConfig {
   roomId: string;
+  /** agentJobId と同一だが、Data Channel payload の sessionId として使用 */
+  sessionId?: string;
   sourceParticipantId: string;
   targetParticipantId: string;
+  /** 発話者の言語 (sourceLang)。Data Channel payload の sourceLang に使用 */
+  sourceLang: OutputLanguage;
+  /** 翻訳先の言語 (targetLang = outputLanguage) */
   outputLanguage: OutputLanguage;
   openaiApiKey: string;
   openaiUrl: string;
@@ -527,14 +534,74 @@ export class TranslationSession extends EventEmitter {
     }
   }
 
+  /**
+   * T-14: degraded イベントを Internal API 経由で Server に POST する。
+   * HMAC 署名は InternalApiClient が付与する。
+   * Data Channel publish は agent.ts 側で session.on("degraded") を購読して実施。
+   */
   private postDegradedEvent(reason: DegradedReason): void {
-    // T-14 で HMAC 署名追加。ここでは plain POST
-    // degraded event は agent.metrics payload に含めて送信 (別途 Data Channel は agent.ts 側で処理)
-    this.config.logger.info("TranslationSession: degraded イベント記録", { reason });
+    const sessionId = this.config.sessionId ?? this.agentJobId;
+    const event = buildDegradedEvent({
+      agentJobId: this.agentJobId,
+      roomId: this.config.roomId,
+      sessionId,
+      sourceLang: this.config.sourceLang,
+      targetLang: this.config.outputLanguage,
+      reason,
+      occurredAt: new Date(),
+    });
+
+    void this.config.internalApiClient.postEvent(event).then((result) => {
+      if (!result.ok) {
+        this.config.logger.warn("TranslationSession: degraded イベント送信失敗", {
+          reason,
+          error: result.error.message,
+        });
+      }
+    });
   }
 
+  /**
+   * T-14: recovered イベントを Internal API 経由で Server に POST する。
+   * HMAC 署名は InternalApiClient が付与する。
+   * Data Channel publish は agent.ts 側で session.on("recovered") を購読して実施。
+   */
   private postRecoveredEvent(degradedDurationMs: number): void {
-    this.config.logger.info("TranslationSession: recovered イベント記録", { degradedDurationMs });
+    const sessionId = this.config.sessionId ?? this.agentJobId;
+    const event = buildRecoveredEvent({
+      agentJobId: this.agentJobId,
+      roomId: this.config.roomId,
+      sessionId,
+      sourceLang: this.config.sourceLang,
+      targetLang: this.config.outputLanguage,
+      degradedDurationMs,
+      occurredAt: new Date(),
+    });
+
+    void this.config.internalApiClient.postEvent(event).then((result) => {
+      if (!result.ok) {
+        this.config.logger.warn("TranslationSession: recovered イベント送信失敗", {
+          degradedDurationMs,
+          error: result.error.message,
+        });
+      }
+    });
+  }
+
+  /**
+   * T-14: Data Channel publish 用に sessionId・sourceLang・targetLang を公開する。
+   * agent.ts の session.on("degraded"/"recovered") ハンドラから参照する。
+   */
+  getDegradedChannelMeta(): {
+    sessionId: string;
+    sourceLang: OutputLanguage;
+    targetLang: OutputLanguage;
+  } {
+    return {
+      sessionId: this.config.sessionId ?? this.agentJobId,
+      sourceLang: this.config.sourceLang,
+      targetLang: this.config.outputLanguage,
+    };
   }
 
   private startDegradedCheckTimer(): void {

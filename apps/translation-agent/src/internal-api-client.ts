@@ -90,11 +90,45 @@ export const AgentMetricsPayloadSchema = z.object({
 });
 export type AgentMetricsPayload = z.infer<typeof AgentMetricsPayloadSchema>;
 
+/**
+ * T-14: translation.degraded — module-contracts.md §7.4 / §3.3
+ * degraded 判定時に Internal API 経由で Server に POST し EventBus に publish。
+ */
+export const TranslationDegradedPayloadSchema = z.object({
+  type: z.literal("translation.degraded"),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
+  sessionId: z.uuid(),
+  sourceLang: z.string(),
+  targetLang: z.string(),
+  reason: z.enum(["openai_ws_reconnecting", "high_latency", "output_silence"]),
+  occurredAt: z.iso.datetime(),
+});
+export type TranslationDegradedPayload = z.infer<typeof TranslationDegradedPayloadSchema>;
+
+/**
+ * T-14: translation.recovered — module-contracts.md §7.4 / §3.3
+ * recovered 判定時に Internal API 経由で Server に POST し EventBus に publish。
+ */
+export const TranslationRecoveredPayloadSchema = z.object({
+  type: z.literal("translation.recovered"),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
+  sessionId: z.uuid(),
+  sourceLang: z.string(),
+  targetLang: z.string(),
+  degradedDurationMs: z.number().int().nonnegative(),
+  occurredAt: z.iso.datetime(),
+});
+export type TranslationRecoveredPayload = z.infer<typeof TranslationRecoveredPayloadSchema>;
+
 export type AgentEvent =
   | TranslationSessionStartedEvent
   | TranslationSessionEndedEvent
   | TranscriptDeltaPayload
-  | AgentMetricsPayload;
+  | AgentMetricsPayload
+  | TranslationDegradedPayload
+  | TranslationRecoveredPayload;
 
 // --- クライアント本体 ---
 
@@ -304,5 +338,49 @@ export function buildAgentMetricsEvent(args: {
     latencyMs: args.latencyMs,
     memoryRssBytes: args.memoryRssBytes,
     collectedAt: args.collectedAt.toISOString(),
+  };
+}
+
+/** T-14: degraded イベントのペイロードを生成する */
+export function buildDegradedEvent(args: {
+  agentJobId: string;
+  roomId: string;
+  sessionId: string;
+  sourceLang: string;
+  targetLang: string;
+  reason: TranslationDegradedPayload["reason"];
+  occurredAt: Date;
+}): TranslationDegradedPayload {
+  return {
+    type: "translation.degraded",
+    agentJobId: args.agentJobId,
+    roomId: args.roomId,
+    sessionId: args.sessionId,
+    sourceLang: args.sourceLang,
+    targetLang: args.targetLang,
+    reason: args.reason,
+    occurredAt: args.occurredAt.toISOString(),
+  };
+}
+
+/** T-14: recovered イベントのペイロードを生成する */
+export function buildRecoveredEvent(args: {
+  agentJobId: string;
+  roomId: string;
+  sessionId: string;
+  sourceLang: string;
+  targetLang: string;
+  degradedDurationMs: number;
+  occurredAt: Date;
+}): TranslationRecoveredPayload {
+  return {
+    type: "translation.recovered",
+    agentJobId: args.agentJobId,
+    roomId: args.roomId,
+    sessionId: args.sessionId,
+    sourceLang: args.sourceLang,
+    targetLang: args.targetLang,
+    degradedDurationMs: args.degradedDurationMs,
+    occurredAt: args.occurredAt.toISOString(),
   };
 }

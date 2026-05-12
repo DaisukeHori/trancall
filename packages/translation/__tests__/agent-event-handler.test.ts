@@ -73,6 +73,7 @@ const roomId = "00000000-0000-4000-8000-000000000012";
 const sourceParticipantId = "00000000-0000-4000-8000-000000000013";
 const targetParticipantId = "00000000-0000-4000-8000-000000000014";
 const agentJobId = "00000000-0000-4000-8000-000000000011";
+const sessionId = "00000000-0000-4000-8000-000000000015";
 
 describe("handleAgentEvent", () => {
   describe("translation.session_started", () => {
@@ -221,6 +222,104 @@ describe("handleAgentEvent", () => {
           },
           memoryRssBytes: 0,
           collectedAt: "2026-05-12T00:00:30.000Z",
+        },
+        { sessionRepo, metricsRepo },
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("VALIDATION_ERROR");
+      }
+    });
+  });
+
+  describe("translation.degraded", () => {
+    it("正常イベントで ok: true を返す", async () => {
+      const sessionRepo = makeSessionRepo();
+      const metricsRepo = makeMetricsRepo();
+
+      const result = await handleAgentEvent(
+        {
+          type: "translation.degraded",
+          agentJobId,
+          roomId,
+          sessionId,
+          sourceLang: "ja",
+          targetLang: "en",
+          reason: "openai_ws_reconnecting",
+          occurredAt: "2026-05-12T00:00:05.000Z",
+        },
+        { sessionRepo, metricsRepo },
+      );
+
+      expect(result.ok).toBe(true);
+      expect(sessionRepo.insert).not.toHaveBeenCalled();
+      expect(metricsRepo.insert).not.toHaveBeenCalled();
+    });
+
+    it("不正な reason でバリデーションエラー", async () => {
+      const sessionRepo = makeSessionRepo();
+      const metricsRepo = makeMetricsRepo();
+
+      const result = await handleAgentEvent(
+        {
+          type: "translation.degraded",
+          agentJobId,
+          roomId,
+          sessionId,
+          sourceLang: "ja",
+          targetLang: "en",
+          reason: "bad_reason",
+          occurredAt: "2026-05-12T00:00:05.000Z",
+        },
+        { sessionRepo, metricsRepo },
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("VALIDATION_ERROR");
+      }
+    });
+  });
+
+  describe("translation.recovered", () => {
+    it("正常イベントで ok: true を返す", async () => {
+      const sessionRepo = makeSessionRepo();
+      const metricsRepo = makeMetricsRepo();
+
+      const result = await handleAgentEvent(
+        {
+          type: "translation.recovered",
+          agentJobId,
+          roomId,
+          sessionId,
+          sourceLang: "ja",
+          targetLang: "en",
+          degradedDurationMs: 3000,
+          occurredAt: "2026-05-12T00:00:10.000Z",
+        },
+        { sessionRepo, metricsRepo },
+      );
+
+      expect(result.ok).toBe(true);
+      expect(sessionRepo.insert).not.toHaveBeenCalled();
+      expect(metricsRepo.insert).not.toHaveBeenCalled();
+    });
+
+    it("degradedDurationMs が負でバリデーションエラー", async () => {
+      const sessionRepo = makeSessionRepo();
+      const metricsRepo = makeMetricsRepo();
+
+      const result = await handleAgentEvent(
+        {
+          type: "translation.recovered",
+          agentJobId,
+          roomId,
+          sessionId,
+          sourceLang: "ja",
+          targetLang: "en",
+          degradedDurationMs: -100,
+          occurredAt: "2026-05-12T00:00:10.000Z",
         },
         { sessionRepo, metricsRepo },
       );

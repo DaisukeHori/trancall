@@ -152,6 +152,8 @@ function makeConfig(
     roomId: "room-uuid-1111-1111-1111-111111111111",
     sourceParticipantId: "src-uuid-2222-2222-2222-222222222222",
     targetParticipantId: "tgt-uuid-3333-3333-3333-333333333333",
+    // T-14: sourceLang (発話者の言語、Data Channel payload に使用)
+    sourceLang: "ja",
     outputLanguage: "en",
     openaiApiKey: "sk-test",
     openaiUrl: "wss://api.openai.com/v1/realtime/translations",
@@ -775,5 +777,121 @@ describe("TranslationSession: metrics 送信", () => {
 
     const metricsCalls = apiClient.calls.filter((c) => c.type === "agent.metrics");
     expect(metricsCalls.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// =============================================================================
+// T-14: degraded/recovered Internal API POST テスト
+// =============================================================================
+
+describe("TranslationSession: T14 degraded Internal API POST", () => {
+  it("degraded 検出時に translation.degraded を postEvent で送信する", async () => {
+    const { config, apiClient } = makeConfig({ degradedCheckIntervalMs: 100 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // reconnecting イベントを emit → 即時 degraded 検出 + postDegradedEvent 呼び出し
+    ws.emit("reconnecting");
+    await waitNextTick(3);
+
+    const degradedCalls = apiClient.calls.filter((c) => c.type === "translation.degraded");
+    expect(degradedCalls.length).toBeGreaterThanOrEqual(1);
+
+    const degradedCall = degradedCalls[0];
+    if (!degradedCall || degradedCall.type !== "translation.degraded") return;
+    expect(degradedCall.reason).toBe("openai_ws_reconnecting");
+    expect(degradedCall.sourceLang).toBe("ja");
+    expect(degradedCall.targetLang).toBe("en");
+    expect(degradedCall.roomId).toBe(config.roomId);
+
+    await session.end("participant_left");
+  });
+
+  it("degraded 検出が 2 回続いても translation.degraded は 1 回だけ postEvent される", async () => {
+    const { config, apiClient } = makeConfig({ degradedCheckIntervalMs: 100 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    ws.emit("reconnecting");
+    await waitNextTick(3);
+    ws.emit("reconnecting");
+    await waitNextTick(3);
+
+    const degradedCalls = apiClient.calls.filter((c) => c.type === "translation.degraded");
+    expect(degradedCalls).toHaveLength(1);
+
+    await session.end("participant_left");
+  });
+});
+
+describe("TranslationSession: T14 recovered Internal API POST", () => {
+  it("recovered 確定時に translation.recovered を postEvent で送信する", async () => {
+    // degradedCheckIntervalMs=500 で 500ms ごとにチェックし、3 秒継続で recovered 確定
+    const { config, apiClient } = makeConfig({ degradedCheckIntervalMs: 500 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // 1. degraded 状態にする (T13 既存パターンと同様)
+    ws.emit("reconnecting", 1, 1000);
+    await waitNextTick(3);
+
+    // 2. WS を open に戻し、audio delta も流して recovered 条件 3 秒を維持
+    ws.getState = () => "open";
+    ws.emit("audio.delta", { audioBase64: "audio_start", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    for (let i = 0; i < 7; i++) {
+      vi.advanceTimersByTime(500);
+      ws.emit("audio.delta", { audioBase64: `audio_r${i}`, receivedAt: Date.now() });
+      await waitNextTick(3);
+    }
+
+    // postEvent が非同期なのでさらに待機
+    await waitNextTick(5);
+
+    const recoveredCalls = apiClient.calls.filter((c) => c.type === "translation.recovered");
+    expect(recoveredCalls.length).toBeGreaterThanOrEqual(1);
+
+    const recoveredCall = recoveredCalls[0];
+    if (!recoveredCall || recoveredCall.type !== "translation.recovered") return;
+    expect(recoveredCall.sourceLang).toBe("ja");
+    expect(recoveredCall.targetLang).toBe("en");
+    expect(recoveredCall.roomId).toBe(config.roomId);
+    expect(recoveredCall.degradedDurationMs).toBeGreaterThanOrEqual(0);
+
+    await session.end("participant_left");
+  });
+});
+
+describe("TranslationSession: T14 getDegradedChannelMeta()", () => {
+  it("getDegradedChannelMeta() が sourceLang / targetLang / sessionId を返す", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+
+    const meta = session.getDegradedChannelMeta();
+    expect(meta.sourceLang).toBe("ja");
+    expect(meta.targetLang).toBe("en");
+    expect(meta.sessionId).toMatch(/^[0-9a-f-]{36}$/); // UUID形式
+  });
+
+  it("config.sessionId が指定された場合はそちらを返す", async () => {
+    const customSessionId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const { config } = makeConfig({ sessionId: customSessionId });
+    const session = new TranslationSession(config);
+
+    const meta = session.getDegradedChannelMeta();
+    expect(meta.sessionId).toBe(customSessionId);
   });
 });

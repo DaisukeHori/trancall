@@ -266,6 +266,8 @@ Body:
   - { type: "translation.session_ended", durationMs, billableSeconds, reason, ... }
   - { type: "transcript.delta", sequenceNo, text, isFinal, ... }
   - { type: "agent.metrics", latencyMs: { ... }, memoryRssBytes, ... }
+  - { type: "translation.degraded", agentJobId, roomId, sessionId, sourceLang, targetLang, reason, occurredAt }
+  - { type: "translation.recovered", agentJobId, roomId, sessionId, sourceLang, targetLang, degradedDurationMs, occurredAt }
 ```
 
 Server 側処理:
@@ -276,6 +278,8 @@ Server 側処理:
    - `session_ended` → `translation_sessions` update（duration / billable_seconds / ended_at / reason）+ `billing_events` insert
    - `transcript.delta` → `transcript_segments` upsert (sequenceNo unique)
    - `agent.metrics` → `agent_metrics` insert
+   - `translation.degraded` → EventBus.publish(TranslationDegradedEvent)（metrics / 課金除外候補の非同期処理用）
+   - `translation.recovered` → EventBus.publish(TranslationRecoveredEvent)
 4. 200 OK with `{ "ok": true }`
 
 ## 4. WebSocket 再接続フロー

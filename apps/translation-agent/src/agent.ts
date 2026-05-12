@@ -32,6 +32,25 @@ import {
 
 import { OutputLanguage } from "@trancall/shared-kernel";
 
+// T-14: Data Channel payload 型（module-contracts.md §3.4 に準拠）
+interface DegradedChannelPayload {
+  type: "translation.degraded";
+  sessionId: string;
+  sourceLang: string;
+  targetLang: string;
+  reason: "openai_ws_reconnecting" | "high_latency" | "output_silence";
+  timestamp: string;
+}
+
+interface RecoveredChannelPayload {
+  type: "translation.recovered";
+  sessionId: string;
+  sourceLang: string;
+  targetLang: string;
+  degradedDurationMs: number;
+  timestamp: string;
+}
+
 import { type Config } from "./config.js";
 import {
   InternalApiClient,
@@ -175,6 +194,7 @@ export default defineAgent({
         roomId,
         sourceParticipantId,
         targetParticipantId,
+        sourceLang,
         outputLanguage: targetLang,
         openaiApiKey: deps.config.OPENAI_API_KEY,
         openaiUrl: deps.config.OPENAI_REALTIME_TRANSLATE_URL,
@@ -199,6 +219,61 @@ export default defineAgent({
       session.on("ended", (reason: string) => {
         logger.info("TranslationSession 終了", { key, reason });
         sessions.delete(key);
+      });
+
+      // T-14: degraded/recovered イベント購読 → LiveKit Data Channel publish
+      // module-contracts.md §3.4 に準拠した payload を RELIABLE モードで送信する
+      session.on("degraded", (reason: string) => {
+        const meta = session.getDegradedChannelMeta();
+        const payload: DegradedChannelPayload = {
+          type: "translation.degraded",
+          sessionId: meta.sessionId,
+          sourceLang: meta.sourceLang,
+          targetLang: meta.targetLang,
+          reason: reason as DegradedChannelPayload["reason"],
+          timestamp: new Date().toISOString(),
+        };
+        const data = Buffer.from(JSON.stringify(payload));
+        const localParticipant = ctx.room.localParticipant;
+        if (localParticipant) {
+          void localParticipant.publishData(new Uint8Array(data), { reliable: true }).catch(
+            (e: unknown) => {
+              logger.warn("Agent: degraded Data Channel publish 失敗", {
+                key,
+                error: e instanceof Error ? e.message : String(e),
+              });
+            },
+          );
+        }
+        logger.info("Agent: degraded Data Channel publish", { key, reason });
+      });
+
+      session.on("recovered", () => {
+        const meta = session.getDegradedChannelMeta();
+        // degradedDurationMs は translation-session 側で計算済みだが
+        // agent.ts では session に露出していないため 0 で送信し、
+        // Internal API 経由の recovered イベント (postRecoveredEvent) が正確な値を持つ
+        const payload: RecoveredChannelPayload = {
+          type: "translation.recovered",
+          sessionId: meta.sessionId,
+          sourceLang: meta.sourceLang,
+          targetLang: meta.targetLang,
+          degradedDurationMs: 0,
+          timestamp: new Date().toISOString(),
+        };
+        const data = Buffer.from(JSON.stringify(payload));
+        const localParticipant = ctx.room.localParticipant;
+        if (localParticipant) {
+          void localParticipant.publishData(new Uint8Array(data), { reliable: true }).catch(
+            (e: unknown) => {
+              logger.warn("Agent: recovered Data Channel publish 失敗", {
+                key,
+                error: e instanceof Error ? e.message : String(e),
+              });
+            },
+          );
+        }
+        logger.info("Agent: recovered Data Channel publish", { key });
       });
 
       await session.start();
