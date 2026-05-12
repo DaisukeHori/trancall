@@ -115,6 +115,13 @@
     "reconnecting": "翻訳を再接続中...",
     "stopped": "翻訳が停止しました",
     "recovered": "翻訳が復旧しました",
+    "degraded": "翻訳品質低下中",
+    "recoveredShort": "翻訳復帰",
+    "degradedReason": {
+      "openai_ws_reconnecting": "接続再試行中",
+      "high_latency": "高遅延",
+      "output_silence": "翻訳無音"
+    },
     "switchToOriginal": "原音に切替",
     "switchToTranslated": "翻訳に戻す",
     "subtitles": "字幕",

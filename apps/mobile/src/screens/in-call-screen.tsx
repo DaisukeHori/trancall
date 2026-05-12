@@ -25,6 +25,7 @@ import { useTranslation } from "../i18n/index.js";
 import { useCallStore } from "../stores/call-store.js";
 import { useSubtitleStore } from "../stores/subtitle-store.js";
 import { useAuthStore } from "../stores/auth-store.js";
+import { useTranslationStatusStore } from "../stores/translation-status-store.js";
 import { SubtitleOverlayLive } from "../components/subtitle-overlay-live.js";
 import { endCall as apiEndCall } from "../api/room-api.js";
 import { getCallKeep } from "../lib/callkit/index.js";
@@ -60,6 +61,10 @@ export function InCallScreen({ route, navigation }: Props) {
 
   const session = useAuthStore((state) => state.session);
   const profile = useAuthStore((state) => state.profile);
+
+  const degradedReason = useTranslationStatusStore((state) => state.degradedReason);
+  const justRecovered = useTranslationStatusStore((state) => state.justRecovered);
+  const clearJustRecovered = useTranslationStatusStore((state) => state.clearJustRecovered);
 
   const callState = useCallStore((state) => state.state);
   const isMuted = useCallStore((state) => state.isMuted);
@@ -161,8 +166,29 @@ export function InCallScreen({ route, navigation }: Props) {
     setTranslationStatus("translating");
   }, [setTranslationStatus]);
 
+  // recovered バッジを 3 秒後に消去するタイマー
+  useEffect(() => {
+    if (!justRecovered) return;
+    const timer = setTimeout(() => {
+      clearJustRecovered();
+    }, 3000);
+    return () => { clearTimeout(timer); };
+  }, [justRecovered, clearJustRecovered]);
+
+  // degraded / recovered 変化時のアクセシビリティアナウンス
+  useEffect(() => {
+    if (degradedReason != null) {
+      AccessibilityInfo.announceForAccessibility(t("translation.degraded"));
+    } else if (justRecovered) {
+      AccessibilityInfo.announceForAccessibility(t("translation.recoveredShort"));
+    }
+  }, [degradedReason, justRecovered, t]);
+
   const getStatusBadgeVariant = (): "default" | "success" | "warning" | "danger" => {
     if (!translationEnabled) return "danger";
+    // degraded / recovered は call-store の translationStatus より優先
+    if (degradedReason != null) return "warning";
+    if (justRecovered) return "success";
     switch (translationStatus) {
       case "translating": return "success";
       case "reconnecting": return "warning";
@@ -173,6 +199,8 @@ export function InCallScreen({ route, navigation }: Props) {
 
   const getStatusBadgeLabel = (): string => {
     if (!translationEnabled) return t("translation.disabled");
+    if (degradedReason != null) return t("translation.degraded");
+    if (justRecovered) return t("translation.recoveredShort");
     switch (translationStatus) {
       case "translating": return t("translation.enabled");
       case "reconnecting": return t("translation.reconnecting");

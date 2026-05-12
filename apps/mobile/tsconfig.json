@@ -15,7 +15,8 @@
     "paths": {
       "@trancall/ui-kit": ["../../packages/ui-kit/src/index.ts"],
       "@trancall/shared-kernel": ["../../packages/shared-kernel/src/index.ts"],
-      "@trancall/billing": ["../../packages/billing/src/index.ts"]
+      "@trancall/billing": ["../../packages/billing/src/index.ts"],
+      "@trancall/translation": ["../../packages/translation/src/index.ts"]
     },
     "skipLibCheck": true,
     "resolveJsonModule": true,
@@ -34,7 +35,8 @@
     "../../packages/ui-kit/src/**/*.ts",
     "../../packages/ui-kit/src/**/*.tsx",
     "../../packages/shared-kernel/src/**/*.ts",
-    "../../packages/billing/src/**/*.ts"
+    "../../packages/billing/src/**/*.ts",
+    "../../packages/translation/src/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", "_design-ref"]
 }
