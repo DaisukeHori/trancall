@@ -12,7 +12,10 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type {
+  NativeStackNavigationProp,
+  NativeStackScreenProps,
+} from "@react-navigation/native-stack";
 import { Avatar, PlanCard, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { useAuthStore } from "../stores/auth-store.js";
@@ -148,7 +151,9 @@ function SettingsGroup({ children }: { readonly children: React.ReactNode }) {
   );
 }
 
-export function SettingsScreen() {
+type Props = NativeStackScreenProps<SettingsStackParamList, "SettingsMain">;
+
+export function SettingsScreen(_props: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const c = theme.colors;
@@ -308,6 +313,12 @@ export function SettingsScreen() {
             chevron
             onPress={() => { navigation.navigate("Faq"); }}
             accessibilityLabel={t("faq.title")}
+          />
+          <SettingsRow
+            label={t("settings.aboutSection.ossLicenses")}
+            chevron
+            onPress={() => { navigation.navigate("OssLicenses"); }}
+            accessibilityLabel={t("settings.aboutSection.ossLicenses")}
           />
         </SettingsGroup>
 
