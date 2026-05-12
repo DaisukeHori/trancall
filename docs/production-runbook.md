@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | PROD-RUNBOOK-001 |
-| Status | Draft v1.2 (2026-05-12) |
+| Status | Draft v1.3 (2026-05-12) |
 | Sprint | Sprint 2 D8 |
 | 上位文書 | `docs/architecture.md` §9/§10 / `docs/deployment-render-dryrun.md` v1.9 (staging canonical、本書で production 拡張) |
 | 関連文書 | `docs/security-detail.md` / `docs/notification-detail.md` v1.3 (HMAC) / `docs/translation-pipeline-design.md` v1.5 / `docs/app-store-submission.md` v1.1 / `docs/billing-ui-flow.md` v1.2 / `docs/legal-and-consent.md` (D7) |
@@ -1332,10 +1332,207 @@ Render Dashboard → `trancall-agent-prod` → Logs で以下が 5 分以内に�
 
 ---
 
-## 15. 改訂履歴
+## 15. Gate Check 合否判定 runbook (PERF-002 計測)
+
+`docs/native-call-bridge.md` v1.4 §11.6 Phase 1a 完了 Gate Check の **PERF-002 (latency p50/p95/p99) 計測手順** を本書で canonical 化する。Phase 1a 完了の絶対条件であり、Sprint 3 終盤に必ず実走する。
+
+### 15.1 計測対象
+
+`docs/requirements.md` §4 PERF-002:
+- **p50** ≤ 1.5 秒 (絶対条件)
+- **p95** ≤ 3.0 秒 (絶対条件、英日など語順差大ペアは 4.0 秒も許容)
+- **p99** ≤ 5.0 秒 (努力目標)
+
+計測対象は `agent_metrics.latency_ms.totalEndToEnd` (mic capture → Callee 再生まで)。`notification-detail.md` v1.3 §1 で確定済の JSONB 構造に従う。
+
+### 15.2 事前準備
+
+- staging 環境を §3-§7 の手順で構築済
+- iOS / Android 実機を 1 台ずつ (`docs/native-call-bridge.md` v1.4 §11.3 同等)
+- テストアカウント 2 つ (sandbox.tester1, sandbox.tester2)、それぞれ `nativeLanguage: ja / en` で `profiles` に登録済
+- `gate-check` 実行用 PC 1 台 (`scripts/gate-check.ts` から Supabase に直接 SQL 発行)
+
+### 15.3 計測手順
+
+```bash
+# Step 1: 既存の agent_metrics をクリア (staging のみ)
+psql "${SUPABASE_DB_URL_STAGING}" -c \
+  "DELETE FROM trancall_event.agent_metrics WHERE created_at < now();"
+
+# Step 2: 計測シナリオを 100 回実行
+# - シナリオ A: ja → en の 30 秒通話 (50 回)
+# - シナリオ B: en → ja の 30 秒通話 (50 回、語順差大)
+# 各通話で:
+#   1. sandbox.tester1 (ja) が sandbox.tester2 (en) に発信
+#   2. 応答後、自動応答 bot が事前録音した 30s 発話を再生
+#   3. 30s 経過で自動終話
+#   4. agent_metrics が INSERT されたことを確認
+
+# Step 3: 計測結果を集計
+pnpm --filter @trancall/scripts gate-check \
+  --env staging \
+  --scenarios 100 \
+  --output gate-check-report-$(date -u +%Y%m%d).json
+```
+
+### 15.4 集計 SQL (Supabase Dashboard で実行)
+
+```sql
+-- p50 / p95 / p99 を集計
+WITH latencies AS (
+  SELECT
+    jsonb_array_elements_text(latency_ms->'totalEndToEnd')::int AS latency_ms_value,
+    source_lang || '-' || target_lang AS scenario_key  -- scalar concatenation (W-1: 旧 row 型は GROUP BY エラーになるため修正)
+  FROM trancall_event.agent_metrics
+  WHERE created_at > now() - INTERVAL '6 hours'
+)
+SELECT
+  scenario_key,
+  percentile_cont(0.50) WITHIN GROUP (ORDER BY latency_ms_value) AS p50_ms,
+  percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms_value) AS p95_ms,
+  percentile_cont(0.99) WITHIN GROUP (ORDER BY latency_ms_value) AS p99_ms,
+  count(*) AS sample_size
+FROM latencies
+GROUP BY scenario_key;
+```
+
+### 15.5 合否判定基準
+
+| 判定 | 条件 |
+|---|---|
+| **PASS** | (a) p50 ≤ 1500ms かつ p95 ≤ 3000ms (ja↔en どちらの方向も)、(b) p99 ≤ 5000ms (努力目標、未達でも PASS だが §15.6 記録)、(c) sample size ≥ 50 (各シナリオ) |
+| **CONDITIONAL_PASS** | p95 ≤ 4000ms (英日など語順差大ペア、`source-target` で `en-ja` のみ許容)、p50 ≤ 1500ms 必須 |
+| **FAIL** | p50 > 1500ms または p95 > 4000ms (どのシナリオでも)、または sample size < 30 |
+
+### 15.6 記録テンプレ (Gate Check 結果)
+
+```markdown
+## Gate Check 結果 — YYYY-MM-DD HH:MM JST
+
+**実施環境**: staging / production 候補
+**実施者**: <name>
+**サンプル数**: ja-en {N}件、en-ja {N}件
+**iOS 実機**: iPhone XX / iOS YY
+**Android 実機**: Pixel ZZ / Android WW
+
+### 結果
+
+| シナリオ | p50 | p95 | p99 | サンプル | 判定 |
+|---|---|---|---|---|---|
+| ja-en | XXX ms | XXX ms | XXX ms | 50 | PASS |
+| en-ja | XXX ms | XXX ms | XXX ms | 50 | CONDITIONAL_PASS (p95 = 3.4s、語順差大許容) |
+
+### 結論
+
+[ ] PASS (Phase 1a 完了基準クリア)
+[ ] FAIL (理由: ...)
+
+### 改善アクション (FAIL の場合)
+- OpenAI WS 接続が ap-northeast-1 経由か確認
+- Translation Agent コンテナの CPU/Memory が逼迫していないか
+- LiveKit region が Tokyo 近隣か
+```
+
+### 15.7 PERF-002 達成不可時のエスカレーション
+
+p95 > 3000ms が定常化した場合:
+1. Translation Agent の Render region を Singapore → Tokyo に変更検討 (D2 §3.1 と整合)
+2. OpenAI Realtime Translation API の region 設定確認 (US default を ap-northeast-1 にできるか問合せ)
+3. LiveKit Cloud の Region を US-West → Asia-Pacific (Tokyo or Singapore) に変更
+4. 上記いずれでも未達なら、Phase 1a 完了基準の見直し (例: p95 ≤ 3.5s に緩和、`docs/requirements.md` §4 更新)、もしくは Phase 1a 延長
+
+---
+
+## 16. セキュリティ監査チェックリスト
+
+Sprint 3 末 / Production deploy 直前に **Opus 3 並列監査** で実施する統合チェックリスト (memory `feedback-three-opus-audit-before-deploy.md` 適用)。
+
+### 16.1 RLS (Row Level Security) — 監査観点 7 件
+
+| # | テーブル | 監査項目 | 期待結果 |
+|---|---|---|---|
+| 1 | `trancall_auth.profiles` | 自分のみ読み書き可、他は表示名等のみ参照可 | RLS policy あり |
+| 2 | `trancall_auth.user_consents` (D7 新規) | 自分の同意のみ参照可、書込は service_role のみ | `user_consents_self_read` policy 確認 |
+| 3 | `trancall_room.rooms / participants` | 自分が participant の room のみ | RLS あり |
+| 4 | `trancall_billing.subscriptions / usage_windows` | 自分のみ | RLS あり |
+| 5 | `trancall_billing.external_purchase_tokens` (D5 新規) | 自分のみ参照、書込 service_role のみ | `external_purchase_tokens_self_select` + `_no_write` policy 確認 |
+| 6 | `trancall_transcript.segments / transcript_access` | `transcript_access.can_view=true AND deleted_at IS NULL` で可視性判定 | RLS join で実装 |
+| 7 | `trancall_notification.device_tokens` | 自分のみ | RLS あり |
+
+監査 SQL: 全テーブル列挙 → `pg_policies` を join で確認。
+
+```sql
+SELECT schemaname, tablename, policyname, permissive, roles, cmd
+FROM pg_policies
+WHERE schemaname LIKE 'trancall_%'
+ORDER BY schemaname, tablename;
+```
+
+### 16.2 HMAC 検証 — 監査観点 6 件
+
+| # | 対象 | 監査項目 | canonical 出典 |
+|---|---|---|---|
+| 1 | Agent → Server `/internal/agent/events` | `x-trancall-signature` + `x-trancall-idempotency-key`、`timingSafeEqual` で比較 | `docs/module-contracts.md` §7 |
+| 2 | VoIP Push payload (mobile bridge) | `HMAC<SHA256>.isValidAuthenticationCode` (CryptoKit) / `MessageDigest.isEqual` (Java) で constant-time | `docs/notification-detail.md` v1.3 §3.4 |
+| 3 | HMAC rotation 24h dual-key 期間中 | 旧鍵 + 新鍵の両方を試行 | §9.3 |
+| 4 | `TRANCALL_PUSH_HMAC_SECRET` 値長 | ≥ 32 文字 | §9.1 |
+| 5 | `TRANCALL_AGENT_HMAC_SECRET` 値長 | ≥ 32 文字 | §9.4 |
+| 6 | log に secret が出ていない | server / agent ログを grep | 各 logger 設定 |
+
+### 16.3 PII 取扱 — 監査観点 5 件
+
+| # | データ | 監査項目 |
+|---|---|---|
+| 1 | 通話音声 | OpenAI ZDR 合意済 (D7 §9.1)、TranCall 側保存なし (LiveKit / Agent でメモリ上のみ) |
+| 2 | トランスクリプト | プラン別 retention (7/30/90/365 日)、`retention_until` 列で管理、削除バッチで物理削除 (§10) |
+| 3 | IP アドレス / User-Agent (consent 監査証跡) | `user_consents.ip_address / user_agent` に保存、暗号化推奨 (Phase 2)、`docs/legal-and-consent.md` v1.1 §3.3 |
+| 4 | デバイストークン (APNs / FCM) | `device_tokens` で管理、revoke 時に `is_active=false`、削除 API 提供 |
+| 5 | クラッシュレポート (Sentry) | PII 自動除外、`callerName / message` 等を beforeSend で sanitize |
+
+### 16.4 retention 削除バッチ — 監査観点 4 件
+
+| # | 監査項目 |
+|---|---|
+| 1 | §10.1 4 テーブル全て削除実装あり (segments / transcript_access / external_purchase_tokens / consent_versions) |
+| 2 | pg_cron スケジュール正しい (毎日 17:00 UTC = JST 02:00) |
+| 3 | 削除件数の Sentry summary report 送信 |
+| 4 | 失敗時 alert (`retention_batch_failure`、§11) |
+
+### 16.5 同意フロー — 監査観点 5 件 (D7 連動)
+
+| # | 監査項目 | canonical 出典 |
+|---|---|---|
+| 1 | Onboarding で `legal_terms` + `privacy_policy` 同意必須 | D7 §6.1 |
+| 2 | 初回通話前に `voice_to_openai` 同意必須 | D7 §6.2 |
+| 3 | `revokeConsent` が `legal_terms` / `privacy_policy` で `AUTH_CONSENT_IRREVOCABLE` を返す | D7 §14.1 |
+| 4 | Settings → アカウント削除へのアクセスが 1-2 タップ (Apple 5.1.1(v) 遵守) | D7 §12 |
+| 5 | 規約改訂時の再同意フロー機能している | D7 §13 |
+
+### 16.6 OpenAI ZDR 合意 — 監査観点 2 件 (公開直前必須)
+
+| # | 監査項目 |
+|---|---|
+| 1 | OpenAI と Zero Data Retention (ZDR) 合意契約締結済 | D7 §9.1 が前提とする |
+| 2 | ZDR 合意証跡を Apple Review note (D6 §10) に添付準備 |
+
+### 16.7 監査実行手順
+
+```bash
+# Opus 3 並列監査の起動コマンド (memory feedback-three-opus-audit-before-deploy.md 適用)
+# Sprint 3 末で Production deploy 直前に実行
+# 各 reviewer に §16.1〜§16.6 のチェックリストを渡し、独立に確認
+# 3 全員 OK で deploy、1 件でも NG なら修正後再監査
+```
+
+監査結果は `docs/audit-reports/YYYY-MM-DD-prod-audit.md` に記録 (Sprint 3 で作成)。
+
+---
+
+## 17. 改訂履歴
 
 | バージョン | 日付 | 内容 |
 |---|---|---|
 | v1.0 | 2026-05-12 | Sprint 2 D8 設計書 初版。スコープ: `apps/server/api/index.ts` + `apps/server/vercel.json` entrypoint 仕様確定 (D2 §4.2 未確定雛形の解消) / Render Production Worker 構築手順 (D2 staging との差分、Standard plan / autoDeploy: false / deploy 手順) / Supabase Production 構築手順 (Pro plan / 日次 backup / migration 手順) / LiveKit Cloud Production テナント設定 (Build tier / 2 キー分離) / APNs Production gateway + FCM Production project (env var 配布) / 1Password TranCall-Infra-Prod vault 構造 / `TRANCALL_PUSH_HMAC_SECRET` + `TRANCALL_AGENT_HMAC_SECRET` rotation 実行手順 (24h dual-key、6 Phase 手順) / 日次 retention 削除バッチ (Supabase Edge Function スケルトン、Cron 設定、監視、手動再実行) / Sentry alert 8 ルール + on-call エスカレーション / ロールバック判断フローチャート + 4 シナリオ手順 / smoke test スクリプト 5 ステップ / 障害対応 6 シナリオ (OpenAI WS 切断 / Supabase ダウン / Vercel build 失敗 / HMAC rotation 失敗 / LiveKit 障害 / retention バッチ失敗)。 |
-| v1.2 | 2026-05-12 | Round 2 統合判定の残 Warning + Suggestion を反映: vercel.json env に `APNS_AUTH_KEY: @apns-auth-key-prod` を追加 (§7.1.1 と整合)、§3.3 旧 Spike 記述を `serverless-http` 確定方針 (§3.1) と整合する 1 行に書換、§5.3 Pooler URL 指示を Supabase JS クライアント (`https://` 維持) と Prisma / pg 用 `DATABASE_URL` 別建てに分離 (JS クライアント初期化失敗を回避)。 |
 | v1.1 | 2026-05-12 | Round 1 レビュー (Opus A/B/C 並列) 指摘 Critical 2 + Warning 8 を反映。**Critical**: (A) §3.1 entrypoint コードを実装整合に修正 — `createApp` → `buildApp` (実 export 名)、Fastify v4 では `app.handle()` 不在のため `serverless-http` adapter 採用、`apps/server/package.json` に dependency 追加が必要、Sprint 3 Day 1 Spike 不要。(C) §10.2 Supabase JS クライアントの `.from("schema.table")` を `.schema("xxx").from("yyy")` 形式に修正 (3 テーブル + 4 番目に consent_versions 削除を追加)。**Warning**: (A+B) §3.2 vercel.json から SUPABASE_ANON_KEY / OPENAI_API_KEY を削除 (Server には不要、D2 §7 配布マトリクスと整合)。(A) §11.1 / §13.2 / §14 の `/api/health` を実 endpoint `/health` に統一 (app.ts line 55)。(A) §13.2 smoke test の room 作成 body を `{ invitee_id }` から `{ inviteeIds: [...] }` (CreateRoomSchema canonical) に修正、レスポンスも `data.roomId` に。(B) §2.4 関連文書欄の HMAC 出典を `notification-detail.md v1.3 §3 (canonical)` + `security-detail.md §2 (参考)` に整理、`security-detail.md` に rotation 節は未存在の旨を明記。(B) §14.3 「autoDeploy が enabled の場合」記述を「手動 promote (§4.3)」に書き換え §2.3 と内部整合。(C) §9.3 Phase 5 で `NEW_PUSH_SECRET` を 1Password から再取得するステップを追加、`vercel env rm` に `--yes` フラグ付与、`op item` の field 削除を `--remove-field` 形式に統一。 |
+| v1.2 | 2026-05-12 | Round 2 統合判定の残 Warning + Suggestion を反映: vercel.json env に `APNS_AUTH_KEY: @apns-auth-key-prod` を追加 (§7.1.1 と整合)、§3.3 旧 Spike 記述を `serverless-http` 確定方針 (§3.1) と整合する 1 行に書換、§5.3 Pooler URL 指示を Supabase JS クライアント (`https://` 維持) と Prisma / pg 用 `DATABASE_URL` 別建てに分離 (JS クライアント初期化失敗を回避)。 |
+| v1.3 | 2026-05-12 | Sprint 2 R1 補追: **§15 新規** Gate Check 合否判定 runbook (PERF-002 計測手順、集計 SQL、判定基準、記録テンプレ、未達時エスカレーション) を追加し A-4 TODO をカバー。**§16 新規** セキュリティ監査チェックリスト統合 (RLS 7 / HMAC 6 / PII 5 / retention 4 / 同意フロー 5 / OpenAI ZDR 2 = 29 項目) を追加し D-3 TODO をカバー。各観点で D5/D6/D7/D8 の canonical 出典を参照リンクとして整理。 |

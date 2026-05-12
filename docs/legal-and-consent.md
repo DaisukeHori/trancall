@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | LEGAL-CONSENT-001 |
-| Status | Draft v1.1 (2026-05-12) |
+| Status | Draft v1.2 (2026-05-12) |
 | Sprint | Sprint 2 D7 |
 | 上位文書 | `docs/architecture.md` §5.5 §9 / `docs/requirements.md` §2 Phase 1a 完了基準 / `docs/module-contracts.md` v1.1.0 §2.1 AuthFacade |
 | 関連文書 | `docs/account-deletion.md` (退会 canonical) / `docs/billing-ui-flow.md` v1.2 (IAP 規約) / `docs/notification-detail.md` v1.3 (Push 同意) / `docs/native-call-bridge.md` v1.4 (CallKit / VoIP Push) |
@@ -701,7 +701,41 @@ mobile → POST /api/auth/consents
 - `transcript_retention` 取消: 確認 dialog → `revokeConsent()` → server が `transcript.deleteAccess()` を呼ぶ
 - Push 通知取消は iOS 設定アプリを `Linking.openURL("app-settings:")` で開く
 
-### 6.5 規約改訂時の再同意フロー
+### 6.5 権限拒否時 UI フォールバック (B-5)
+
+Phase 1b で `POST_NOTIFICATIONS` / `MANAGE_OWN_CALLS` / `RECORD_AUDIO` の **OS 権限** をユーザーが拒否した場合の挙動を canonical 化する。
+
+#### 6.5.1 RECORD_AUDIO (マイク) 拒否
+
+通話に必須。拒否時は通話開始不可。
+
+```
+[通話開始ボタン押下] → mic permission check → [未許可] → [Permission Screen 表示]
+  Title: 「マイクへのアクセスが必要です」
+  Body:  通話には音声送信が必要 / 詳細は §9 参照
+  Buttons: [設定アプリで許可] → Linking.openSettings() / [キャンセル] → Home
+```
+
+#### 6.5.2 POST_NOTIFICATIONS (通知) 拒否 (Android 13+ / iOS 全)
+
+着信 push を受けられない。Home 上部に Soft Banner で「通知が許可されていません」表示。
+iOS の **VoIP Push** は POST_NOTIFICATIONS とは独立で CallKit 表示は維持されるが、Android では ForegroundService 通知が POST_NOTIFICATIONS 拒否で出ないため UX 上問題になる (`docs/native-call-bridge.md` v1.4 §5.5 と整合)。
+
+#### 6.5.3 MANAGE_OWN_CALLS 強制取消 (Android 11+)
+
+`SecurityException` を catch して `POST /api/notifications/failed-delivery` で server に報告、次回起動時に Home Soft Banner「通話権限が無効化されています」表示。
+
+#### 6.5.4 拒否時 UI 文言 (ja / en / zh)
+
+| code | ja タイトル | ja 本文 | en | zh |
+|---|---|---|---|---|
+| `PERMISSION_MICROPHONE_DENIED` | マイクへのアクセスが必要です | 通話には音声送信が必要です。設定で許可してください | Microphone access required | 需要麦克风权限 |
+| `PERMISSION_NOTIFICATION_DENIED` | 通知が許可されていません | 着信を受けるには通知許可が必要です | Notifications not allowed | 未授权通知 |
+| `PERMISSION_TELECOM_REVOKED` | 通話権限が無効です | 着信機能が利用できません。設定で再有効化してください | Call permission revoked | 通话权限已撤销 |
+
+これら `PERMISSION_*` は **mobile-only** error code として `module-contracts.md` §5 で別カテゴリ扱い (`AUTH_CONSENT_*` とは別系統、server には伝播しない)。
+
+### 6.6 規約改訂時の再同意フロー
 
 §13 に詳述。
 
@@ -1574,3 +1608,4 @@ appId: app.trancall
 |---|---|---|
 | v1.0 | 2026-05-12 | Sprint 2 D7 設計書 初版。スコープ: `ConsentScope` (7 種) / `ConsentRecord` / `LegalDocumentVersion` / `RequiredConsentView` Zod スキーマ定義。`AuthFacade` 拡張 4 メソッド (`recordConsent` / `hasConsent` / `revokeConsent` / `getRequiredConsents`) の contract + 契約注釈。DB スキーマ拡張要件 (migration 00007 / 00008)。同意フロー UI シーケンス 4 種 (Onboarding / 初回通話前 / 規約改訂時 / Settings)。着信者同意フロー (M2-015 対応)。利用規約 15 条骨子 (ja/en/zh)。プライバシーポリシー 12 条骨子 (ja/en/zh)。OpenAI 音声送信同意 (App Store 5.1.2 対策、零保持ポリシー明示)。トランスクリプト保持期間同意 (プラン別)。退会・データ削除同意 (`docs/account-deletion.md` 参照)。Apple アカウント削除 5.1.1(v) 遵守、grace period UI 要件。規約改訂時の再同意フロー (30 日バナー + 強制再同意)。エラーコード 4 種 (`AUTH_CONSENT_REQUIRED` / `AUTH_CONSENT_REVOKED` / `AUTH_LEGAL_DOC_UNAVAILABLE` / `AUTH_CONSENT_VERSION_MISMATCH`)。i18n エラー文言 ja / en / zh。単体テスト・統合テスト・E2E Maestro フロー 3 種。法務レビューチェックリスト 15 項目。**法的有効性は外部弁護士確認後に確定。本書は骨子と実装 spec を提供する。** |
 | v1.1 | 2026-05-12 | Round 1 レビュー (Opus A/B/C 並列) 指摘 Critical 2 + Warning 5 を反映。**Critical**: (A+C 重複) §14.1 / §14.2 (ja/en/zh) に `AUTH_CONSENT_IRREVOCABLE` (422, false、`legal_terms` / `privacy_policy` への revokeConsent 拒否) を追加。(A) §3.4 migration 00008 に PK 再構成 (`version` 単一 → `(version, scope)` 複合) + 既存 `v1.0` シード行を `2026-01-01` に data migration するステートメント追加。**Warning**: (A) `LegalDocumentVersionSchema.version` regex を `/^\d{4}-\d{2}-\d{2}(-r\d+)?$/` に拡張し §5.2 の `-rN` サフィックス対応 + コメント補足。(A) §9.1 に OpenAI Zero Data Retention (ZDR) 合意の前提を明記し、未締結状態での公開を禁止する条件を追加。(C) §5.3 INSERT の列リストを既存テーブル列に限定し migration 00008 の ADD COLUMN との整合を確保 + コメント補足。(C) §6.2 / §9.2 source enum の混在 (`"onboarding" or "incoming_call_first_time"`) を `incoming_call_first_time` 単独に修正し、source enum の意味を §9.2 表に網羅追記。(C) §11.4 example の Zod `parsed.ok` を `parsed.success` に修正 (Zod v4 仕様)。**B Critical** (`module-contracts.md` v1.1.0 への AuthFacade / DomainEvent / error code 反映欠如) は Sprint 2 D20 `module-contracts.md v1.3.0` 統合拡張 PR で対応予定 (本書はその先行 spec)。 |
+| v1.2 | 2026-05-12 | Sprint 2 R1 補追: §6.5 新規「権限拒否時 UI フォールバック」を追加し B-5 TODO をカバー。RECORD_AUDIO / POST_NOTIFICATIONS / MANAGE_OWN_CALLS 各々の拒否ケースについて UI シーケンス + ja/en/zh 文言を確定。`PERMISSION_*` 系 error code を mobile-only として `AUTH_CONSENT_*` から分離 (server に伝播しない別カテゴリ)、`module-contracts.md` §5 で別カテゴリ扱いとする方針を明示。既存 §6.5 (規約改訂時の再同意フロー) を §6.6 に繰り下げ。 |
