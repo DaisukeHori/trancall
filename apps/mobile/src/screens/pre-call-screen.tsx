@@ -141,7 +141,7 @@ export function PreCallScreen({ route, navigation }: Props) {
             onValueChange={setTranslationEnabled}
             accessibilityLabel={t("translation.enabled")}
             trackColor={{ false: c.border, true: c.primary }}
-            thumbColor="#FFFFFF"
+            thumbColor={c.subtitleText}
           />
         </View>
 
@@ -166,7 +166,7 @@ export function PreCallScreen({ route, navigation }: Props) {
             onValueChange={setSubtitlesEnabled}
             accessibilityLabel={t("precall.liveSubtitles")}
             trackColor={{ false: c.border, true: c.primary }}
-            thumbColor="#FFFFFF"
+            thumbColor={c.subtitleText}
           />
         </View>
 
@@ -224,7 +224,7 @@ export function PreCallScreen({ route, navigation }: Props) {
             style={[
               styles.callButton,
               {
-                width: callTokens.actionSize * 2,
+                width: callTokens.actionSize,
                 height: callTokens.actionSize,
                 borderRadius: theme.radii.full,
                 backgroundColor: isLoading ? c.secondary : c.primary,
@@ -232,9 +232,9 @@ export function PreCallScreen({ route, navigation }: Props) {
             ]}
           >
             {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={c.subtitleText} />
             ) : (
-              <Text style={[styles.callButtonText, { color: "#FFFFFF" }]}>
+              <Text style={[styles.callButtonText, { color: c.subtitleText }]}>
                 {t("call.startCall")}
               </Text>
             )}

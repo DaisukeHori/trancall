@@ -205,6 +205,11 @@
     "INTERNAL_ERROR": "发生错误，请重试",
     "NETWORK_ERROR": "无法连接，请检查网络"
   },
+  "callkit": {
+    "alertDescription": "来电",
+    "cancelButton": "拒接",
+    "okButton": "接听"
+  },
   "dev": {
     "notImplementedYet": "尚未实现 (Layer 4-B)"
   },

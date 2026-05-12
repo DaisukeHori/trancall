@@ -14,10 +14,17 @@
  *   - ConnectionService 経由で同等の操作
  */
 
+export interface CallKitLabels {
+  alertDescription: string;
+  cancelButton: string;
+  okButton: string;
+}
+
 export interface CallKeepConfig {
   appName: string;
   maximumCallsPerCallGroup?: number;
   includesCallsInRecents?: boolean;
+  labels?: CallKitLabels;
 }
 
 export interface IncomingCallOptions {
@@ -80,9 +87,9 @@ function buildCallKeep(RNCallKeep: RNCallKeepNativeModule): CallKeepHandle {
         },
         android: {
           alertTitle: config.appName,
-          alertDescription: "着信があります",
-          cancelButton: "拒否",
-          okButton: "応答",
+          alertDescription: config.labels?.alertDescription ?? "Incoming call",
+          cancelButton: config.labels?.cancelButton ?? "Decline",
+          okButton: config.labels?.okButton ?? "Answer",
           additionalPermissions: [],
           selfManaged: false,
         },

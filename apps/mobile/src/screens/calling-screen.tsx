@@ -57,7 +57,7 @@ export function CallingScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: "#0A0A0C" }]}
+      style={[styles.safeArea, { backgroundColor: c.bgPrimary }]}
       accessibilityLabel={t("call.calling")}
     >
       {/* Status */}
@@ -86,7 +86,7 @@ export function CallingScreen({ route, navigation }: Props) {
           accessibilityLabel={calleeName}
         />
         <Text
-          style={[styles.calleeName, { color: "#FFFFFF", marginTop: s[16] }]}
+          style={[styles.calleeName, { color: c.subtitleText, marginTop: s[16] }]}
           accessibilityRole="header"
         >
           {calleeName}
@@ -112,7 +112,7 @@ export function CallingScreen({ route, navigation }: Props) {
             },
           ]}
         >
-          <Text style={styles.cancelIcon}>X</Text>
+          <Text style={[styles.cancelIcon, { color: c.subtitleText }]}>X</Text>
         </Pressable>
         <Text style={[styles.cancelLabel, { color: c.textSecondary, marginTop: s[8] }]}>
           {t("common.cancel")}
@@ -166,7 +166,6 @@ const styles = StyleSheet.create({
   },
   cancelIcon: {
     fontSize: 24,
-    color: "#FFFFFF",
     fontWeight: "700",
   },
   cancelLabel: {

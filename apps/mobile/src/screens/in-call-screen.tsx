@@ -199,7 +199,7 @@ export function InCallScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: "#0A0A0C" }]}
+      style={[styles.safeArea, { backgroundColor: c.bgPrimary }]}
       accessibilityLabel={t("call.inCall")}
     >
       {/* Status strip */}
@@ -250,7 +250,7 @@ export function InCallScreen({ route, navigation }: Props) {
           accessibilityLabel={callerName}
         />
         <Text
-          style={[styles.peerName, { color: "#FFFFFF", marginTop: s[12] }]}
+          style={[styles.peerName, { color: c.subtitleText, marginTop: s[12] }]}
           accessibilityRole="header"
         >
           {callerName}
@@ -277,13 +277,13 @@ export function InCallScreen({ route, navigation }: Props) {
                 width: callTokens.controlSize,
                 height: callTokens.controlSize,
                 borderRadius: theme.radii.full,
-                backgroundColor: isMuted ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.12)",
+                backgroundColor: isMuted ? c.controlSurfaceActive : c.controlSurface,
                 borderWidth: StyleSheet.hairlineWidth,
-                borderColor: isMuted ? "transparent" : "rgba(255,255,255,0.18)",
+                borderColor: isMuted ? "transparent" : c.controlSurfaceBorder,
               },
             ]}
           >
-            <Text style={[styles.controlIcon, { color: isMuted ? c.textPrimary : "#FFFFFF" }]}>
+            <Text style={[styles.controlIcon, { color: isMuted ? c.textPrimary : c.controlText }]}>
               M
             </Text>
           </Pressable>
@@ -308,7 +308,7 @@ export function InCallScreen({ route, navigation }: Props) {
               },
             ]}
           >
-            <Text style={styles.endCallIcon}>X</Text>
+            <Text style={[styles.endCallIcon, { color: c.subtitleText }]}>X</Text>
           </Pressable>
           <Text style={[styles.controlLabel, { color: c.textSecondary }]}>
             {t("call.endCall")}
@@ -328,13 +328,13 @@ export function InCallScreen({ route, navigation }: Props) {
                 width: callTokens.controlSize,
                 height: callTokens.controlSize,
                 borderRadius: theme.radii.full,
-                backgroundColor: isSpeakerOn ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.12)",
+                backgroundColor: isSpeakerOn ? c.controlSurfaceActive : c.controlSurface,
                 borderWidth: StyleSheet.hairlineWidth,
-                borderColor: isSpeakerOn ? "transparent" : "rgba(255,255,255,0.18)",
+                borderColor: isSpeakerOn ? "transparent" : c.controlSurfaceBorder,
               },
             ]}
           >
-            <Text style={[styles.controlIcon, { color: isSpeakerOn ? c.textPrimary : "#FFFFFF" }]}>
+            <Text style={[styles.controlIcon, { color: isSpeakerOn ? c.textPrimary : c.controlText }]}>
               S
             </Text>
           </Pressable>
@@ -359,17 +359,17 @@ export function InCallScreen({ route, navigation }: Props) {
                 height: callTokens.controlSize,
                 borderRadius: theme.radii.full,
                 backgroundColor: translationEnabled
-                  ? "rgba(255,255,255,0.92)"
-                  : "rgba(255,255,255,0.12)",
+                  ? c.controlSurfaceActive
+                  : c.controlSurface,
                 borderWidth: StyleSheet.hairlineWidth,
-                borderColor: translationEnabled ? "transparent" : "rgba(255,255,255,0.18)",
+                borderColor: translationEnabled ? "transparent" : c.controlSurfaceBorder,
               },
             ]}
           >
             <Text
               style={[
                 styles.controlIcon,
-                { color: translationEnabled ? c.textPrimary : "#FFFFFF" },
+                { color: translationEnabled ? c.textPrimary : c.controlText },
               ]}
             >
               T
@@ -457,7 +457,6 @@ const styles = StyleSheet.create({
   },
   endCallIcon: {
     fontSize: 24,
-    color: "#FFFFFF",
     fontWeight: "700",
   },
 });

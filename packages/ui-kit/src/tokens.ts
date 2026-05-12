@@ -24,6 +24,10 @@ export const colors = {
     subtitleText: "#FFFFFF",
     subtitleOriginal: "#AAAAAA",
     subtitleTranslated: "#FFFFFF",
+    controlSurface: "rgba(255,255,255,0.12)",
+    controlSurfaceActive: "rgba(255,255,255,0.92)",
+    controlSurfaceBorder: "rgba(255,255,255,0.18)",
+    controlText: "rgba(255,255,255,0.92)",
   },
   dark: {
     primary: "#64B5F6",
@@ -47,6 +51,10 @@ export const colors = {
     subtitleText: "#FFFFFF",
     subtitleOriginal: "#AAAAAA",
     subtitleTranslated: "#FFFFFF",
+    controlSurface: "rgba(255,255,255,0.12)",
+    controlSurfaceActive: "rgba(255,255,255,0.92)",
+    controlSurfaceBorder: "rgba(255,255,255,0.18)",
+    controlText: "rgba(255,255,255,0.92)",
   },
 } as const;
 

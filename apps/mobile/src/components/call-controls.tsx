@@ -47,10 +47,10 @@ function ControlButton({
   const bgColor = isDanger
     ? c.danger
     : active
-    ? "rgba(255,255,255,0.92)"
-    : "rgba(255,255,255,0.12)";
+    ? c.controlSurfaceActive
+    : c.controlSurface;
 
-  const iconColor = isDanger ? "#FFFFFF" : active ? c.textPrimary : "#FFFFFF";
+  const iconColor = isDanger ? c.subtitleText : active ? c.textPrimary : c.controlText;
 
   return (
     <Pressable
@@ -66,7 +66,7 @@ function ControlButton({
           borderRadius: theme.radii.full,
           backgroundColor: bgColor,
           borderWidth: isDanger ? 0 : StyleSheet.hairlineWidth,
-          borderColor: active ? "transparent" : "rgba(255,255,255,0.18)",
+          borderColor: active ? "transparent" : c.controlSurfaceBorder,
         },
       ]}
     >

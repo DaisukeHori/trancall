@@ -134,7 +134,7 @@ export function IncomingCallScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: "#1C1C1E" }]}
+      style={[styles.safeArea, { backgroundColor: c.bgPrimary }]}
       accessibilityLabel={t("call.incomingCall")}
     >
       {/* Status header */}
@@ -150,13 +150,13 @@ export function IncomingCallScreen({ route, navigation }: Props) {
           <Animated.View
             style={[
               styles.ringOuter,
-              { opacity: pulseAnim2, backgroundColor: "rgba(100,181,246,0.06)" },
+              { opacity: pulseAnim2, backgroundColor: c.primaryBg },
             ]}
           />
           <Animated.View
             style={[
               styles.ringInner,
-              { opacity: pulseAnim1, backgroundColor: "rgba(100,181,246,0.12)" },
+              { opacity: pulseAnim1, backgroundColor: c.primaryBg },
             ]}
           />
           <Avatar
@@ -170,7 +170,7 @@ export function IncomingCallScreen({ route, navigation }: Props) {
 
       {/* Caller name */}
       <Text
-        style={[styles.callerName, { color: "#FFFFFF", marginTop: s[24] }]}
+        style={[styles.callerName, { color: c.subtitleText, marginTop: s[24] }]}
         accessibilityRole="header"
       >
         {callerName}
@@ -204,7 +204,7 @@ export function IncomingCallScreen({ route, navigation }: Props) {
               },
             ]}
           >
-            <Text style={styles.actionIcon}>X</Text>
+            <Text style={[styles.actionIcon, { color: c.subtitleText }]}>X</Text>
           </Pressable>
           <Text style={[styles.actionLabel, { color: c.textSecondary, marginTop: s[8] }]}>
             {t("call.decline")}
@@ -227,7 +227,7 @@ export function IncomingCallScreen({ route, navigation }: Props) {
               },
             ]}
           >
-            <Text style={styles.actionIcon}>C</Text>
+            <Text style={[styles.actionIcon, { color: c.subtitleText }]}>C</Text>
           </Pressable>
           <Text style={[styles.actionLabel, { color: c.textSecondary, marginTop: s[8] }]}>
             {t("call.accept")}
@@ -299,7 +299,6 @@ const styles = StyleSheet.create({
   },
   actionIcon: {
     fontSize: 24,
-    color: "#FFFFFF",
     fontWeight: "700",
   },
   actionLabel: {
