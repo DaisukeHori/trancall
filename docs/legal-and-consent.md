@@ -523,10 +523,9 @@ Sprint 3 migration で以下を INSERT する:
 
 ```sql
 INSERT INTO trancall_auth.consent_versions
-  (version, scope, description, policy_url, requires_reconsent, change_summary)
-  -- ※ effective_at は既存テーブルの DEFAULT now() が適用される (migration 00001 §15 で定義)
+  (version, scope, effective_at, description, policy_url, requires_reconsent, change_summary)
   -- ※ migration 00008 で追加した列: scope / supersedes / change_summary
-  -- ※ 既存列: version / effective_at / retired_at / description / policy_url / requires_reconsent
+  -- ※ 既存列 (00001 §15): version / effective_at / retired_at / description / policy_url / requires_reconsent
 VALUES
   ('2026-05-12', 'legal_terms',
    '2026-05-12T00:00:00Z',
@@ -997,7 +996,8 @@ GDPR における合法的処理の根拠は **同意 (consent, Art. 6(1)(a))** 
 
 | フロー | タイミング | source |
 |---|---|---|
-| 発信 (初回) | 発信ボタンタップ直後、通話確立前 (Onboarding 画面直後のケースも `onboarding`) | `onboarding` |
+| 発信 (Onboarding 直後の初回発信) | 発信ボタンタップ直後 | `onboarding` |
+| 発信 (Onboarding 後、別セッションでの初回発信) | 発信ボタンタップ直後 | `incoming_call_first_time` (=通話起点の初回、命名上 outgoing も同 enum) |
 | 着信応答 (初回) | CXAnswerCallAction 後、音声有効化前 | `incoming_call_first_time` |
 | 2 回目以降の発信 / 着信 | `voice_to_openai` が `isUpToDate=true` なら Consent Screen をスキップ | — |
 | Settings から再同意 | Settings → プライバシー → 同意管理 → 「もう一度同意する」 | `settings_screen` |
