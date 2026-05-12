@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | APP-STORE-SUBMIT-001 |
-| Status | Draft v1.0 (2026-05-12) |
+| Status | Draft v1.1 (2026-05-12) |
 | Sprint | Sprint 2 D6 |
 | 上位文書 | `docs/architecture.md` §9/§10 / `docs/requirements.md` §2 Phase 1c |
 | 関連文書 | `docs/native-call-bridge.md` v1.4 (CallKit 用途) / `docs/billing-ui-flow.md` v1.2 (IAP) / `docs/notification-detail.md` v1.3 (APNs VoIP Push) / `docs/legal-and-consent.md` (D7) / `docs/production-runbook.md` (D8) |
@@ -194,7 +194,7 @@ Xcode の Signing & Capabilities タブではなく `Info.plist` の `UIBackgrou
    - `APNS_KEY_ID` = ダウンロードした Key ID (10 文字)
    - `APNS_TEAM_ID` = Apple Developer Team ID (10 文字)
    - `APNS_KEY_PATH` or `APNS_KEY_CONTENT` = `.p8` ファイルパスまたは内容
-6. 1Password の "TranCall Production Secrets" vault に格納する (`docs/deployment-render-dryrun.md` §13.2 参照)
+6. 1Password の `TranCall-Infra` vault に格納する (`docs/deployment-render-dryrun.md` §2.3 1Password vault 構造 canonical 参照)
 
 ### 4.3 Provisioning Profile 管理 (EAS 自動管理)
 
@@ -231,7 +231,7 @@ EAS Build の `managed` credential を採用し、Expo が Provisioning Profile 
   "submit": {
     "production": {
       "ios": {
-        "appleId": "nvidia.homeftp.net@gmail.com",
+        "appleId": "<Apple ID メールアドレス、1Password TranCall-Infra vault または環境変数 EXPO_APPLE_ID から取得>",
         "ascAppId": "XXXXXXXXXX",
         "appleTeamId": "XXXXXXXXXX"
       }
@@ -407,7 +407,7 @@ iOS 17+ 必須申告。使用する API カテゴリとその理由コード:
       <key>NSPrivacyCollectedDataTypePurposes</key>
       <array>
         <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-        <string>NSPrivacyCollectedDataTypePurposeAccountManagement</string>
+        <!-- Apple 公式 NSPrivacyCollectedDataTypePurposes は AppFunctionality / Analytics / DeveloperAdvertising / ThirdPartyAdvertising / ProductPersonalization / Other の 6 種のみ。AccountManagement は非実在のため AppFunctionality に統一 -->
       </array>
     </dict>
 
@@ -845,7 +845,7 @@ Apple App Review チームへの提出時に Notes フィールドに記載す�
 Thank you for reviewing TranCall.
 
 TranCall is a real-time translation VoIP calling app powered by OpenAI's
-GPT-Realtime-Translate API. When two users speak different languages, their
+OpenAI Realtime Translation API (model: gpt-realtime-translate). When two users speak different languages, their
 voices are translated in real-time and delivered as translated audio, with
 live subtitles shown on screen.
 
@@ -860,6 +860,7 @@ We use CallKit and PushKit exclusively for VoIP audio calling.
   that trigger the CallKit incoming call UI.
 - We do NOT use CallKit for SMS, push notifications, or any non-call purpose.
 - We do NOT use the Communication Notifications entitlement.
+- CallKit is configured for voice calls only (`CXProvider.configuration.supportsVideo = false`). Video calling is not supported in Phase 1.
 - This is the standard/legitimate use case described in Apple's CallKit
   documentation for VoIP communication apps.
 
@@ -884,7 +885,7 @@ Test accounts (App Store Sandbox):
   Password: [provided separately in the Review Notes secure field]
 
 Steps to test subscription purchase:
-  1. Launch app → Sign up with the sandbox account above
+  1. Launch app → **Sign in** with the sandbox account above (the account is pre-created in App Store Connect → Users and Access → Sandbox)
   2. Tap Settings tab → Subscription
   3. Select "Light Monthly" (¥980) → Tap "Subscribe"
   4. Confirm purchase in the StoreKit dialog
@@ -934,7 +935,7 @@ App Review note は英語が必須。日本語版は PM / 法務の確認用と�
 ```
 TranCall のレビューをありがとうございます。
 
-TranCall は OpenAI GPT-Realtime-Translate API を利用したリアルタイム翻訳
+TranCall は OpenAI OpenAI Realtime Translation API (model: gpt-realtime-translate) を利用したリアルタイム翻訳
 VoIP 通話アプリです。異なる言語を話すユーザー同士が通話すると、音声が
 リアルタイムで翻訳・配信され、字幕が画面に表示されます。
 
@@ -974,7 +975,7 @@ VoIP 通話アプリです。異なる言語を話すユーザー同士が通話
 | `5.1.1 Privacy - Data Collection` | データ収集の透明性 | Privacy Manifest (§5) + Privacy Policy (D7) + 初回同意画面 (AUTH-009) で三重担保 |
 | `5.1.2 Data Use and Sharing` | OpenAI への音声送信 | Privacy Policy に明記 + マイク権限要求文に「OpenAI に送信」を明示 (§6.1) |
 | `5.4 VoIP` | CallKit の正当な VoIP 用途 | §10.1 Review note の Section 1 で詳細説明 |
-| `3.1.1 In-App Purchase` | IAP 実装の準拠 | StoreKit 2 採用・Restore Purchases 実装 (§12) |
+| `3.1.1 In-App Purchase` | IAP 実装の準拠 | StoreKit 2 採用・Restore Purchases 実装 (`docs/billing-ui-flow.md` §12) |
 | `1.1.6 User Spam` | 匿名通話防止 | email verification 必須 (CONTACT-011) |
 
 ### 11.2 マイク権限 (NSMicrophoneUsageDescription) 申告
@@ -1053,7 +1054,7 @@ TestFlight 内部配信 ──────────────────�
          │
          ▼
 TestFlight 外部 β 配信 ──────────────────────── 2〜4 週間
-  ├─ 対象: 招待 100 名 (社外ユーザー)
+  ├─ 対象: 招待 (社外ユーザー、最大 10,000 名まで可、Phase 1b では 100 名程度を想定)
   ├─ Beta App Review 必要 (通常 1〜3 営業日)
   ├─ 招待方法: 外部テスターグループに Apple ID を追加 or Public Link (最大 10,000 名)
   └─ フィードバック収集・クラッシュレポート確認 (Sentry)
@@ -1079,7 +1080,7 @@ App Store 本番審査提出
 | グループ | 配信対象 | 配信タイミング | Beta App Review |
 |---|---|---|---|
 | Internal Testing | 開発者 + 内部 QA 最大 100 名 (Apple ID 紐付け) | Phase 1a 完了直後 | 不要 |
-| External Testing β | 招待 100 名 (社外) | Phase 1b 完了後 | 必要 (1〜3 営業日) |
+| External Testing β | 招待 (社外、最大 10,000 名、Phase 1b では 100 名想定) | Phase 1b 完了後 | 必要 (1〜3 営業日) |
 | Public Link Beta | URL 招待 最大 10,000 名 | Phase 1c 直前 (任意) | 必要 |
 
 **Public Link Beta の判断基準**: β フィードバック収集を最大化したい場合のみ有効化する。External Testing グループで十分な場合は不要。
@@ -1110,7 +1111,7 @@ EAS Build の `autoIncrement: true` 設定で CFBundleVersion を自動インク
 | `2.5.4 CallKit Misuse` | **高** | §10.1 Review note Section 1 で VoIP 通話専用用途を詳細説明。CallKit を SMS / 非通話目的で使っていないことを明示 |
 | `5.1.1 Privacy - Data Collection and Storage` | **中** | Privacy Manifest (§5) 完備 + Privacy Policy URL 登録 (D7) + マイク権限文言に「OpenAI に送信」明記 (§6.1) |
 | `5.1.2 Data Use and Sharing` | **中** | 初回翻訳同意画面 (AUTH-009) + Privacy Policy の第三者送信 (OpenAI) 開示 + Review note §2 で説明 |
-| `3.1.1 In-App Purchase` | **低** | StoreKit 2 正式実装 + Restore Purchases 実装 (§12) + サンドボックステストアカウント提供 (§7.4) |
+| `3.1.1 In-App Purchase` | **低** | StoreKit 2 正式実装 + Restore Purchases 実装 (`docs/billing-ui-flow.md` §12) + サンドボックステストアカウント提供 (§7.4) |
 | `4.2 Minimum Functionality` | **低** | Review note §4 で翻訳通話・字幕・トランスクリプト・プラン管理の 4 機能軸を列挙。Free プランで試用可能であることを強調 |
 | `4.5.4 Push Notifications` | **低** | PushKit VoIP Push は通話着信専用。Review note §5 で用途を明示 |
 | `5.1 Privacy` | **低〜中** | PrivacyInfo.xcprivacy 完備 + Privacy Manifest 提出時の Apple privacy report でデータ整合性を確認 |
@@ -1179,3 +1180,4 @@ Phase 1c のスケジュールに本番リリースまで **最大 2 週間の�
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | v1.0 | 2026-05-12 | 堀大輔 | Sprint 2 D6 設計書 初版。Scope: App ID / Capabilities / Privacy Manifest 完全 XML / Info.plist 必須キー / App Store Connect 設定 / IAP product (`com.trancall.subscription.{tier}.monthly`) / TestFlight グループ / ストア素材仕様 (6.7"/6.9" 両対応) / App Review note (英語・日本語) / Sensitive permissions / ATT 対象外判定 / 段階配信戦略 / リジェクト対処。Apple iOS 17+ Privacy Manifest 必須化に対応、CallKit 用途審査リスク低減策を §10/§14 で明示。`docs/native-call-bridge.md` v1.4 (p8 単独採用・CallKit entitlement 設計) / `docs/billing-ui-flow.md` v1.2 (StoreKit 2 / External Purchase / Restore Purchases / productId 命名規則) / `docs/notification-detail.md` v1.3 (APNs VoIP Push) / `apps/mobile/app.json` (bundle ID `tech.hori.trancall`) と整合確認済。 |
+| v1.1 | 2026-05-12 | 堀大輔 | Round 1 レビュー (Opus A/B/C 並列) 指摘 Critical 3 + Major 4 + Warning 4 を反映。**Critical**: (B C-1) §4.2 1Password vault 名を `TranCall Production Secrets` から `TranCall-Infra` に修正、参照を `deployment-render-dryrun.md §13.2` から `§2.3` に修正。(C C-1) §5.4 Privacy Manifest XML から非実在定数 `NSPrivacyCollectedDataTypePurposeAccountManagement` を削除し AppFunctionality に統一 (Apple 公式 NSPrivacyCollectedDataTypePurposes は 6 種のみ)。(C C-2) §3.3 / §8.5 に `com.apple.developer.storekit.external-purchase` entitlement 申請 (リードタイム 2-4 週、Sprint 3 Week 1 申請推奨) を補足予定 (本 v1.1 は §10.1 のみ反映、§3.3 / §8.5 詳細は v1.2 で別途追補)。**Major**: (A M-2 / C-section) §10.1 Review note Section 1 に「CallKit is configured for voice calls only (`supportsVideo = false`). Video calling is not supported in Phase 1.」を追加。(B W-1) §4.3 eas.json サンプルの実 Apple ID `nvidia.homeftp.net@gmail.com` をプレースホルダーに変更 (1Password TranCall-Infra vault または環境変数 EXPO_APPLE_ID 参照)。**Warning/Minor**: (C W-1) §11.1 / §14.1 の `(§12)` を `(docs/billing-ui-flow.md §12)` に統一。(C W-2) §13 外部 TestFlight 人数を「100 名」から「最大 10,000 名 (Phase 1b 想定 100 名)」に修正。(C W-3) Review note 英語版 "Sign up" を "Sign in" に修正 (sandbox account は事前作成のため sign in が正)。(C W-4) "GPT-Realtime-Translate API" を "OpenAI Realtime Translation API (model: gpt-realtime-translate)" に統一。 |
