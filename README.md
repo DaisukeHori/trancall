@@ -116,6 +116,62 @@ trancall/
 - [デザインシステム](./docs/design/README.md)
 - [ワイヤーフレーム](./docs/design/wireframes/)
 
+## Retention (データ削除) 運用
+
+### 削除スケジュール
+
+日次バッチは **毎日 UTC 17:00 (JST 02:00)** に実行される。  
+実装: `supabase/functions/retention-cleanup/index.ts` (Supabase Edge Function)  
+スケジューラ: pg_cron (`supabase/migrations/00012_schedule_retention_cron.sql`)
+
+### 削除対象テーブルと条件
+
+| テーブル | 削除条件 | 保持期間根拠 |
+|---|---|---|
+| `trancall_transcript.segments` | `retention_until < now()` | プラン別: Free=7日 / Light=30日 / Standard=90日 / Business=365日 |
+| `trancall_transcript.transcript_access` | `deleted_at IS NOT NULL AND deleted_at < now() - 30d` | 退会 grace period (30日) 経過後の論理削除行 |
+| `trancall_event.agent_metrics` | `collected_at < now() - 30d` | パフォーマンスメトリクスは 30 日で不要 |
+| `trancall_billing.external_purchase_tokens` | `expires_at < now() - 7d` | TTL 切れ後 7 日バッファ付きで削除 |
+| `trancall_billing.webhook_events` | `received_at < now() - 30d` | 処理済み webhook イベントは 30 日で削除 |
+| `trancall_billing.usage_reservations` | `status IN ('reconciled','expired') AND reconciled_at < now() - 7d` | 完了後 7 日経過した reservations |
+| `auth.users` (退会済み) | `profiles.deleted_at IS NOT NULL AND deleted_at < now() - 30d` | 退会 grace period (30日) 経過後の物理削除 |
+
+### 実行記録
+
+毎バッチ実行後、`trancall_audit.retention_runs` テーブルに記録される。  
+DDL: `supabase/migrations/00011_add_retention_audit_table.sql`
+
+```sql
+-- 直近 7 日の実行記録を確認
+SELECT run_id, started_at, ended_at, deletion_counts, errors
+FROM   trancall_audit.retention_runs
+WHERE  started_at > now() - INTERVAL '7 days'
+ORDER  BY started_at DESC;
+```
+
+### モニタリング
+
+`docs/production-runbook.md §10.3` に記載のアラートルール:
+
+- `retention_batch_failure`: バッチが非 200 で終了 → Slack `#on-call` + メール (High)
+- `retention_batch_zero_rows`: 7 日連続で全テーブルの削除件数が 0 → バッチ停止疑い
+
+### 手動再実行
+
+```bash
+# Edge Function を直接 POST で呼び出す (service_role key が必要)
+curl -X POST "https://<project-ref>.supabase.co/functions/v1/retention-cleanup" \
+  -H "Authorization: Bearer <service_role_key>" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+### 障害対応
+
+`docs/production-runbook.md §14.6` を参照。  
+Supabase Dashboard → Functions → retention-cleanup → Logs でログを確認し、  
+`trancall_audit.retention_runs` の `errors` カラムでエラー詳細を確認する。
+
 ## ライセンス
 
 Private — All rights reserved.
