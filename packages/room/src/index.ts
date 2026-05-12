@@ -7,7 +7,14 @@
 
 // Facade（唯一の外部エントリポイント）
 export { createRoomFacade } from "./facade.js";
-export type { RoomFacade, RoomFacadeDeps } from "./facade.js";
+export type {
+  RoomFacade,
+  RoomFacadeDeps,
+  RoomHistoryEntry,
+  RoomHistoryParticipant,
+  RoomHistoryResponse,
+  GetRoomHistoryQuery,
+} from "./facade.js";
 
 // Schemas（モジュール境界の契約）
 export {

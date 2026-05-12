@@ -89,6 +89,10 @@ export function createMockContainer(): AppContainer {
       trancallId: "testuser",
       updatedAt: new Date().toISOString(),
     })),
+    // Sprint 3 T-10 追加
+    recordConsent: vi.fn().mockResolvedValue(ok(true)),
+    getRequiredConsents: vi.fn().mockResolvedValue(ok([])),
+    revokeConsent: vi.fn().mockResolvedValue(ok(true)),
   };
 
   // Billing facade mock
@@ -121,6 +125,51 @@ export function createMockContainer(): AppContainer {
     handleStripeWebhook: vi.fn().mockResolvedValue(ok(true)),
     handleAppleIapWebhook: vi.fn().mockResolvedValue(ok(true)),
     handleGoogleIapWebhook: vi.fn().mockResolvedValue(ok(true)),
+    // Sprint 3 T-10 追加
+    getPlanComparison: vi.fn().mockResolvedValue(ok({
+      currentTier: "free",
+      plans: [],
+    })),
+    previewUpgrade: vi.fn().mockResolvedValue(ok({
+      currentTier: "free",
+      targetTier: "standard",
+      proratedAmountYen: 0,
+      nextBillingDate: new Date().toISOString(),
+      effectiveImmediately: true,
+      confirmationRequired: false,
+    })),
+    recordIapTransaction: vi.fn().mockResolvedValue(ok({
+      planTier: "standard",
+      includedMinutes: 120,
+      usedMinutes: 0,
+      remainingMinutes: 120,
+      subscriptionStatus: "active",
+      currentPeriodStart: new Date().toISOString(),
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: false,
+    })),
+    startExternalPurchase: vi.fn().mockResolvedValue(ok({ redirectUrl: "https://checkout.stripe.com/external-test" })),
+    completeExternalPurchase: vi.fn().mockResolvedValue(ok({
+      planTier: "standard",
+      includedMinutes: 120,
+      usedMinutes: 0,
+      remainingMinutes: 120,
+      subscriptionStatus: "active",
+      currentPeriodStart: new Date().toISOString(),
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: false,
+    })),
+    restorePurchases: vi.fn().mockResolvedValue(ok({ restoredCount: 0, subscription: null })),
+    cancelSubscription: vi.fn().mockResolvedValue(ok({
+      planTier: "free",
+      includedMinutes: 5,
+      usedMinutes: 0,
+      remainingMinutes: 5,
+      subscriptionStatus: "active",
+      currentPeriodStart: new Date().toISOString(),
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: true,
+    })),
   };
 
   // Contact facade mock
@@ -181,10 +230,11 @@ export function createMockContainer(): AppContainer {
     })),
     searchSegments: vi.fn().mockResolvedValue(ok([])),
     deleteAccess: vi.fn().mockResolvedValue(ok(true)),
-    exportTranscript: vi.fn().mockResolvedValue(err({
-      code: "TRANSCRIPT_EXPORT_NOT_IMPLEMENTED",
-      message: "Sprint 2 で実装予定",
-      retryable: false,
+    // T-9 Round 2 指摘: 501 stub を ok() に更新 (TranscriptFacade.exportTranscript 実装済み)
+    exportTranscript: vi.fn().mockResolvedValue(ok({
+      contentBase64: "dGVzdA==",
+      mime: "text/plain; charset=utf-8",
+      filename: "transcript-test.txt",
     })),
     validateLiveDelta: vi.fn().mockReturnValue(ok({})),
   };
@@ -203,6 +253,8 @@ export function createMockContainer(): AppContainer {
     joinCall: vi.fn().mockResolvedValue(ok({ ...makeRoomState(), status: "active" })),
     endCall: vi.fn().mockResolvedValue(ok({ ...makeRoomState(), status: "ended" })),
     getState: vi.fn().mockResolvedValue(ok(makeRoomState())),
+    // Sprint 3 T-10 追加
+    getRoomHistory: vi.fn().mockResolvedValue(ok({ rooms: [], nextCursor: null })),
   };
 
   return {

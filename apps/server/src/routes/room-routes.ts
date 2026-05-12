@@ -6,6 +6,9 @@
  * POST /api/rooms/:id/join
  * POST /api/rooms/:id/leave
  * POST /api/rooms/:id/token
+ *
+ * Sprint 3 T-10 追加:
+ * GET  /api/rooms/history — 通話履歴 (docs/api-spec.md §GET /api/rooms/history)
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
@@ -22,6 +25,15 @@ const CreateRoomSchema = z.object({
   inviteeIds: z.array(z.uuid()).min(1).max(49),
   roomType: z.enum(["audio", "video"]).default("audio"),
   translationEnabled: z.boolean().default(true),
+});
+
+// Sprint 3 T-10 追加 (docs/api-spec.md GET /api/rooms/history)
+const RoomHistoryQuerySchema = z.object({
+  limit: z.string().optional().transform((v) => {
+    const n = v != null ? parseInt(v, 10) : 20;
+    return isNaN(n) ? 20 : Math.min(50, Math.max(1, n));
+  }),
+  before: z.string().optional(),
 });
 
 const IssueTokenSchema = z.object({
@@ -43,6 +55,26 @@ export function registerRoomRoutes(
   },
 ): void {
   const { room, billing, media } = deps;
+
+  // GET /api/rooms/history — 通話履歴 (Sprint 3 T-10)
+  // NOTE: 静的パスを /api/rooms/:id より前に登録することで conflict を回避
+  fastify.get("/api/rooms/history", async (request: FastifyRequest, reply: FastifyReply) => {
+    const parsed = RoomHistoryQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        ok: false,
+        error: { code: "VALIDATION_ERROR", message: "クエリパラメータが無効です", retryable: false },
+      });
+    }
+
+    const { limit, before } = parsed.data;
+    const historyQuery = before != null ? { limit, before } : { limit };
+    const result = await room.getRoomHistory(request.userId, historyQuery);
+    if (!result.ok) {
+      return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
+    }
+    return reply.send({ ok: true, data: result.data });
+  });
 
   // POST /api/rooms
   fastify.post("/api/rooms", async (request: FastifyRequest, reply: FastifyReply) => {
