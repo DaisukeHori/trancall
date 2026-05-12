@@ -199,7 +199,7 @@ export function InCallScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: c.bgPrimary }]}
+      style={[styles.safeArea, { backgroundColor: c.callBg }]}
       accessibilityLabel={t("call.inCall")}
     >
       {/* Status strip */}

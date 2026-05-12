@@ -18,6 +18,11 @@ describe("tokens/colors", () => {
     expect(colors.dark.danger).toMatch(/^#[0-9A-Fa-f]{6}$/);
   });
 
+  it("callBg is #1C1C1E in both light and dark (fixed dark surface regardless of system theme)", () => {
+    expect(colors.light.callBg).toBe("#1C1C1E");
+    expect(colors.dark.callBg).toBe("#1C1C1E");
+  });
+
   it("all light color values are non-empty strings", () => {
     for (const [key, value] of Object.entries(colors.light)) {
       expect(typeof value).toBe("string");
