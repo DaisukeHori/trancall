@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.2 (2026-05-12) |
+| Status | Draft v1.3 (2026-05-12) |
 | Owner | translation-agent / バックエンド |
 | 上位文書 | `docs/architecture.md` (§ Translation Pipeline)、`docs/module-contracts.md` v1.1.0 (§2.7 TranslationFacade / §3.3 §3.4 / §7.4) |
 | 補助 | `docs/requirements.md` (PERF-002, TRANS-001〜007), `apps/translation-agent/CLAUDE.md`, `apps/translation-agent/src/openai-ws-client.ts` |
@@ -381,10 +381,10 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 
 ## 12. 既知のリスク
 
-1. **OpenAI Translation endpoint の `audio.input.format` 受理可否**: §4.3 で「`audio.output.language` のみ送信して挙動確認」と書いたが、もし `format` 未指定で 400 が返るなら gate-check の最初の試験で判明。判明次第本書を v1.1 に更新。
+1. **OpenAI Translation endpoint の `audio.input.format` 受理可否**: §4.3 で「`audio.output.language` のみ送信して挙動確認」と書いたが、もし `format` 未指定で 400 が返るなら gate-check の最初の試験で判明。判明次第、本書の次バージョン (gate-check 後) で更新。
 2. **`session.output_transcript.done` の存在**: 公式リファレンスに `.done` バリアントの記載を取得できず (researcher 調査結果 §3)。**gate-check 実走で `.done` が来るか観測**、来ない場合は `.delta` の `elapsed_ms` 終端で判定する代替実装。
 3. **LiveKit Cloud のリージョン**: 翻訳音声の往復遅延に影響する。D2 deployment.md で region を明示確定する (Sprint 2)。
-4. **VAD なしの session.input_audio_buffer.commit 漏れ**: `end()` でしか commit しない設計のため、長時間無音 → 突然 end の場合に pending buffer が腐る可能性。OpenAI 側がサーバ VAD で自動 commit する想定だが gate-check で要確認。
+4. **VAD なしの pending buffer フラッシュ漏れ**: Translation API には commit イベントが存在せず (§4.1 §4.5)、`end()` で `session.close` を送ったとき pending input audio が server 側で確実にフラッシュされるかは公式未確認。長時間無音→突然 close の場合に最終翻訳が出ない可能性がある。OpenAI サーバ VAD が自動処理する想定だが gate-check で要確認。
 5. **AudioStream 接続後の最初の 100ms**: SDK のリサンプル初期化で最初の数フレームが歪む既知の挙動 (LiveKit GitHub Issue 多数)。`captureToAgent` 計測の最初の値はノイズとして除外する。
 
 ---
@@ -393,3 +393,4 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 - v1 (2026-05-12) 初版。Sprint 1 残課題 (event 名 / 計測点 / commit タイミング) を canonical 化し、Sprint 2 Gate Check 着手の入口を整備。OpenAI 公式 spec との差異 6 項目を明示。
 - v1.1 (2026-05-12) PR #28 Round 1 レビュー反映 (Critical 4 + Warning 5): commit イベントは Translation API に未存在 → `session.close` フラッシュに変更、レイテンシ計測 4→5 点 (`agentToOpenAI` 追加、`module-contracts.md` §7.4.4 と同期)、`module-contracts.md` 参照を §2.7 → §7.4.2 / §7.4.4 に修正、ヘッダーの上位文書バージョン v1.0.0 → v1.1.0、T11 のファイルパスを `apps/translation-agent/scripts/gate-check.ts` に修正、`architecture.md` 行番号 558→557。
 - v1.2 (2026-05-12) PR #28 Round 2 レビュー反映 (Critical 1 + Warning 2): §6.1 状態遷移図の `[ending]` ブロックを `session.close` 送信に修正 (§4.5 と同期)、`module-contracts.md` §7.4.2 に「実装側 Zod 同期は T8 で実施」「`architecture.md` Track 名修正は別 PR」を明示、§7.4.4 `openAIFirstDelta` コメントを公式名 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正。
+- v1.3 (2026-05-12) PR #28 Round 3 レビュー反映 (Warning 1 + Suggestion 1): §12 リスク 1 の「v1.1 に更新」陳腐化表記を「次バージョンで更新」に修正、§12 リスク 4 の「commit 漏れ」表現を §4.5 と整合する「pending buffer フラッシュ漏れ (session.close 経由)」に書き換え。
