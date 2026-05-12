@@ -577,7 +577,7 @@
       "label": "内容",
       "hint": "请输入您的问题（必填）"
     },
-    "message_placeholder": "请描述您的问题（最多1000个字符）",
+    "message_placeholder": "请描述您的问题（最多5000个字符）",
     "submit": "提交",
     "diagnosticInfo": {
       "title": "以下信息将自动附加",

@@ -577,7 +577,7 @@
       "label": "Message",
       "hint": "Enter your message (required)"
     },
-    "message_placeholder": "Describe your issue (up to 1000 characters)",
+    "message_placeholder": "Describe your issue (up to 5000 characters)",
     "submit": "Submit",
     "diagnosticInfo": {
       "title": "The following info will be attached automatically",
