@@ -23,6 +23,8 @@ const roomId = RoomIdSchema.parse("550e8400-e29b-41d4-a716-446655440000");
 
 const notification: IncomingCallNotification = {
   roomId,
+  uuid: "fe2b8410-3a72-44f0-8d3a-2f6b3c9e1d77",
+  callerId: "u_alice",
   callerName: "Alice",
   callerAvatarUrl: null,
   callerTrancallId: "@alice",
@@ -57,6 +59,8 @@ function makeAndroidToken(token = "android-fcm-token"): DeviceTokenRow {
 
 // delay を即時化するモック
 const noDelay = async (_attempt: number): Promise<void> => {};
+
+const TEST_HMAC_SECRET = "test-hmac-secret-key-at-least-32-chars!";
 
 function makeApnsAdapter(sendResult: ReturnType<ApnsAdapter["sendVoipPush"]> extends Promise<infer T> ? T : never): ApnsAdapter {
   return {
@@ -93,7 +97,7 @@ describe("PushDispatcher.sendIncomingCall — iOS APNs", () => {
     const tokenRepo = makeTokenRepo();
     const logRepo = makeLogRepo();
 
-    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, delayFn: noDelay });
+    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, hmacSecret: TEST_HMAC_SECRET, delayFn: noDelay });
     const result = await dispatcher.sendIncomingCall(userId, notification, [makeIosToken()]);
 
     expect(result.ok).toBe(true);
@@ -114,7 +118,7 @@ describe("PushDispatcher.sendIncomingCall — iOS APNs", () => {
     const tokenRepo = makeTokenRepo();
     const logRepo = makeLogRepo();
 
-    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, delayFn: noDelay });
+    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, hmacSecret: TEST_HMAC_SECRET, delayFn: noDelay });
     const result = await dispatcher.sendIncomingCall(userId, notification, [makeIosToken()]);
 
     expect(result.ok).toBe(false);
@@ -140,7 +144,7 @@ describe("PushDispatcher.sendIncomingCall — iOS APNs", () => {
     const tokenRepo = makeTokenRepo();
     const logRepo = makeLogRepo();
 
-    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, delayFn: noDelay });
+    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, hmacSecret: TEST_HMAC_SECRET, delayFn: noDelay });
     await dispatcher.sendIncomingCall(userId, notification, [makeIosToken("expired-ios-token")]);
 
     expect(tokenRepo.revoke).toHaveBeenCalledWith("ios", "expired-ios-token");
@@ -157,7 +161,7 @@ describe("PushDispatcher.sendIncomingCall — Android FCM", () => {
     const tokenRepo = makeTokenRepo();
     const logRepo = makeLogRepo();
 
-    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, delayFn: noDelay });
+    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, hmacSecret: TEST_HMAC_SECRET, delayFn: noDelay });
     const result = await dispatcher.sendIncomingCall(userId, notification, [makeAndroidToken()]);
 
     expect(result.ok).toBe(true);
@@ -172,7 +176,7 @@ describe("PushDispatcher.sendIncomingCall — トークンなし", () => {
     const tokenRepo = makeTokenRepo();
     const logRepo = makeLogRepo();
 
-    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, delayFn: noDelay });
+    const dispatcher = createPushDispatcher({ apnsAdapter: apns, fcmAdapter: fcm, tokenRepo, logRepo, hmacSecret: TEST_HMAC_SECRET, delayFn: noDelay });
     const result = await dispatcher.sendIncomingCall(userId, notification, []);
 
     expect(result.ok).toBe(false);

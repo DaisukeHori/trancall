@@ -21,6 +21,12 @@ const ConfigSchema = z.object({
     .min(1)
     .describe("Firebase Admin SDK サービスアカウント JSON のパス"),
 
+  // --- HMAC 署名 (T-8) ---
+  TRANCALL_PUSH_HMAC_SECRET: z
+    .string()
+    .min(32)
+    .describe("APNs/FCM payload HMAC-SHA256 署名用共有鍵（32 文字以上）— docs/notification-detail.md §3.1"),
+
   // --- 任意 ---
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });

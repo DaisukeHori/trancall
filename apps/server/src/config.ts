@@ -44,6 +44,10 @@ const ConfigSchema = z.object({
   // HMAC secret for Agent ↔ Server
   TRANCALL_AGENT_HMAC_SECRET: z.string().min(32),
 
+  // HMAC secret for APNs/FCM push payload signing (T-8)
+  // docs/notification-detail.md §3.1 参照
+  TRANCALL_PUSH_HMAC_SECRET: z.string().min(32),
+
   // Invite link base URL
   INVITE_BASE_URL: z.url().default("https://trancall.app/invite"),
 });

@@ -33,6 +33,10 @@ export type NotificationTarget = z.infer<typeof NotificationTargetSchema>;
 
 export const IncomingCallNotificationSchema = z.object({
   roomId: RoomIdSchema,
+  /** CallKit 用 UUID（小文字 hex、roomId とは独立） */
+  uuid: z.uuid(),
+  /** 発信者の内部ユーザー ID */
+  callerId: z.string().min(1),
   callerName: z.string().min(1),
   callerAvatarUrl: z.url().nullable(),
   callerTrancallId: z.string().min(1),
@@ -82,7 +86,11 @@ export const ApnsVoipPayloadSchema = z.object({
   aps: z.object({}),
   trancall: z.object({
     type: z.literal("incoming_call"),
+    /** CallKit 用 UUID（小文字 hex、roomId とは独立） */
+    uuid: z.uuid(),
     roomId: z.uuid(),
+    /** 発信者の内部ユーザー ID */
+    callerId: z.string(),
     callerName: z.string(),
     callerAvatarUrl: z.string().nullable(),
     callerTrancallId: z.string(),
@@ -91,6 +99,12 @@ export const ApnsVoipPayloadSchema = z.object({
     languagePair: z.string(),
     callerLanguage: z.string(),
     timestamp: z.iso.datetime(),
+    /** 発行時刻（ISO8601 .000Z 形式） */
+    issuedAt: z.iso.datetime(),
+    /** 有効期限（ISO8601 .000Z 形式、30 秒 TTL） */
+    expiresAt: z.iso.datetime(),
+    /** HMAC-SHA256 署名（小文字 hex 64 文字）— docs/notification-detail.md §3 */
+    signature: z.string().regex(/^[0-9a-f]{64}$/, "HMAC-SHA256 hex 64 文字"),
   }),
 });
 export type ApnsVoipPayload = z.infer<typeof ApnsVoipPayloadSchema>;
@@ -101,14 +115,25 @@ export type ApnsVoipPayload = z.infer<typeof ApnsVoipPayloadSchema>;
 
 export const FcmDataPayloadSchema = z.object({
   type: z.enum(["incoming_call", "missed_call"]),
+  /** CallKit 用 UUID（FCM は string のみ） */
+  uuid: z.string().optional(),
   roomId: z.uuid(),
+  /** 発信者の内部ユーザー ID */
+  callerId: z.string().optional(),
   callerName: z.string(),
   callerAvatarUrl: z.string().nullable(),
   callerTrancallId: z.string().optional(),
   roomType: z.enum(["audio", "video"]).optional(),
   translationEnabled: z.string().optional(), // FCM data は文字列のみ
   languagePair: z.string().optional(),
+  callerLanguage: z.string().optional(),
   timestamp: z.iso.datetime(),
+  /** 発行時刻（ISO8601 .000Z 形式、FCM は string） */
+  issuedAt: z.string().optional(),
+  /** 有効期限（ISO8601 .000Z 形式、30 秒 TTL、FCM は string） */
+  expiresAt: z.string().optional(),
+  /** HMAC-SHA256 署名（小文字 hex 64 文字）— docs/notification-detail.md §3 */
+  signature: z.string().optional(),
 });
 export type FcmDataPayload = z.infer<typeof FcmDataPayloadSchema>;
 

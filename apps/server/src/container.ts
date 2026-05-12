@@ -171,6 +171,7 @@ export function buildContainer(config: Config): AppContainer {
     fcmAdapter,
     tokenRepo: deviceTokenRepo,
     logRepo: pushLogRepo,
+    hmacSecret: config.TRANCALL_PUSH_HMAC_SECRET,
   });
   const notification = createNotificationFacade({ tokenService, dispatcher });
 

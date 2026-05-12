@@ -31,3 +31,10 @@ export type { FcmAdapter, FcmAdapterConfig } from "./adapters/fcm-adapter.js";
 
 export { loadConfig, parseConfig } from "./config.js";
 export type { NotificationConfig } from "./config.js";
+
+export {
+  signCallPayload,
+  buildCallTimestamps,
+  buildCanonicalString,
+} from "./signing/hmac.js";
+export type { CallPayloadSignable } from "./signing/hmac.js";

@@ -70,6 +70,12 @@ export interface PushDispatcherDeps {
   fcmAdapter: FcmAdapter;
   tokenRepo: DeviceTokenRepository;
   logRepo: PushLogRepository;
+  /**
+   * APNs/FCM payload HMAC-SHA256 署名用共有鍵。
+   * 環境変数 TRANCALL_PUSH_HMAC_SECRET から渡す。
+   * docs/notification-detail.md §3.1 参照。
+   */
+  hmacSecret: string;
   /** テスト用: デフォルト遅延関数を差し替える */
   delayFn?: (attempt: number) => Promise<void>;
 }
@@ -144,10 +150,13 @@ export function createPushDispatcher(deps: PushDispatcherDeps): PushDispatcher {
         });
       }
 
+      // issuedAt / expiresAt を同一時刻として生成（全トークン共通）
+      const now = new Date();
+
       const results = await Promise.allSettled(
         tokens.map((token) => {
           if (token.platform === "ios") {
-            const payload = buildApnsIncomingCallPayload(notification);
+            const payload = buildApnsIncomingCallPayload(notification, deps.hmacSecret, now);
             return dispatchToToken(
               token,
               () => deps.apnsAdapter.sendVoipPush(token.token, payload),
@@ -156,7 +165,7 @@ export function createPushDispatcher(deps: PushDispatcherDeps): PushDispatcher {
               notification.roomId,
             );
           } else {
-            const data = buildFcmIncomingCallPayload(notification);
+            const data = buildFcmIncomingCallPayload(notification, deps.hmacSecret, now);
             return dispatchToToken(
               token,
               () => deps.fcmAdapter.sendData(token.token, data),
