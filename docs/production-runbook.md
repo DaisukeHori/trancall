@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | PROD-RUNBOOK-001 |
-| Status | Draft v1.1 (2026-05-12) |
+| Status | Draft v1.2 (2026-05-12) |
 | Sprint | Sprint 2 D8 |
 | 上位文書 | `docs/architecture.md` §9/§10 / `docs/deployment-render-dryrun.md` v1.9 (staging canonical、本書で production 拡張) |
 | 関連文書 | `docs/security-detail.md` / `docs/notification-detail.md` v1.3 (HMAC) / `docs/translation-pipeline-design.md` v1.5 / `docs/app-store-submission.md` v1.1 / `docs/billing-ui-flow.md` v1.2 / `docs/legal-and-consent.md` (D7) |
@@ -221,6 +221,7 @@ export default async function handler(req: unknown, res: unknown) {
     "STRIPE_PRICE_ID_BUSINESS": "@stripe-price-id-business-prod",
     "APNS_KEY_ID": "@apns-key-id-prod",
     "APNS_TEAM_ID": "@apns-team-id-prod",
+    "APNS_AUTH_KEY": "@apns-auth-key-prod",
     "APNS_BUNDLE_ID": "tech.hori.trancall",
     "FCM_PROJECT_ID": "@fcm-project-id-prod",
     "FCM_SERVICE_ACCOUNT_JSON": "@fcm-service-account-json-prod",
@@ -255,7 +256,7 @@ Sprint 3 Day 1 に以下を Spike として確認する:
 
 1. `apps/server/package.json` の fastify バージョンを確認
 2. Fastify v5 以上: `app.handle(req: Request): Promise<Response>` が使えるか確認
-3. Fastify v4 系の場合: `fastify-serverless-http` (または `@fastify/serverless`) を `dependencies` に追加し、`api/index.ts` を `(req, res) => app.handle(req, res)` 形式に変更
+3. Fastify v4 (`^4.28.1`) を採用済のため、`serverless-http` を `dependencies` に追加し §3.1 の canonical 実装 (`serverless(app.server, { provider: "vercel" })`) を使用する。Sprint 3 Day 1 Spike は不要 (§3.1 で確定)。Fastify v5 にアップグレードする場合のみ、`serverless-http` を撤去して `app.handle(req)` 直接使用に簡略化する
 4. `vercel dev` でローカル 200 確認 → staging → production の順に昇格
 
 ---
@@ -408,7 +409,7 @@ Production は Free では運用不可。Pro plan ($25/月) に移行後、以�
 
 2. **Connection pooling (PgBouncer) 設定**:
    - Pool mode: `transaction` (Serverless 環境との相性が良い)
-   - Vercel の `SUPABASE_URL` を Pooler URL に切り替え: `postgresql://<ref>-pooler.supabase.co:6543`
+   - `SUPABASE_URL` は `https://<ref>.supabase.co` のまま (Supabase JS クライアント用、Pooler URL は使えない)。**Prisma / pg ドライバを採用する場合のみ** `DATABASE_URL` を別途 env var 化し Pooler URL `postgresql://<ref>-pooler.supabase.co:6543/postgres` を設定する。本書 Sprint 3 は Supabase JS クライアント単独採用前提のため `DATABASE_URL` 不要
 
 3. **Realtime の同時接続数**:
    - Pro plan: 最大 500 同時接続 (Phase 1a では十分)
@@ -1336,4 +1337,5 @@ Render Dashboard → `trancall-agent-prod` → Logs で以下が 5 分以内に�
 | バージョン | 日付 | 内容 |
 |---|---|---|
 | v1.0 | 2026-05-12 | Sprint 2 D8 設計書 初版。スコープ: `apps/server/api/index.ts` + `apps/server/vercel.json` entrypoint 仕様確定 (D2 §4.2 未確定雛形の解消) / Render Production Worker 構築手順 (D2 staging との差分、Standard plan / autoDeploy: false / deploy 手順) / Supabase Production 構築手順 (Pro plan / 日次 backup / migration 手順) / LiveKit Cloud Production テナント設定 (Build tier / 2 キー分離) / APNs Production gateway + FCM Production project (env var 配布) / 1Password TranCall-Infra-Prod vault 構造 / `TRANCALL_PUSH_HMAC_SECRET` + `TRANCALL_AGENT_HMAC_SECRET` rotation 実行手順 (24h dual-key、6 Phase 手順) / 日次 retention 削除バッチ (Supabase Edge Function スケルトン、Cron 設定、監視、手動再実行) / Sentry alert 8 ルール + on-call エスカレーション / ロールバック判断フローチャート + 4 シナリオ手順 / smoke test スクリプト 5 ステップ / 障害対応 6 シナリオ (OpenAI WS 切断 / Supabase ダウン / Vercel build 失敗 / HMAC rotation 失敗 / LiveKit 障害 / retention バッチ失敗)。 |
+| v1.2 | 2026-05-12 | Round 2 統合判定の残 Warning + Suggestion を反映: vercel.json env に `APNS_AUTH_KEY: @apns-auth-key-prod` を追加 (§7.1.1 と整合)、§3.3 旧 Spike 記述を `serverless-http` 確定方針 (§3.1) と整合する 1 行に書換、§5.3 Pooler URL 指示を Supabase JS クライアント (`https://` 維持) と Prisma / pg 用 `DATABASE_URL` 別建てに分離 (JS クライアント初期化失敗を回避)。 |
 | v1.1 | 2026-05-12 | Round 1 レビュー (Opus A/B/C 並列) 指摘 Critical 2 + Warning 8 を反映。**Critical**: (A) §3.1 entrypoint コードを実装整合に修正 — `createApp` → `buildApp` (実 export 名)、Fastify v4 では `app.handle()` 不在のため `serverless-http` adapter 採用、`apps/server/package.json` に dependency 追加が必要、Sprint 3 Day 1 Spike 不要。(C) §10.2 Supabase JS クライアントの `.from("schema.table")` を `.schema("xxx").from("yyy")` 形式に修正 (3 テーブル + 4 番目に consent_versions 削除を追加)。**Warning**: (A+B) §3.2 vercel.json から SUPABASE_ANON_KEY / OPENAI_API_KEY を削除 (Server には不要、D2 §7 配布マトリクスと整合)。(A) §11.1 / §13.2 / §14 の `/api/health` を実 endpoint `/health` に統一 (app.ts line 55)。(A) §13.2 smoke test の room 作成 body を `{ invitee_id }` から `{ inviteeIds: [...] }` (CreateRoomSchema canonical) に修正、レスポンスも `data.roomId` に。(B) §2.4 関連文書欄の HMAC 出典を `notification-detail.md v1.3 §3 (canonical)` + `security-detail.md §2 (参考)` に整理、`security-detail.md` に rotation 節は未存在の旨を明記。(B) §14.3 「autoDeploy が enabled の場合」記述を「手動 promote (§4.3)」に書き換え §2.3 と内部整合。(C) §9.3 Phase 5 で `NEW_PUSH_SECRET` を 1Password から再取得するステップを追加、`vercel env rm` に `--yes` フラグ付与、`op item` の field 削除を `--remove-field` 形式に統一。 |
