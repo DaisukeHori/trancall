@@ -346,10 +346,13 @@ supabase db diff --linked --schema public,trancall_auth,trancall_room,trancall_c
 
 # 4. 差分を目視確認 (想定外の DROP/ALTER がないか)
 
-# 5. staging で push して動作確認 (step 1 で staging に link 済のため env var 不要)
+# 5a. staging で migration を適用 — 初回 seed 未適用の場合 (staging を本手順で初めてセットアップするケース)
+supabase db push --linked --include-all
+
+# 5b. staging で migration を適用 — 2 回目以降 (seed 既適用前提)
 supabase db push --linked
-# ※ staging を本手順で初めてセットアップする (初回 seed 未適用) 場合は `--include-all` を付与すること: supabase db push --linked --include-all
-# 2 回目以降の migration 適用 (本ライン) は seed 既適用前提のため `--include-all` 不要。
+
+# 上記 5a / 5b はどちらか一方のみ実行する。staging 初回かどうかは Supabase Dashboard → SQL Editor で seed 由来テーブル (例: 任意の master データ) が存在するかで判別する。
 
 # 6. staging で RLS テスト + アプリ疎通確認 (§9.2 参照)
 
@@ -361,9 +364,9 @@ cat .supabase/config.toml | grep project_id
 
 # 7. production push (確認プロンプトに y で応答)
 supabase db push --linked --include-all
-# `--include-all`: staging push (step 5) では CI/手動で seed ファイルが既に適用済を前提とするため不要。
+# `--include-all`: staging push (step 5b) では CI/手動で seed ファイルが既に適用済を前提とするため不要。
 # production 初回投入時は seed ファイルが未適用のため --include-all で seed も含めて適用する。
-# step 5 に --include-all を付けるべきでは? という疑問: staging はこの手順より前に seed 適用済なので不要。本番初回のみ有効。
+# step 5a/5b に --include-all を付けるべきでは? という疑問: staging 初回 (5a) は --include-all 付き、2 回目以降 (5b) は不要。本番初回のみ有効。
 
 # 8. push 後の確認
 supabase migration list --linked
@@ -700,3 +703,4 @@ Phase 1b で Sentry または Datadog Logs に集約予定。
 - v1.3 (2026-05-12): Round 3 指摘 Major 5 + Minor 4 反映 — §5.2 supabase db push --linked が env var 上書き不可な動作不整合を解消し link 切替手順 (step 1 staging 明示 / step 6.5 re-link / step 7 env var 削除 / 末尾注記) に書換、§14 v1.1 改訂履歴の §1.3→§2.3 番号誤記修正、§9.4 agent_metrics の実在しないカラム名 (partial/final_latency_ms_p95) を実 schema (latency_ms JSONB / totalEndToEnd) に対応、§6.2 に Phase 1a 単一キー配布の明示注記追加、§11.4 を Phase 1a (暫定運用) と Phase 1b 以降 (correlation_id 実装後) の 2 サブ節に再構成し冒頭注記との矛盾解消。Minor: §5.2 architecture.md 参照を §2 から §6 (データベース設計) に修正、§13 #2/#5/#7/#8 に mitigation 補完、§13 #6 typo (「で 同時」→「で同時」) 修正、§9.4 gate-check コマンドに staging 向け env var (TRANCALL_SERVER_URL) 付与例を追記、§12 に LiveKit 2 キー分離 (Phase 1b 以降) を追加。
 - v1.4 (2026-05-12): Round 4 残存 Minor 4 件反映 — §13 #5 mitigation 数値を 5,000 participant-min/月の 50% (= 2,500) に修正、§13 #10 mitigation 追加で全 11 リスク mitigation 完備、§5.2 step 7 `--include-all` フラグ意図のインラインコメント、§9.4 agent_metrics JSONB 構造例追加
 - v1.5 (2026-05-12): Round 5 残存 Minor 2 件反映 — §13 #11 に Mitigation: ラベル付与で全 11 リスクの形式統一達成、§5.2 step 5 に staging 初回セットアップ時の `--include-all` 付与条件をインラインコメントで補足
+- v1.6 (2026-05-12): Round 6 残存 Minor 1 件反映 — §5.2 step 5 を 5a (staging 初回 seed 未適用、`--include-all`) / 5b (2 回目以降) の条件分岐構造に再構成し operator のコピーペースト誤操作リスクを排除
