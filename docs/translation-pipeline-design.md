@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.1 (2026-05-12) |
+| Status | Draft v1.2 (2026-05-12) |
 | Owner | translation-agent / バックエンド |
 | 上位文書 | `docs/architecture.md` (§ Translation Pipeline)、`docs/module-contracts.md` v1.1.0 (§2.7 TranslationFacade / §3.3 §3.4 / §7.4) |
 | 補助 | `docs/requirements.md` (PERF-002, TRANS-001〜007), `apps/translation-agent/CLAUDE.md`, `apps/translation-agent/src/openai-ws-client.ts` |
@@ -240,7 +240,7 @@ await audioSource.captureFrame(frame);
   └─ end(reason) → [ending]
 [ending]
   ├─ isEnding=true (二重防止)
-  ├─ pending audio buffer commit (session.input_audio_buffer.commit)
+  ├─ session.close 送信 (server が pending input audio をフラッシュし残り翻訳出力を emit、§4.5)
   ├─ metrics_final 送信
   ├─ OpenAI WS close
   ├─ LiveKit Track unpublish
@@ -392,3 +392,4 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 ## 13. 改訂履歴
 - v1 (2026-05-12) 初版。Sprint 1 残課題 (event 名 / 計測点 / commit タイミング) を canonical 化し、Sprint 2 Gate Check 着手の入口を整備。OpenAI 公式 spec との差異 6 項目を明示。
 - v1.1 (2026-05-12) PR #28 Round 1 レビュー反映 (Critical 4 + Warning 5): commit イベントは Translation API に未存在 → `session.close` フラッシュに変更、レイテンシ計測 4→5 点 (`agentToOpenAI` 追加、`module-contracts.md` §7.4.4 と同期)、`module-contracts.md` 参照を §2.7 → §7.4.2 / §7.4.4 に修正、ヘッダーの上位文書バージョン v1.0.0 → v1.1.0、T11 のファイルパスを `apps/translation-agent/scripts/gate-check.ts` に修正、`architecture.md` 行番号 558→557。
+- v1.2 (2026-05-12) PR #28 Round 2 レビュー反映 (Critical 1 + Warning 2): §6.1 状態遷移図の `[ending]` ブロックを `session.close` 送信に修正 (§4.5 と同期)、`module-contracts.md` §7.4.2 に「実装側 Zod 同期は T8 で実施」「`architecture.md` Track 名修正は別 PR」を明示、§7.4.4 `openAIFirstDelta` コメントを公式名 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正。

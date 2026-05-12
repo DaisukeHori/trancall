@@ -635,7 +635,11 @@ Server 処理: `trancall_event.translation_sessions` に INSERT。`outputLanguag
 ```
 Server 処理: `trancall_event.translation_sessions` を update。**フィールド `reason` → DB 列 `ended_reason` へマッピング** (DB 列名は予約語回避とセマンティクス明示のため別名を採用、`supabase/migrations/00002_add_translation_sessions_table.sql` のコメント参照)。
 
-`agent_publish_failed` は v1.1.0 で追加 (Agent → LiveKit Track publish が連続失敗した場合の終了理由、判定条件は `docs/translation-pipeline-design.md` §10.3)。
+`agent_publish_failed` は v1.1.0 で **契約上拡張** (Agent → LiveKit Track publish が連続失敗した場合の終了理由、判定条件は `docs/translation-pipeline-design.md` §10.3)。本 v1.1.0 時点で **実装側 Zod schema は未同期**:
+- `apps/translation-agent/src/internal-api-client.ts` L52-57 の `TranslationSessionEndedSchema.reason` は 4 値のまま
+- `packages/translation/src/schemas.ts` の Server 側 `AgentEventSchema` 内 session_ended も 4 値のまま
+
+これらは `docs/translation-pipeline-design.md` §11 T8 (Sprint 2) で 5 値に同期する。本書 (canonical) は **契約 = 5 値** が正で、実装側は同期待ち状態。
 
 Server で `translation.ended` DomainEvent を発行 → billing が購読して `recordUsage` (将来実装)。
 
@@ -664,7 +668,7 @@ Server 処理: `isFinal=true` のみ `trancall_transcript.segments` に `appendF
   latencyMs: {
     captureToAgent: number[],     // mic capture → Agent 到達
     agentToOpenAI: number[],      // Agent → OpenAI WS 送信
-    openAIFirstDelta: number[],   // session.update → 最初の response.audio.delta
+    openAIFirstDelta: number[],   // session.input_audio_buffer.append 送信 → 最初の session.output_audio.delta 受信
     agentPublish: number[],       // OpenAI delta → LiveKit Publish
     totalEndToEnd: number[]       // mic capture → Callee 再生
   },
@@ -721,7 +725,7 @@ Agent 側 (`apps/translation-agent/src/internal-api-client.ts`) の Zod schema �
 | 日付 | 版 | 内容 |
 |---|---|---|
 | 2026-05-12 | 1.0.0 | 初版作成 (Layer 1 完了時点の canonical 抽出) |
-| 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、§3.1 表の当該行を 2 系統並列 (EventBus + LiveKit Data Channel) に更新、§7.4.2 session_ended の `reason` enum に `agent_publish_failed` 追加、ヘッダーのバージョン 1.0.0 → 1.1.0、`AgentJobId` を `z.uuid()` で当面運用 (Sprint 2 で brand 化予定)、EventBus / Data Channel 両系統で `timestamp` キー名を統一。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。|
+| 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、§3.1 表の当該行を 2 系統並列 (EventBus + LiveKit Data Channel) に更新、§7.4.2 session_ended の `reason` enum に `agent_publish_failed` を **契約上追加** (実装側 Zod 同期は T8 で実施)、§7.4.4 `openAIFirstDelta` のコメントを公式仕様 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正、ヘッダーのバージョン 1.0.0 → 1.1.0、`AgentJobId` を `z.uuid()` で当面運用 (Sprint 2 で brand 化予定)、EventBus / Data Channel 両系統で `timestamp` キー名を統一。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。`architecture.md` §5.3 の旧 Track 名 `mic-a` 表記は本 PR スコープ外、Sprint 2 別 PR で `raw-{participantId}` 形式に統一予定。|
 
 ---
 
