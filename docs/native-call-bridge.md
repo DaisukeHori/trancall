@@ -3,9 +3,9 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | NATIVE-CALL-001 |
-| Status | Draft v1.3 (2026-05-12) |
+| Status | Draft v1.4 (2026-05-12) |
 | Sprint | Sprint 2 D4 |
-| 上位文書 | `docs/architecture.md` (システム全体構成、canonical) / `docs/call-lifecycle.md` (シーケンス、canonical) / `docs/module-contracts.md` v1.1.0 (モジュール契約、canonical) / `docs/notification-detail.md` v1.2 (Push payload・HMAC、canonical) |
+| 上位文書 | `docs/architecture.md` (システム全体構成、canonical) / `docs/call-lifecycle.md` (シーケンス、canonical) / `docs/module-contracts.md` v1.1.0 (モジュール契約、canonical) / `docs/notification-detail.md` v1.3 (Push payload・HMAC、canonical) |
 | 関連文書 | `docs/security-detail.md` (HMAC / 署名、canonical) / `docs/deployment-render-dryrun.md` (デプロイ手順) |
 | 下位実装対象 | `apps/mobile/` 内に Expo Module を配置、Sprint 3 (Phase 1a 実装フェーズ) で着手予定 |
 | 想定読者 | Sprint 3 で `apps/mobile/` の native module を実装する engineer、レビュー時に CallKit / ConnectionService の正しさを判断する reviewer |
@@ -791,7 +791,7 @@ FCM Legacy HTTP API (v0、`"to": "<token>"`) は 2024-06 廃止済。**HTTP v1 A
 
 本書では新規 schema を **追加定義しない**。Sprint 3 の実装タスクで以下を実施:
 
-1. `packages/notification/src/schemas.ts` の `ApnsVoipPayloadSchema.trancall` および `FcmDataPayloadSchema` に `uuid` / `callerId` / `issuedAt` / `expiresAt` / `signature` を追加 (`notification-detail.md` v1.2 と整合)
+1. `packages/notification/src/schemas.ts` の `ApnsVoipPayloadSchema.trancall` および `FcmDataPayloadSchema` に `uuid` / `callerId` / `issuedAt` / `expiresAt` / `signature` を追加 (`notification-detail.md` v1.3 と整合)
 2. `packages/notification/src/adapters/apns-adapter.ts` / `fcm-adapter.ts` が HMAC 署名計算 (`notification-detail.md` §3) を組み込む
 3. Mobile bridge (`apps/mobile/modules/call-bridge/`) が APNs/FCM payload を Swift `Codable` / Kotlin `kotlinx.serialization` でデコードし HMAC 検証
 
@@ -799,7 +799,7 @@ Server (notification module) と Mobile bridge は同じ canonical (`notificatio
 
 ### 6.4 NotificationFacade との関係
 
-`module-contracts.md` v1.1.0 §2.5 で `NotificationFacade.sendIncomingCall(targetUserId, notification: IncomingCallNotification)` が canonical。本書はその adapter 層 (`packages/notification/src/adapters/{apns,fcm}.ts`) が `notification-detail.md` v1.2 に従って APNs/FCM payload を構築する責務を補強する。
+`module-contracts.md` v1.1.0 §2.5 で `NotificationFacade.sendIncomingCall(targetUserId, notification: IncomingCallNotification)` が canonical。本書はその adapter 層 (`packages/notification/src/adapters/{apns,fcm}.ts`) が `notification-detail.md` v1.3 に従って APNs/FCM payload を構築する責務を補強する。
 
 #### IncomingCallNotification と APNs/FCM payload のフィールド対応
 
@@ -1172,7 +1172,7 @@ Phase 1a を「完了」と宣言できる条件を以下に明示する。Sprin
 |---|---|---|
 | Q-1 | Native unit test (XCTest / JUnit) が 2 連続 PASS (modular-verification-loop 方針) | ☐ |
 | Q-2 | JS bridge unit test (vitest) が 2 連続 PASS | ☐ |
-| Q-3 | `notification-detail.md` v1.2 と本書 v1.x の field 集合が同期、CI 互換性 test PASS | ☐ |
+| Q-3 | `notification-detail.md` v1.3 と本書 v1.x の field 集合が同期、CI 互換性 test PASS | ☐ |
 | Q-4 | `eslint` `tsc` warning ゼロ | ☐ |
 
 **禁止条件**: 実機未確認のまま Phase 1a 完了宣言は不可 (シミュレータ・エミュレータのみでの確認は Phase 1a 終了に不十分)。Xiaomi/Huawei 端末で確認できなかった場合は「Xiaomi/Huawei は Phase 1b 課題」と明示記録すれば Phase 1a 完了は可。
@@ -1328,3 +1328,4 @@ env-specific bundle ID を採用しない場合は Apple Developer Console / Fir
 | v1.1 | 2026-05-12 | Round 1 レビュー指摘 Critical 4 + Major 4-5 + Minor 5-7 を反映。主な変更: (1) §6.1 / §6.2 APNs/FCM payload を `notification-detail.md` v1.1 の nested 構造 (`{aps:{}, trancall:{...}}`) に整合、独立した IncomingCallPushPayloadSchema 定義は削除し canonical を notification-detail.md に一本化、(2) §6.2 FCM payload を HTTP v1 API (`message.token`/`message.data`/`message.android`) に修正 (Legacy v0 は 2024-06 廃止済)、(3) §4.3 Swift コードを `payload.dictionaryPayload["trancall"]` から読み出す nested 対応に修正、(4) §6.3 schema 配置を `packages/notification/src/schemas.ts` への拡張に一元化、(5) §3.2.2 ステップ 6 の「didActivate で room.connect」を「Native は AudioSession 設定のみ、room.connect は JS」に修正、(6) §3.2.2 Android `ForegroundServiceDidNotStartInTimeException` を Android 12+ に訂正 (旧記述 Android 14+ は誤り)、(7) §4.4 / §4.7 AudioSession options に `allowBluetooth` (HFP マイク) を追加、(8) §4.1 entitlement から `com.apple.developer.usernotifications.communication` を削除 (App Review リジェクト誘発)、(9) §4.5 着信フロー図から `reportOutgoingCall` 行を削除 (発信側専用 API、着信応答で呼ぶと CallKit エラー)、(10) §4.2 `ringtoneSound = nil` に修正 (§14 #8 と整合)、(11) §11.6 Phase 1a 完了 Gate Check 節を新設 (実機 9 + 負テスト 5 + 実装品質 4)、(12) §12.1 HMAC 検証順序を 7 ステップに具体化、canonical string は `notification-detail.md` §3.2 参照、(13) §2.1 Telecom Framework 導入 API を 23 から 21 に訂正、(14) §2.2.1 VoIP Services Certificate と p8 の二重記述を整理 (p8 のみ採用)、(15) §5.1 MANAGE_OWN_CALLS の runtime request 記述を削除 (normal permission のため不可)、(16) §5.2 `CAPABILITY_VIDEO_CALLING` を Phase 1a から除去 (Phase 2 で追加)、(17) §7.1 `OutputLanguageSchema` を `OutputLanguage` に修正 (実 export 名)、(18) §7.1 callBridge 初期化を `requireNativeModule` に修正 (autolinking 失敗時の明示的エラー)、(19) §13.4 bundle ID 例示を `tech.hori.trancall` に修正 (app.json 現状)、(20) §5.2 クラスファイル名コメントを `TranCallApplication.kt` に修正、(21) §4.3 PKPushRegistry queue 解説を追加。同時に `docs/notification-detail.md` を v1.1 に更新し HMAC 仕様 §3 を新設、payload に `uuid` / `callerId` / `issuedAt` / `expiresAt` / `signature` フィールドを追加 (notification-detail.md は本書 v1.3 と同時に Round 3 で v1.2 → v1.3 へ更新済)。 |
 | v1.2 | 2026-05-12 | Round 2 レビュー指摘 Warning 3 + Suggestion 2 を反映。(W-1, A+C 両方指摘) §12.1 / notification-detail.md §3.3 §3.4 の Swift constant-time 比較を `HMAC<SHA256>.isValidAuthenticationCode(_:authenticating:using:)` 使用に修正 (CryptoKit が内部 constant-time 保証、`Data` の `==` や手動ループは short-circuit リスクあり)。Kotlin は `MessageDigest.isEqual` (Java 6 以降 constant-time 保証) を明示。(W-2) §6.4 フィールド対応表のヘッダを `APNs "aps.trancall.*"` から `APNs "trancall.*" (top-level trancall キー配下)` に修正。(W-3) §7.1 コードブロック冒頭に `IncomingCallPushPayload` 型の import 想定コメントを追加 (Sprint 3 で `packages/shared-kernel/src/schemas/native-call.ts` に配置予定)。(B Suggestion) §6.4 の `timestamp (deprecated) → issuedAt` 表記を `issuedAt (新規、Sprint 3 で追加)` 単独行に整理。(C S-1) §12.1 に Mobile bridge への HMAC 鍵配布経路を明記 (EAS Secrets 経由でビルド時注入 → `expo-secure-store`)。(C S-2) §4.3 PKPushRegistry queue コメントを強化 (Sprint 3 では専用 serial queue を強く推奨)。 |
 | v1.3 | 2026-05-12 | Round 3 レビュー指摘 Minor 4 件を反映。(A Suggestion) notification-detail.md §1.1 ステップ 4 の `authenticationCode` を `isValidAuthenticationCode` に統一 (検証側の API 名)。(B Warning) 本書冒頭メタ表および §6.3 / §6.4 / §12.1 / §11.6 Q-3 等の `notification-detail.md v1.1` 参照を `v1.2` に更新。(B Suggestion) notification-detail.md §3.3 Kotlin 行に `MessageDigest.isEqual` による検証コード例を追記 (Swift 行との対称性確保)。(C Warning) §13.2 表の "VoIP Services Certificate (`*.p12`) または APNs auth key (`*.p8`)" 並列記述を `APNs auth key (*.p8) 1 本発行 (§2.2.1 参照、*.p12 は採用しない)` に修正 (§2.2.1 / §4.1 と整合)。Status: 本書 Draft v1.3、notification-detail.md v1.3 に同期。 |
+| v1.4 | 2026-05-12 | Round 5 B Warning を反映。本書本文の `notification-detail.md` バージョン参照 5 箇所 (冒頭メタ表 / §6.3 / §6.4 / §11.6 Gate Q-3 / 改訂履歴の本文記述) を `v1.2` → `v1.3` に同期更新し、Round 3 の改訂履歴「v1.3 に同期」宣言と本文の自己矛盾を解消。改訂履歴 v1.1〜v1.3 の歴史的記述 (各 Round 時点でのバージョン参照) は事実関係保持のため変更しない。 |
