@@ -41,14 +41,19 @@ DELETE /api/auth/account
 | consent_versions | 同意記録を保持 | 法定保持期間 | GDPR要件 |
 | user_consents | user_id を匿名 UUID に置換（anonymize）後、保持 | auth.users 物理削除前に即座に anonymize / 物理削除は法定保持期間後の別バッチ | GDPR 要件: auth.users 物理削除と同時に削除しない。ON DELETE NO ACTION FK のため退会フロー側で明示的に anonymize を実行する必要あり |
 
-> **TODO (T-29 / 退会フロー実装時に対処):**
-> `user_consents` には `UNIQUE(user_id, scope, version)` 制約がある。複数ユーザーが同一 `scope`/`version` に同意後に退会した場合、全員の `user_id` を同一の `GDPR_ANON_UUID` に UPDATE すると UNIQUE 制約違反が発生する。
-> 対処案:
-> 1. 退会ユーザーごとに per-user 固定の anonymize UUID を採番する (例: 元 `user_id` から決定論的に派生)
-> 2. UNIQUE 制約を `(user_id, scope, version, recorded_at)` に緩和し、anonymize 後の衝突を許容する
-> 3. anonymize 時に `user_consents` を物理削除しつつ別テーブル `archived_user_consents` に audit 用 hash 化レコードとしてコピーする
+> **T-29 方針確定 (Sprint 4):**
+> `user_consents` の `UNIQUE(user_id, scope, version)` 制約衝突への対処として **案 1** を採用した。
 >
-> どの方針を採用するかは Sprint 3 後半 (T-29) の退会フロー実装時に確定する。
+> **採用案: 案 1 — per-user 決定論的 UUID 派生**
+> - `anonymizedUserId = SHA-256(originalUserId || ANONYMIZE_SALT).slice(0, 16 bytes)` を UUID v4 形式に整形
+> - 同一ユーザーは常に同じ匿名 UUID にマッピングされるため UNIQUE 制約を保持
+> - 実装: `apps/server/src/lib/anonymize.ts` `deriveAnonymizedUserId()`
+> - Salt: 環境変数 `ANONYMIZE_SALT` (32 文字以上必須)
+> - retention-cleanup Edge Function の step 7 で物理削除直前に `user_consents.user_id` を UPDATE
+>
+> **不採用案の理由:**
+> - 案 2 (UNIQUE 制約緩和): スキーマ変更を要し、FK の意味論が変わるリスクあり。監査ログとして同意記録の主キーが不安定になる
+> - 案 3 (別テーブルへの移行): テーブル追加とデータ移行が必要で複雑度が高い。GDPR 監査要件を別テーブルで満たす必要があり保守性が低い
 
 ### Supabase Auth
 ```sql

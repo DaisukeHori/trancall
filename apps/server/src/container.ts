@@ -229,8 +229,9 @@ export function buildContainer(config: Config): AppContainer {
   });
   const notification = createNotificationFacade({ tokenService, dispatcher });
 
-  // transcript
-  const transcript = createTranscriptFacade(segmentRepo, accessRepo);
+  // transcript (legalDocRepo を注入して termsVersion / privacyVersion を DB から取得)
+  // docs/legal-and-consent.md §5.3 / docs/transcript-export-spec.md §7.3
+  const transcript = createTranscriptFacade(segmentRepo, accessRepo, undefined, legalDocRepo);
 
   // translation
   const translation = createTranslationFacade({ sessionRepo, metricsRepo });

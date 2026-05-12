@@ -23,6 +23,10 @@
  *      (完了後 7 日経過した reservations を削除)
  *   7. auth.users の物理削除 (退会 grace period 30 日経過済 + deleted_at IS NOT NULL)
  *      docs/account-deletion.md §猶予期間
+ *      NOTE: auth.users の直接削除前に user_consents.user_id を per-user 決定論的 UUID に
+ *            anonymize してから削除する (ON DELETE NO ACTION FK のため)。
+ *            anonymize: SHA-256(userId + ANONYMIZE_SALT) の先頭 16 バイトを UUID v4 に整形。
+ *            docs/account-deletion.md §TODO (T-29) 対処案 1 採用
  *      NOTE: auth.users の直接削除は Supabase Admin API 経由 (service_role key が必要)
  *
  * 完了後、trancall_audit.retention_runs テーブルに実行記録を書き込む。
@@ -61,6 +65,33 @@ interface RetentionResult {
 /** now から指定日数前の ISO 文字列を返す */
 function daysAgo(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/**
+ * per-user 決定論的匿名化 UUID を生成する (案 1 採用)。
+ * SHA-256(userId + salt) の先頭 16 バイトを UUID v4 形式に整形する。
+ * 同一 userId は常に同じ UUID になるため UNIQUE(user_id, scope, version) 制約を保持。
+ * docs/account-deletion.md §TODO (T-29) 対処案 1
+ */
+async function deriveAnonymizedUserId(userId: string, salt: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(userId + salt);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hex = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // 先頭 32 hex 文字 (16 バイト) を使用
+  const b0 = hex.slice(0, 8);
+  const b1 = hex.slice(8, 12);
+  // version 4: バイト 6 の上位 4 ビットを 0100 に設定
+  const b2 = "4" + hex.slice(13, 16);
+  // variant 10xx: バイト 8 の上位 2 ビットを 10 に設定 (8, 9, a, b のいずれか)
+  const variantNibble = (parseInt(hex[16]!, 16) & 0x3) | 0x8;
+  const b3 = variantNibble.toString(16) + hex.slice(17, 20);
+  const b4 = hex.slice(20, 32);
+
+  return `${b0}-${b1}-${b2}-${b3}-${b4}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -241,43 +272,74 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // -------------------------------------------------------------------------
   // 7. 退会 grace period 経過済みユーザーの物理削除
   //    trancall_auth.profiles の deleted_at IS NOT NULL AND deleted_at < 30d ago
-  //    → auth.users を Supabase Admin API で削除 (CASCADE で profiles も削除)
-  //    docs/account-deletion.md §猶予期間 / §Supabase Auth
+  //    → (a) user_consents.user_id を per-user 決定論的 UUID に anonymize
+  //    → (b) auth.users を Supabase Admin API で削除 (CASCADE で profiles も削除)
+  //    docs/account-deletion.md §猶予期間 / §Supabase Auth / §TODO (T-29)
+  //    NOTE: anonymize は auth.users 削除より前に実行 (ON DELETE NO ACTION FK のため)
   //    NOTE: この処理は最後に実行 (profiles が物理削除されると FK が壊れるため)
   // -------------------------------------------------------------------------
   {
-    const gracePeriodCutoff = daysAgo(30);
-
-    // deleted_at が grace period を過ぎた profiles を取得
-    const { data: deletedProfiles, error: fetchError } = await supabase
-      .schema("trancall_auth")
-      .from("profiles")
-      .select("user_id")
-      .not("deleted_at", "is", null)
-      .lt("deleted_at", gracePeriodCutoff);
-
-    if (fetchError) {
-      errors.push(`deleted_users_fetch: ${fetchError.message}`);
-      console.error("[retention-cleanup] deleted_users fetch error:", fetchError);
-    } else if (deletedProfiles && deletedProfiles.length > 0) {
-      // Supabase Admin API で auth.users を削除 (service_role key 使用)
-      let deletedCount = 0;
-      for (const profile of deletedProfiles) {
-        const { error: deleteError } = await supabase.auth.admin.deleteUser(profile.user_id);
-        if (deleteError) {
-          errors.push(`auth_user_delete(${profile.user_id}): ${deleteError.message}`);
-          console.error(
-            `[retention-cleanup] auth.users delete error for ${profile.user_id}:`,
-            deleteError,
-          );
-        } else {
-          deletedCount++;
-        }
-      }
-      counts.deleted_auth_users = deletedCount;
-      console.log(`[retention-cleanup] auth.users deleted: ${counts.deleted_auth_users}`);
+    const anonymizeSalt = Deno.env.get("ANONYMIZE_SALT");
+    if (!anonymizeSalt || anonymizeSalt.length < 32) {
+      errors.push("anonymize_salt: ANONYMIZE_SALT が未設定または 32 文字未満です");
+      console.error("[retention-cleanup] ANONYMIZE_SALT is missing or too short");
     } else {
-      console.log("[retention-cleanup] no expired deleted users found");
+      const gracePeriodCutoff = daysAgo(30);
+
+      // deleted_at が grace period を過ぎた profiles を取得
+      const { data: deletedProfiles, error: fetchError } = await supabase
+        .schema("trancall_auth")
+        .from("profiles")
+        .select("user_id")
+        .not("deleted_at", "is", null)
+        .lt("deleted_at", gracePeriodCutoff);
+
+      if (fetchError) {
+        errors.push(`deleted_users_fetch: ${fetchError.message}`);
+        console.error("[retention-cleanup] deleted_users fetch error:", fetchError);
+      } else if (deletedProfiles && deletedProfiles.length > 0) {
+        let deletedCount = 0;
+        for (const profile of deletedProfiles) {
+          const originalUserId: string = profile.user_id;
+
+          // (a) user_consents.user_id を per-user 決定論的 UUID に anonymize
+          //     UNIQUE(user_id, scope, version) 制約を保持するため per-user 固定 UUID を使用
+          //     docs/account-deletion.md §TODO (T-29) 対処案 1 採用
+          const anonymizedId = await deriveAnonymizedUserId(originalUserId, anonymizeSalt);
+          const { error: anonymizeError } = await supabase
+            .schema("trancall_auth")
+            .from("user_consents")
+            .update({ user_id: anonymizedId })
+            .eq("user_id", originalUserId);
+
+          if (anonymizeError) {
+            errors.push(`user_consents_anonymize(${originalUserId}): ${anonymizeError.message}`);
+            console.error(
+              `[retention-cleanup] user_consents anonymize error for ${originalUserId}:`,
+              anonymizeError,
+            );
+            // anonymize に失敗したユーザーは削除をスキップして安全側に倒す
+            continue;
+          }
+          console.log(`[retention-cleanup] user_consents anonymized: ${originalUserId} → ${anonymizedId}`);
+
+          // (b) auth.users を Supabase Admin API で削除 (CASCADE で profiles も削除)
+          const { error: deleteError } = await supabase.auth.admin.deleteUser(originalUserId);
+          if (deleteError) {
+            errors.push(`auth_user_delete(${originalUserId}): ${deleteError.message}`);
+            console.error(
+              `[retention-cleanup] auth.users delete error for ${originalUserId}:`,
+              deleteError,
+            );
+          } else {
+            deletedCount++;
+          }
+        }
+        counts.deleted_auth_users = deletedCount;
+        console.log(`[retention-cleanup] auth.users deleted: ${counts.deleted_auth_users}`);
+      } else {
+        console.log("[retention-cleanup] no expired deleted users found");
+      }
     }
   }
 

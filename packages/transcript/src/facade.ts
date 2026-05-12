@@ -37,6 +37,16 @@ export interface RoomMetaProvider {
   getRoomMeta(roomId: RoomId, userId: UserId): Promise<Result<RoomMeta>>;
 }
 
+/**
+ * 法務ドキュメントの現行バージョンを取得するリポジトリの最小インターフェース。
+ * auth モジュールへの直接依存を避けるため transcript 内で独自定義する。
+ * apps/server/container.ts で LegalDocumentVersionRepository (auth) を注入する。
+ * docs/legal-and-consent.md §5.3 / docs/transcript-export-spec.md §7.3
+ */
+export interface LegalDocVersionRepository {
+  findLatest(scope: "legal_terms" | "privacy_policy"): Promise<Result<{ version: string } | null>>;
+}
+
 export interface TranscriptFacade {
   /**
    * final segment を永続化する（冪等）。
@@ -93,10 +103,25 @@ export interface TranscriptFacade {
   ): Result<LiveSubtitleDelta>;
 }
 
+/** createTranscriptFacade に渡す依存オブジェクト */
+export interface TranscriptFacadeDeps {
+  segmentRepo: SegmentRepository;
+  accessRepo: AccessRepository;
+  roomMetaProvider?: RoomMetaProvider;
+  /**
+   * 法務ドキュメントバージョンリポジトリ (optional)。
+   * 注入時は exportTranscript の termsVersion / privacyVersion を DB から取得する。
+   * 未注入時は "unknown" にフォールバックする。
+   * docs/legal-and-consent.md §5.3 / docs/transcript-export-spec.md §7.3
+   */
+  legalDocVersionRepo?: LegalDocVersionRepository;
+}
+
 export function createTranscriptFacade(
   segmentRepo: SegmentRepository,
   accessRepo: AccessRepository,
   roomMetaProvider?: RoomMetaProvider,
+  legalDocVersionRepo?: LegalDocVersionRepository,
 ): TranscriptFacade {
   const segmentService = createSegmentService(segmentRepo);
   const accessService = createAccessService(accessRepo);
@@ -238,14 +263,30 @@ export function createTranscriptFacade(
         };
       }
 
-      // TODO(Sprint 3 T-6 後): T-2 で追加された trancall_auth.consent_versions テーブルから現行バージョンを取得し置き換える
-      // 現状 hardcode は Phase 1a のドラフト法務文書 (legal-and-consent.md §5.3 v2026-05-12) に対応していない
-      // AuthFacade.getRequiredConsents() 等経由で DB から取得すること
+      // termsVersion / privacyVersion を DB から取得する。
+      // legalDocVersionRepo が注入されている場合は DB から取得し、
+      // 未注入またはレコード不在の場合は "unknown" にフォールバックする。
+      // docs/legal-and-consent.md §5.3 / docs/transcript-export-spec.md §7.3
+      let termsVersion = "unknown";
+      let privacyVersion = "unknown";
+      if (legalDocVersionRepo) {
+        const [termsResult, privacyResult] = await Promise.all([
+          legalDocVersionRepo.findLatest("legal_terms"),
+          legalDocVersionRepo.findLatest("privacy_policy"),
+        ]);
+        if (termsResult.ok && termsResult.data !== null) {
+          termsVersion = termsResult.data.version;
+        }
+        if (privacyResult.ok && privacyResult.data !== null) {
+          privacyVersion = privacyResult.data.version;
+        }
+      }
+
       const exportInput: ExportInput = {
         roomMeta,
         segments,
-        termsVersion: "1.0.0",
-        privacyVersion: "1.0.0",
+        termsVersion,
+        privacyVersion,
       };
 
       return exportService.exportTranscript(exportInput, format);

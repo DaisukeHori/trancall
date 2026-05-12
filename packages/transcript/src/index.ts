@@ -22,7 +22,12 @@ export type {
 
 // Facade
 export { createTranscriptFacade } from "./facade.js";
-export type { TranscriptFacade, RoomMetaProvider } from "./facade.js";
+export type {
+  TranscriptFacade,
+  RoomMetaProvider,
+  LegalDocVersionRepository,
+  TranscriptFacadeDeps,
+} from "./facade.js";
 
 // Repository interfaces (for DI wiring in apps/server)
 export type { SegmentRepository } from "./repositories/segment-repository.js";
