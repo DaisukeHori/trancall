@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1 (2026-05-12) |
+| Status | Draft v1.3 (2026-05-12) |
 | Owner | Mobile (Layer 4) + QA |
 | 上位文書 | `docs/test-strategy.md` (テストピラミッド本体) |
 | 補助 | `docs/requirements.md` (PERF/AVAIL 数値目標), `docs/module-contracts.md` (facade 契約), `apps/mobile/CLAUDE.md` (screens 一覧) |
@@ -156,7 +156,7 @@ LiveKit の `RoomHandle` は既に `duck-typed` (`apps/mobile/src/lib/livekit/co
 ディレクトリ: `apps/mobile/e2e/maestro/flows/`
 命名: `SCR-XXX_*.yaml` (画面 ID prefix)
 
-### 5.1 P0 — Critical (Phase 1b 必須、12 + 4 gates = 14)
+### 5.1 P0 — Critical (Phase 1b 必須、基本 10 + gates 4 = 14)
 
 | Flow | 内容 | 検証セレクタ例 |
 |---|---|---|
@@ -368,3 +368,4 @@ Phase 1a で **本書作成のみ**、コードは 0 行追加。Sprint 1 のス
 - v1 (2026-05-12) 初版。Sprint 1 中に Layer 4 が一段落した時点で E2E 戦略を確定するために作成。
 - v1.1 (2026-05-12) PR #27 Round 1 レビュー反映 (commit `1db39c6`): §5 ヘッダー flows 数訂正、CallKeepNativeModule→RNCallKeepNativeModule、YAML サンプルの `${T_*}` プレースホルダ化と timeout 2000ms 統一、4 gates 完備、SCR-010 帰属注記、mock-server gating 候補追記、test-strategy 注記。
 - v1.2 (2026-05-12) PR #27 Round 2 レビュー反映: P0 12→14 flows の波及更新、e2eCallKeepStub に answerIncomingCall 追加、§1 冒頭の test-strategy 参照を過去形に。
+- v1.3 (2026-05-12) PR #27 Round 3 レビュー反映: ヘッダー Status を v1.2 に追従、§5.1 P0 内訳式を「基本 10 + gates 4 = 14」に修正 (実テーブルと一致)。

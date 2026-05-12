@@ -161,7 +161,7 @@ main HEAD: `49822a0` (Layer 4-C マージ)
 - contact-profile → pre-call 発信導線
 - `X-Agent-Timestamp` リプレイ攻撃防止 (5 分以内チェック)
 - recent-calls-store の server 履歴取得実装
-- E2E (Maestro) の P0 14 flows (基本 12 + gates 4 のうち P0 採用 2) + CI 統合 — `docs/e2e-test-design.md` §7 (CI) と §8 (Phase 分担) 参照
+- E2E (Maestro) の P0 14 flows (基本 10 + gates 4) + CI 統合 — `docs/e2e-test-design.md` §7 (CI) と §8 (Phase 分担) 参照
 
 ### 既知の小ズレ (実害なし、次回 docs sweep)
 - `packages/media/CLAUDE.md` に「auth を直接 import しない」記述残存 (C-005 対応後は import OK)
@@ -212,3 +212,4 @@ main HEAD: `49822a0` (Layer 4-C マージ)
 - v12 (2026-05-12) Sprint 1 完了報告として初版。v11 までの review responses フォーマットを継承しつつ完了スナップショットを兼ねる。
 - v12.1 (2026-05-12) PR #27 Round 1 レビュー指摘 19 件反映 (Critical 6 + Warning 13、commit `1db39c6`)。Layer 3-A/3-B ラベル逆転修正、Repository 19 ファイル、navigation/components 7/7、iap_platform 表現、§9 A7 追加 ほか。
 - v12.2 (2026-05-12) PR #27 Round 2 レビュー指摘 5 件反映。purchase_channel enum 正確化 (stripe_web/free 追加)、route groups 8 の health インライン注記、P0 12→14 flows 統一、改訂履歴整備。
+- v12.3 (2026-05-12) PR #27 Round 3 レビュー反映: §7 P2 の P0 内訳式を「基本 10 + gates 4」に正確化 (e2e §5.1 と同期)。
