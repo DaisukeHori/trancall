@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | PROD-RUNBOOK-001 |
-| Status | Draft v1.0 (2026-05-12) |
+| Status | Draft v1.1 (2026-05-12) |
 | Sprint | Sprint 2 D8 |
 | 上位文書 | `docs/architecture.md` §9/§10 / `docs/deployment-render-dryrun.md` v1.9 (staging canonical、本書で production 拡張) |
 | 関連文書 | `docs/security-detail.md` / `docs/notification-detail.md` v1.3 (HMAC) / `docs/translation-pipeline-design.md` v1.5 / `docs/app-store-submission.md` v1.1 / `docs/billing-ui-flow.md` v1.2 / `docs/legal-and-consent.md` (D7) |
@@ -60,7 +60,7 @@ D2 が「staging dry-run の実行手順」を扱うのに対し、本書は「*
 | 除外対象 | canonical 参照先 |
 |---|---|
 | staging dry-run 手順 | `docs/deployment-render-dryrun.md` v1.9 (D2) |
-| HMAC 署名の設計仕様 | `docs/security-detail.md` §2 / `docs/notification-detail.md` v1.3 §3 |
+| HMAC 署名・ローテーションの canonical | `docs/notification-detail.md` v1.3 §3 (canonical) / `docs/security-detail.md` §2 (Agent HMAC 形式の参考、rotation 節は未存在) |
 | APNs Push payload 構造 | `docs/notification-detail.md` v1.3 §1 / §2 |
 | Translation Agent 内部フロー | `docs/translation-pipeline-design.md` v1.5 (D1) |
 | heartbeat 課金シーケンス | `docs/billing-detail.md` |
@@ -151,36 +151,39 @@ staging の詳細は D2 §8 を参照。本書では production 固有の相違�
 
 Fastify を Vercel Serverless Function (Node.js runtime) で動かすための serverless adapter entrypoint。
 
+**重要**: `apps/server/src/app.ts` は Sprint 1 (#20) で **`buildApp` 関数** を export する。`apps/server/package.json` は `fastify: "^4.28.1"` を採用しており、**Fastify v4 は `app.handle(req: Request): Promise<Response>` を持たない** (v5 で導入)。よって本書は `@fastify/aws-lambda` 系の serverless adapter ではなく、Vercel が Fastify v4 に推奨する **`serverless-http` ラッパ** 方式を採用する。
+
 ```typescript
 // apps/server/api/index.ts (Sprint 3 新規)
-import { createApp } from "../src/app.js";
+import serverless from "serverless-http";
+import { buildApp } from "../src/app.js";
 
 // Vercel Serverless Function のコールドスタート対策: 同一インスタンス内でアプリをキャッシュ
-let cachedApp: Awaited<ReturnType<typeof createApp>> | null = null;
+let cachedHandler: ReturnType<typeof serverless> | null = null;
 
-export default async function handler(req: Request): Promise<Response> {
-  if (!cachedApp) {
-    cachedApp = await createApp({
-      logger: {
-        level: process.env["LOG_LEVEL"] ?? "info",
-      },
-      // env 検証 (Zod) + DI container 構築
+export default async function handler(req: unknown, res: unknown) {
+  if (!cachedHandler) {
+    const app = await buildApp({
+      logger: { level: process.env["LOG_LEVEL"] ?? "info" },
+      // env 検証 (Zod) + DI container 構築は buildApp 内部で実行
     });
+    // serverless-http が Fastify の Node http handler を Vercel/Lambda 互換 (req, res) に変換
+    cachedHandler = serverless(app.server, { provider: "vercel" });
   }
-  return await cachedApp.handle(req);
+  return await cachedHandler(req, res);
 }
 
-export const config = {
-  runtime: "nodejs",   // Vercel Node.js runtime (edge runtime 不可、Supabase クライアント非対応)
-  maxDuration: 30,     // 30s timeout (LiveKit Token 発行等は数 ms、Stripe Webhook は最大 10s 程度)
-};
+// vercel.json `functions[].runtime` で nodejs20.x 指定済のため
+// この config export は不要 (Node.js runtime がデフォルト)
 ```
 
 **実装上の注意**:
-- `createApp` は `apps/server/src/app.ts` が export する Fastify instance factory。DI container (全 module facade の wire-up) を内包する
-- `cachedApp` によるインスタンスキャッシュは Vercel Serverless のウォームインスタンス再利用を前提とする。コールドスタート時は毎回 `createApp` が実行される (約 200-500ms 増加を許容)
-- `handle` メソッドは Fastify の `Fetch` API 互換ハンドラ。Fastify v5 以降では `app.handle(req: Request): Promise<Response>` 形式が公式サポート。v4 系の場合は `fastify-serverless-http` アダプタ経由を検討する (Sprint 3 Day 1 Spike で確定)
-- `runtime: "nodejs"` は必須。`edge` を指定すると Supabase クライアント (`@supabase/supabase-js`) が動作しない
+- `buildApp` は `apps/server/src/app.ts` が export する Fastify instance factory。DI container (全 module facade の wire-up) を内包する (Sprint 1 #20 で実装済)
+- `cachedHandler` によるインスタンスキャッシュは Vercel Serverless のウォームインスタンス再利用を前提とする。コールドスタート時は毎回 `buildApp` が実行される (約 200-500ms 増加を許容)
+- **Fastify v4** では `app.handle(req: Request): Promise<Response>` が存在しないため、`serverless-http` (https://github.com/dougmoscrop/serverless-http) を `apps/server/package.json` の `dependencies` に追加する
+- `serverless-http` v3+ で Vercel 互換、`provider: "vercel"` 指定でリクエスト/レスポンス変換が自動
+- vercel.json の `functions[].runtime = "nodejs20.x"` で Node.js runtime を指定するため、エントリポイント側の `export const config = { runtime: ... }` は不要
+- 将来 Fastify v5 にアップグレードする場合は、`serverless-http` を撤去し `await app.handle(req)` 直接使用に簡略化可能 (Sprint 3 Day 1 Spike で v4 維持を確定)
 
 ### 3.2 apps/server/vercel.json
 
@@ -203,11 +206,11 @@ export const config = {
   ],
   "env": {
     "SUPABASE_URL": "@supabase-url-prod",
-    "SUPABASE_ANON_KEY": "@supabase-anon-key-prod",
     "SUPABASE_SERVICE_ROLE_KEY": "@supabase-service-role-key-prod",
+    "//": "SUPABASE_ANON_KEY は Server (Vercel) には不要 — D2 §7 配布マトリクスで Mobile のみと canonical 化",
     "TRANCALL_AGENT_HMAC_SECRET": "@trancall-agent-hmac-secret-prod",
     "TRANCALL_PUSH_HMAC_SECRET": "@trancall-push-hmac-secret-prod",
-    "OPENAI_API_KEY": "@openai-api-key-prod",
+    "//openai": "OPENAI_API_KEY は Server (Vercel) には不要 — translation-agent (Render) のみが参照",
     "LIVEKIT_URL": "@livekit-url-prod",
     "LIVEKIT_API_KEY": "@livekit-api-key-prod",
     "LIVEKIT_API_SECRET": "@livekit-api-secret-prod",
@@ -678,19 +681,22 @@ eas secret:push --scope project --env-file .env.production
 
 ```bash
 # Step 8: 24h 経過後、新鍵を PRIMARY に昇格
+# ※ NEW_PUSH_SECRET は Phase 1 と別セッションのため再取得が必要
+NEW_PUSH_SECRET=$(op item get "hmac-prod" --field "TRANCALL_PUSH_HMAC_SECRET_NEXT" --vault "TranCall-Infra-Prod")
 op item edit "hmac-prod" \
   "TRANCALL_PUSH_HMAC_SECRET=${NEW_PUSH_SECRET}" \
   --vault "TranCall-Infra-Prod"
-op item delete-field "hmac-prod" "TRANCALL_PUSH_HMAC_SECRET_NEXT" \
+op item edit "hmac-prod" \
+  --remove-field "TRANCALL_PUSH_HMAC_SECRET_NEXT" \
   --vault "TranCall-Infra-Prod"
 
 # Step 9: Vercel の TRANCALL_PUSH_HMAC_SECRET を新鍵に更新
-vercel env rm TRANCALL_PUSH_HMAC_SECRET production
+vercel env rm TRANCALL_PUSH_HMAC_SECRET production --yes
 vercel env add TRANCALL_PUSH_HMAC_SECRET production
 # プロンプトに新鍵を入力
 
 # Step 10: NEXT を Vercel から削除
-vercel env rm TRANCALL_PUSH_HMAC_SECRET_NEXT production
+vercel env rm TRANCALL_PUSH_HMAC_SECRET_NEXT production --yes
 
 # Step 11: Vercel redeploy
 # (Deployment を trigger: Vercel Dashboard → Redeploy または `git commit --allow-empty && git push`)
@@ -704,6 +710,8 @@ op item edit "hmac-prod" \
   --remove-field "TRANCALL_PUSH_HMAC_SECRET_PREV" \
   --vault "TranCall-Infra-Prod"
 ```
+
+注: §9.3 全体で `op item` の field 削除は `--remove-field` 形式に統一する (`op item delete-field` は旧記法、`op item edit --remove-field` に統一)。
 
 ### 9.4 TRANCALL_AGENT_HMAC_SECRET rotation 手順
 
@@ -772,7 +780,7 @@ Deno.serve(async (_req) => {
   try {
     // 1. transcript.segments の retention 削除
     const { count: segmentCount, error: segmentError } = await supabase
-      .from("trancall_transcript.segments")
+      .schema("trancall_transcript").from("segments")
       .delete({ count: "exact" })
       .lt("retention_until", new Date().toISOString());
     if (segmentError) errors.push(`segments: ${segmentError.message}`);
@@ -781,7 +789,7 @@ Deno.serve(async (_req) => {
     // 2. transcript_access の物理削除 (grace period 経過)
     const gracePeriodCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const { count: accessCount, error: accessError } = await supabase
-      .from("trancall_transcript.transcript_access")
+      .schema("trancall_transcript").from("transcript_access")
       .delete({ count: "exact" })
       .not("deleted_at", "is", null)
       .lt("deleted_at", gracePeriodCutoff);
@@ -790,13 +798,22 @@ Deno.serve(async (_req) => {
 
     // 3. external_purchase_tokens の TTL 切れ削除
     const { count: tokenCount, error: tokenError } = await supabase
-      .from("trancall_billing.external_purchase_tokens")
+      .schema("trancall_billing").from("external_purchase_tokens")
       .delete({ count: "exact" })
       .lt("expires_at", new Date().toISOString());
     if (tokenError) errors.push(`external_purchase_tokens: ${tokenError.message}`);
     else results.external_purchase_tokens = tokenCount ?? 0;
 
-    // 4. Sentry に summary report 送信
+    // 4. consent_versions 旧バージョンの 5 年経過後削除 (法定保管期間超過分)
+    const fiveYearsAgo = new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000).toISOString();
+    const { count: consentCount, error: consentError } = await supabase
+      .schema("trancall_auth").from("consent_versions")
+      .delete({ count: "exact" })
+      .lt("effective_at", fiveYearsAgo);
+    if (consentError) errors.push(`consent_versions: ${consentError.message}`);
+    else results.consent_versions = consentCount ?? 0;
+
+    // 5. Sentry に summary report 送信
     // (Sentry SDK の初期化は別途)
     console.log("[retention-cleanup] completed", { results, errors });
 
@@ -930,7 +947,7 @@ trancall-prod project → Settings → Performance → Thresholds
 
 | 対象 | 発動基準 | 確認方法 |
 |---|---|---|
-| Vercel (API Server) | 5 分間 5xx 率 > 5%、または `GET /api/health` が 3 連続失敗 | Vercel Dashboard → Logs / Sentry |
+| Vercel (API Server) | 5 分間 5xx 率 > 5%、または `GET /health` が 3 連続失敗 | Vercel Dashboard → Logs / Sentry |
 | Render (Translation Agent) | Service が `Crashed` 状態、または Logs に起動ログが 5 分以内に出ない | Render Dashboard → Service → Events |
 | Supabase Migration | `supabase db push` がエラー終了、または RLS ポリシー破壊を検知 | Supabase Dashboard → Tables → RLS / SQL diff |
 | HMAC 認証 | HMAC 検証失敗が 1 分間に 5 件以上 | Render Logs `level: "error"` フィルタ |
@@ -1083,7 +1100,7 @@ curl -sf "${SMOKE_API_URL}/api/auth/profile" \
 curl -sf -X POST "${SMOKE_API_URL}/api/rooms" \
   -H "Authorization: Bearer ${SMOKE_TEST_TOKEN}" \
   -H "Content-Type: application/json" \
-  -d '{"invitee_id": "smoke-invitee-uuid"}' | jq .roomId
+  -d '{"inviteeIds": ["00000000-0000-0000-0000-000000000099"]}' | jq .data.roomId  # CreateRoomSchema: { inviteeIds: UserId[] } (room-routes.ts canonical)
 # 期待: UUID 形式の roomId が返る
 ```
 
@@ -1169,7 +1186,7 @@ Render Dashboard → `trancall-agent-prod` → Logs で以下が 5 分以内に�
 
 ### 14.2 Supabase ダウン
 
-**検知**: `GET /api/health` 失敗、Sentry で DB 接続エラーが burst
+**検知**: `GET /health` 失敗、Sentry で DB 接続エラーが burst
 
 **対応手順**:
 
@@ -1191,7 +1208,7 @@ Render Dashboard → `trancall-agent-prod` → Logs で以下が 5 分以内に�
    - Supabase support に緊急対応依頼
 
 5. 復旧後:
-   - DB 接続確認: `GET /api/health` が 200 返却
+   - DB 接続確認: `GET /health` が 200 返却
    - Realtime 接続確認: Supabase Dashboard → Realtime → Connections
    - バックログ同期: 通話中に保存できなかった transcript を再送する仕組みは Phase 1b 以降で実装
 ```
@@ -1221,7 +1238,7 @@ Render Dashboard → `trancall-agent-prod` → Logs で以下が 5 分以内に�
    - 修正コードを PR として作成
    - CI (TypeScript チェック + テスト) が緑であることを確認
    - staging deploy で動作確認
-   - main merge → Vercel が自動で Production deploy (もし autoDeploy が enabled の場合)
+   - main merge → 手動 promote (§4.3 参照)。Production の autoDeploy は §2.3 方針通り **disabled** に統一済
      または手動 promote
 ```
 
@@ -1319,3 +1336,4 @@ Render Dashboard → `trancall-agent-prod` → Logs で以下が 5 分以内に�
 | バージョン | 日付 | 内容 |
 |---|---|---|
 | v1.0 | 2026-05-12 | Sprint 2 D8 設計書 初版。スコープ: `apps/server/api/index.ts` + `apps/server/vercel.json` entrypoint 仕様確定 (D2 §4.2 未確定雛形の解消) / Render Production Worker 構築手順 (D2 staging との差分、Standard plan / autoDeploy: false / deploy 手順) / Supabase Production 構築手順 (Pro plan / 日次 backup / migration 手順) / LiveKit Cloud Production テナント設定 (Build tier / 2 キー分離) / APNs Production gateway + FCM Production project (env var 配布) / 1Password TranCall-Infra-Prod vault 構造 / `TRANCALL_PUSH_HMAC_SECRET` + `TRANCALL_AGENT_HMAC_SECRET` rotation 実行手順 (24h dual-key、6 Phase 手順) / 日次 retention 削除バッチ (Supabase Edge Function スケルトン、Cron 設定、監視、手動再実行) / Sentry alert 8 ルール + on-call エスカレーション / ロールバック判断フローチャート + 4 シナリオ手順 / smoke test スクリプト 5 ステップ / 障害対応 6 シナリオ (OpenAI WS 切断 / Supabase ダウン / Vercel build 失敗 / HMAC rotation 失敗 / LiveKit 障害 / retention バッチ失敗)。 |
+| v1.1 | 2026-05-12 | Round 1 レビュー (Opus A/B/C 並列) 指摘 Critical 2 + Warning 8 を反映。**Critical**: (A) §3.1 entrypoint コードを実装整合に修正 — `createApp` → `buildApp` (実 export 名)、Fastify v4 では `app.handle()` 不在のため `serverless-http` adapter 採用、`apps/server/package.json` に dependency 追加が必要、Sprint 3 Day 1 Spike 不要。(C) §10.2 Supabase JS クライアントの `.from("schema.table")` を `.schema("xxx").from("yyy")` 形式に修正 (3 テーブル + 4 番目に consent_versions 削除を追加)。**Warning**: (A+B) §3.2 vercel.json から SUPABASE_ANON_KEY / OPENAI_API_KEY を削除 (Server には不要、D2 §7 配布マトリクスと整合)。(A) §11.1 / §13.2 / §14 の `/api/health` を実 endpoint `/health` に統一 (app.ts line 55)。(A) §13.2 smoke test の room 作成 body を `{ invitee_id }` から `{ inviteeIds: [...] }` (CreateRoomSchema canonical) に修正、レスポンスも `data.roomId` に。(B) §2.4 関連文書欄の HMAC 出典を `notification-detail.md v1.3 §3 (canonical)` + `security-detail.md §2 (参考)` に整理、`security-detail.md` に rotation 節は未存在の旨を明記。(B) §14.3 「autoDeploy が enabled の場合」記述を「手動 promote (§4.3)」に書き換え §2.3 と内部整合。(C) §9.3 Phase 5 で `NEW_PUSH_SECRET` を 1Password から再取得するステップを追加、`vercel env rm` に `--yes` フラグ付与、`op item` の field 削除を `--remove-field` 形式に統一。 |
