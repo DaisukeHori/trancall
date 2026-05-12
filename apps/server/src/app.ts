@@ -76,6 +76,8 @@ export async function buildApp(
     translation: container.translation,
     transcript: container.transcript,
     config,
+    eventBus: container.eventBus,
+    supabase: container.supabase,
   });
 
   // 起動ログ

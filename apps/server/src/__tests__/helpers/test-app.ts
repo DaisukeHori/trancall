@@ -30,6 +30,7 @@ const TEST_CONFIG: Config = {
   APNS_BUNDLE_ID: "com.trancall.app",
   APNS_SANDBOX: false,
   FCM_SERVICE_ACCOUNT_JSON: undefined,
+  FCM_PROJECT_ID: undefined,
   TRANCALL_AGENT_HMAC_SECRET: "supersecretkey1234567890abcdefghij",
   INVITE_BASE_URL: "https://trancall.app/invite",
 } as Config;

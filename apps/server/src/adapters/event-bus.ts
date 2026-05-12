@@ -10,7 +10,12 @@
 
 import type { ConsentScope } from "@trancall/shared-kernel";
 import type { RoomDomainEvent } from "@trancall/room";
-import type { TranslationStartedEvent, TranslationEndedEvent } from "@trancall/translation";
+import type {
+  TranslationStartedEvent,
+  TranslationEndedEvent,
+  TranslationDegradedEvent,
+  TranslationRecoveredEvent,
+} from "@trancall/translation";
 
 // ---------------------------------------------------------------------------
 // Auth ドメインイベント (docs/module-contracts.md v1.3 §3.1)
@@ -45,6 +50,8 @@ export type DomainEvent =
   | RoomDomainEvent
   | TranslationStartedEvent
   | TranslationEndedEvent
+  | TranslationDegradedEvent
+  | TranslationRecoveredEvent
   | AuthDomainEvent;
 
 // ---------------------------------------------------------------------------

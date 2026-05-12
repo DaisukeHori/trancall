@@ -1,5 +1,8 @@
 /**
  * Agent 内部 API エンドポイントテスト
+ *
+ * - POST /internal/agent/events
+ * - POST /internal/translation/heartbeat
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -143,5 +146,172 @@ describe("POST /internal/agent/events", () => {
     });
 
     expect(response.statusCode).toBe(200);
+  });
+
+  it("translation.degraded イベントを処理し EventBus に publish する", async () => {
+    const key = "77777777-7777-4777-8777-777777777777";
+    const payload = {
+      type: "translation.degraded",
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      roomId: "22222222-2222-4222-8222-222222222222",
+      sessionId: "55555555-5555-4555-8555-555555555555",
+      sourceLang: "ja",
+      targetLang: "en",
+      reason: "high_latency",
+      occurredAt: new Date().toISOString(),
+    };
+    const body = JSON.stringify(payload);
+    const sig = makeSignature(body, key);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/agent/events",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-signature": sig,
+        "x-trancall-idempotency-key": key,
+        "x-trancall-agent": "trancall-translation-agent",
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const respBody = JSON.parse(response.body) as { ok: boolean };
+    expect(respBody.ok).toBe(true);
+  });
+
+  it("translation.recovered イベントを処理し EventBus に publish する", async () => {
+    const key = "66666666-6666-4666-8666-666666666666";
+    const payload = {
+      type: "translation.recovered",
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      roomId: "22222222-2222-4222-8222-222222222222",
+      sessionId: "55555555-5555-4555-8555-555555555555",
+      sourceLang: "ja",
+      targetLang: "en",
+      degradedDurationMs: 3500,
+      occurredAt: new Date().toISOString(),
+    };
+    const body = JSON.stringify(payload);
+    const sig = makeSignature(body, key);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/agent/events",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-signature": sig,
+        "x-trancall-idempotency-key": key,
+        "x-trancall-agent": "trancall-translation-agent",
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const respBody = JSON.parse(response.body) as { ok: boolean };
+    expect(respBody.ok).toBe(true);
+  });
+});
+
+describe("POST /internal/translation/heartbeat", () => {
+  it("正常な heartbeat を受け付けて 200 を返す", async () => {
+    const key = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const payload = {
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "55555555-5555-4555-8555-555555555555",
+      alive: true,
+      occurredAt: new Date().toISOString(),
+      metrics: {
+        cpuPercent: 35.5,
+        memMb: 256,
+        openaiWsState: "open",
+      },
+    };
+    const body = JSON.stringify(payload);
+    const sig = makeSignature(body, key);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/translation/heartbeat",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-signature": sig,
+        "x-trancall-idempotency-key": key,
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const respBody = JSON.parse(response.body) as { ok: boolean };
+    expect(respBody.ok).toBe(true);
+  });
+
+  it("metrics なしの heartbeat も受け付ける", async () => {
+    const key = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const payload = {
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "55555555-5555-4555-8555-555555555555",
+      alive: true,
+      occurredAt: new Date().toISOString(),
+    };
+    const body = JSON.stringify(payload);
+    const sig = makeSignature(body, key);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/translation/heartbeat",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-signature": sig,
+        "x-trancall-idempotency-key": key,
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+
+  it("HMAC シグネチャなしで 401 を返す", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/translation/heartbeat",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-idempotency-key": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      },
+      payload: {
+        agentJobId: "11111111-1111-4111-8111-111111111111",
+        sessionId: "55555555-5555-4555-8555-555555555555",
+        alive: true,
+        occurredAt: new Date().toISOString(),
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("alive=false で 400 を返す", async () => {
+    const key = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const payload = {
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "55555555-5555-4555-8555-555555555555",
+      alive: false,
+      occurredAt: new Date().toISOString(),
+    };
+    const body = JSON.stringify(payload);
+    const sig = makeSignature(body, key);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/translation/heartbeat",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-signature": sig,
+        "x-trancall-idempotency-key": key,
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 });

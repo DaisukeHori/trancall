@@ -40,6 +40,7 @@ const ConfigSchema = z.object({
 
   // FCM
   FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  FCM_PROJECT_ID: z.string().optional(),
 
   // HMAC secret for Agent ↔ Server
   TRANCALL_AGENT_HMAC_SECRET: z.string().min(32),
