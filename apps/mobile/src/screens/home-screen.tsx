@@ -9,18 +9,17 @@ import {
   Text,
   View,
 } from "react-native";
-import { Badge, Input, useTheme } from "@trancall/ui-kit";
+import { Input, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { useRecentCallsStore } from "../stores/recent-calls-store.js";
+import { useBillingStore } from "../stores/billing-store.js";
 import { RecentCallRow } from "../components/recent-call-row.js";
 import { EmptyState } from "../components/empty-state.js";
+import { HomeBalanceBanner } from "../components/HomeBalanceBanner.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RecentStackParamList } from "../navigation/recent-stack.js";
 
 type Props = NativeStackScreenProps<RecentStackParamList, "HomeMain">;
-
-// Low-balance threshold in minutes for free plan users
-const LOW_BALANCE_THRESHOLD_MINUTES = 1;
 
 export function HomeScreen({ navigation }: Props) {
   const { t } = useTranslation();
@@ -36,10 +35,17 @@ export function HomeScreen({ navigation }: Props) {
   const nextCursor = useRecentCallsStore((state) => state.nextCursor);
   const refresh = useRecentCallsStore((state) => state.refresh);
   const loadMore = useRecentCallsStore((state) => state.loadMore);
+  const billingRefresh = useBillingStore((state) => state.refresh);
 
+  // 通話履歴の初回ロード
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Home 画面 mount 時に billing 情報を最新化 (docs/billing-ui-flow.md §10.2.3)
+  useEffect(() => {
+    void billingRefresh();
+  }, [billingRefresh]);
 
   const handleEndReached = useCallback(() => {
     if (nextCursor != null && !isLoadingMore) {
@@ -54,11 +60,6 @@ export function HomeScreen({ navigation }: Props) {
           call.contactDisplayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
           call.contactTrancallId.toLowerCase().includes(searchQuery.toLowerCase()),
       );
-
-  // TODO Phase 2: replace with billing store selector
-  // e.g. const remainingMinutes = useBillingStore(state => state.remainingMinutes);
-  const remainingMinutes: number = useRecentCallsStore((state) => state.recentCalls.length > 1000 ? 0 : 0);
-  const showLowBalanceWarning = remainingMinutes > 0 && remainingMinutes <= LOW_BALANCE_THRESHOLD_MINUTES;
 
   const renderFooter = useCallback(() => {
     if (!isLoadingMore) return null;
@@ -80,11 +81,6 @@ export function HomeScreen({ navigation }: Props) {
           >
             {t("home.recentCalls")}
           </Text>
-          {showLowBalanceWarning && (
-            <Badge variant="warning">
-              {t("home.lowBalanceWarning", { minutes: String(remainingMinutes) })}
-            </Badge>
-          )}
         </View>
 
         <View style={[styles.searchContainer, { marginTop: s[12] }]}>
@@ -98,6 +94,9 @@ export function HomeScreen({ navigation }: Props) {
           />
         </View>
       </View>
+
+      {/* 残量バナー (docs/billing-ui-flow.md §10.2.1 / BILL-008) */}
+      <HomeBalanceBanner />
 
       {/* Call list */}
       {isLoading && recentCalls.length === 0 ? (
