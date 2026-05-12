@@ -27,6 +27,15 @@ import type { IapTransactionResult } from "../view-models/index.js";
 // docs/billing-ui-flow.md §7.2
 // =============================================================================
 
+/**
+ * TODO(T-29): 既存 `apple-iap-adapter.ts` (Webhook 処理) の `APPLE_PRODUCT_ID_MAP` と統合
+ *
+ * - 本 adapter (T-7) は StoreKit 2 Transaction 検証用、canonical 形式 `com.trancall.subscription.light.monthly`
+ * - 既存 `apple-iap-adapter.ts` は Webhook 受信用、旧形式 `trancall_light_monthly`
+ * - Sprint 3 後半 (T-29) で両者を統合し、canonical 形式で単一の定義に集約する
+ *
+ * 参照: docs/billing-ui-flow.md §7.2
+ */
 export const APPLE_IAP_PRODUCT_ID_MAP: Record<string, PlanTier> = {
   "com.trancall.subscription.light.monthly": "light",
   "com.trancall.subscription.standard.monthly": "standard",

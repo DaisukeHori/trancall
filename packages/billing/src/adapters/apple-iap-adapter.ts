@@ -45,6 +45,18 @@ const AppleTransactionInfoSchema = z.object({
 });
 
 // Apple 製品 ID → PlanTier マッピング
+/**
+ * TODO(T-29): productId 形式の統合
+ *
+ * - 現状: `trancall_light_monthly` 形式 (スネークケース、Webhook 受信向け既存実装)
+ * - canonical: `com.trancall.subscription.light.monthly` 形式 (StoreKit 2 Transaction)
+ * - T-7 で新規追加した `iap-adapter.ts` の `APPLE_IAP_PRODUCT_ID_MAP` は canonical 形式を採用
+ *
+ * Sprint 3 後半 (T-29 同期) で本 adapter (Webhook 処理) と `iap-adapter.ts` (Transaction 検証) を統合し、
+ * 全 IAP 経路で同一の productId マッピングを使用する。
+ *
+ * 参照: docs/billing-ui-flow.md §7.2 canonical productId 定義
+ */
 export const APPLE_PRODUCT_ID_MAP: Record<string, PlanTier> = {
   trancall_light_monthly: "light",
   trancall_standard_monthly: "standard",
