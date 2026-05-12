@@ -3,10 +3,10 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | NATIVE-CALL-001 |
-| Status | Draft v1.0 (2026-05-12) |
+| Status | Draft v1.1 (2026-05-12) |
 | Sprint | Sprint 2 D4 |
-| 上位文書 | `docs/architecture.md` (システム全体構成、canonical) / `docs/call-lifecycle.md` (シーケンス、canonical) / `docs/module-contracts.md` v1.1.0 (モジュール契約、canonical) |
-| 関連文書 | `docs/notification-detail.md` (Push 詳細、canonical) / `docs/security-detail.md` (HMAC / 署名、canonical) / `docs/deployment-render-dryrun.md` (デプロイ手順) |
+| 上位文書 | `docs/architecture.md` (システム全体構成、canonical) / `docs/call-lifecycle.md` (シーケンス、canonical) / `docs/module-contracts.md` v1.1.0 (モジュール契約、canonical) / `docs/notification-detail.md` v1.1 (Push payload・HMAC、canonical) |
+| 関連文書 | `docs/security-detail.md` (HMAC / 署名、canonical) / `docs/deployment-render-dryrun.md` (デプロイ手順) |
 | 下位実装対象 | `apps/mobile/` 内に Expo Module を配置、Sprint 3 (Phase 1a 実装フェーズ) で着手予定 |
 | 想定読者 | Sprint 3 で `apps/mobile/` の native module を実装する engineer、レビュー時に CallKit / ConnectionService の正しさを判断する reviewer |
 
@@ -73,7 +73,7 @@ TranCall モバイルアプリ (React Native + Expo) と OS ネイティブ通�
 | **VoIP Push** | APNs の `apns-push-type: voip` で送る通常 push と別経路の Push。data-only payload、優先度高、background でも即配信。 |
 | **CXAction** | CallKit のユーザー操作 (応答 / 終話 / mute / hold) を表す抽象クラス。`CXAnswerCallAction` 等。 |
 | **AVAudioSession** | iOS の音声入出力ルーティングを管理する singleton。CallKit 利用時は CallKit が一部の制御を奪う。 |
-| **Telecom Framework** | Android 6 (API 23) で導入された通話 UI 統合フレームワーク。`TelecomManager` / `ConnectionService` / `Connection` / `PhoneAccount`。 |
+| **Telecom Framework** | Android 5.0 (API 21) で導入された通話 UI 統合フレームワーク。`TelecomManager` / `ConnectionService` / `Connection` / `PhoneAccount`。VoIP 用途の Self-Managed ConnectionService は API 26+ で利用可能。 |
 | **SelfManagedConnectionService** | VoIP/通話アプリ向けの ConnectionService 派生型。アプリ自前の UI を持つことが前提 (システム標準通話 UI に統合されない)。 |
 | **PhoneAccount** | Telecom が認識する通話アカウント単位。アプリは起動時に `registerPhoneAccount` でシステム登録する。 |
 | **FCM data message** | Firebase Cloud Messaging の data-only payload (notification キーなし)。Doze を突破して `onMessageReceived` を起動できる (high_priority 指定時)。 |
@@ -87,8 +87,8 @@ TranCall モバイルアプリ (React Native + Expo) と OS ネイティブ通�
 | 項目 | 内容 |
 |---|---|
 | 必要 entitlement | `Background Modes: Voice over IP`, `Background Modes: Audio, AirPlay, Picture in Picture`, `Push Notifications` |
-| 必要 capability | App ID に `Push Notifications` および `VoIP Services Certificate` |
-| 必要証明書 | VoIP Services Certificate (`*.p12`)、APNs auth key (`*.p8`) いずれか。本書では auth key 方式を推奨 (証明書失効リスク回避) |
+| 必要 capability | App ID に `Push Notifications` のみ (本書は APNs auth key 方式を採用するため、別途 `VoIP Services Certificate` capability は不要) |
+| 必要証明書 / 鍵 | APNs auth key (`*.p8`) 1 本のみを採用 (VoIP / 通常 push 双方を 1 つの key でカバーでき、rotation も容易)。VoIP Services Certificate (`*.p12`) は使用しない |
 | App Store Review 配慮 | CallKit 利用は VoIP 通話アプリのみ許可。SMS / 一般 push 用に CallKit を使うと App Review でリジェクトされる事例あり |
 
 #### 2.2.2 Google Play / Android
@@ -185,12 +185,12 @@ Android 側は `PushKit` の代わりに `FCM data message` + `MyFirebaseMessagi
    - **5 秒以内** に `CXProvider.reportNewIncomingCall(with:update:completion:)` を呼ばないと iOS が即時にアプリを kill、さらに以降の VoIP Push 受信権限が剥奪される (iOS 13+ で厳格化、`PKPushRegistryDelegate` doc 参照)
 3. **Android**: `MyFirebaseMessagingService.onMessageReceived` 起動 (high_priority data message)
    - `TelecomManager.addNewIncomingCall(phoneAccountHandle, extras)` で Telecom にエントリ
-   - **Android 14+**: `Service.startForeground(notificationId, notification, FOREGROUND_SERVICE_TYPE_PHONE_CALL)` を 5 秒以内に呼ばないとシステムが終了、`ForegroundServiceDidNotStartInTimeException` で異常終了
+   - **Android 12+ (API 31+)**: `Service.startForeground(...)` を `Context.startForegroundService` から 5 秒以内に呼ばないと `ForegroundServiceDidNotStartInTimeException` で異常終了 (Android 12 で導入)。**Android 14+ (API 34+)**: 加えて `foregroundServiceType = FOREGROUND_SERVICE_TYPE_PHONE_CALL` の明示と `FOREGROUND_SERVICE_PHONE_CALL` permission が必須
 4. CallKit / Telecom が Lock screen / 着信 UI を表示
 5. ユーザーが応答ボタンを押す
-   - iOS: `CXProviderDelegate.provider(_:perform:CXAnswerCallAction)` 起動
-   - Android: `Connection.onAnswer()` 起動
-6. Native: AudioSession activate (iOS は CallKit が `provider(_:didActivate:)` で通知、ここで LiveKit room.connect を開始すべし。Android は `Connection.setActive()` 呼出後に `AudioManager` を `MODE_IN_COMMUNICATION` へ切替)
+   - iOS: `CXProviderDelegate.provider(_:perform:CXAnswerCallAction)` 起動 → `action.fulfill()` を即時呼出
+   - Android: `Connection.onAnswer()` 起動 → `setActive()` を呼出
+6. Native は **AudioSession の設定変更のみ** を担う (iOS は CallKit が `provider(_:didActivate:)` を呼んだタイミングで `AVAudioSession.setCategory(.playAndRecord, mode: .voiceChat, options:)` を実行。Android は `Connection.onAnswer()` 内で `AudioManager.mode = MODE_IN_COMMUNICATION` に切替)。**LiveKit room.connect は Native では行わず、必ず JS 側で実行する** (LiveKit RN SDK は JS ランタイム上で動くため)
 7. Native → JS: `callBridge.emit('callAnswered', { uuid, roomId })` で React Native JS に通知
 8. JS: `apiClient.post('/rooms/:id/join')` → token 取得 → `room.connect(url, token)` → `publishTrack(mic)` → CallStore を `active` に遷移
 9. JS → Native: `markCallActive(uuid)` (Native は CallKit/Telecom 側の状態を確定状態に遷移)
@@ -249,9 +249,9 @@ Android 側は `PushKit` の代わりに `FCM data message` + `MyFirebaseMessagi
 ```xml
 <key>aps-environment</key>
 <string>production</string>  <!-- dev では development -->
-<key>com.apple.developer.usernotifications.communication</key>
-<true/>
 ```
+
+`com.apple.developer.usernotifications.communication` (Communication Notifications / `INSendMessageIntent` 統合用 entitlement) は VoIP 通話用途では **不要**、誤って含めると App Review で Communication Notifications の実装証跡を要求されリジェクト誘発のリスクがある。本書スコープでは付けない。
 
 `apps/mobile/ios/TranCall/Info.plist` に以下を追加:
 
@@ -279,7 +279,7 @@ config.maximumCallGroups = 1  // Phase 1a は同時 1 通話
 config.maximumCallsPerCallGroup = 1
 config.supportedHandleTypes = [.generic]  // trancall_id を generic で扱う
 config.iconTemplateImageData = UIImage(named: "trancall-callkit-icon")?.pngData()
-config.ringtoneSound = "trancall_ringtone.caf"  // optional
+config.ringtoneSound = nil  // OS 標準着信音を使用 (§14 リスク #8: カスタム ringtone は App Review 指摘リスク)
 config.includesCallsInRecents = true  // iOS Recents に通話履歴を残す
 
 let provider = CXProvider(configuration: config)
@@ -320,12 +320,22 @@ class PushKitDelegate: NSObject, PKPushRegistryDelegate {
                     completion: @escaping () -> Void) {
     // ★★ 5 秒以内に必ず CXProvider.reportNewIncomingCall を呼ぶこと ★★
     // 失敗・遅延時はアプリ kill + VoIP Push 受信権限剥奪
-    let uuid = UUID(uuidString: payload.dictionaryPayload["uuid"] as? String ?? "")
-                ?? UUID()
+
+    // payload は { "aps": {}, "trancall": { ... } } の nested 構造 (notification-detail.md §1 canonical)
+    guard let trancall = payload.dictionaryPayload["trancall"] as? [String: Any] else {
+      completion()
+      return
+    }
+
+    let uuid = UUID(uuidString: trancall["uuid"] as? String ?? "") ?? UUID()
+
+    // ※ HMAC 署名検証 / expiresAt 検証はここで実施 (notification-detail.md §3.4 参照、CryptoKit HMAC<SHA256>)。
+    //    検証失敗時は CXProvider を呼ばずに completion() のみ。
+
     let update = CXCallUpdate()
     update.remoteHandle = CXHandle(type: .generic,
-                                    value: payload.dictionaryPayload["callerTrancallId"] as? String ?? "unknown")
-    update.localizedCallerName = payload.dictionaryPayload["callerName"] as? String
+                                    value: trancall["callerTrancallId"] as? String ?? "unknown")
+    update.localizedCallerName = trancall["callerName"] as? String
     update.hasVideo = false
 
     CallBridgeProvider.shared.reportNewIncomingCall(with: uuid, update: update) { error in
@@ -337,6 +347,11 @@ class PushKitDelegate: NSObject, PKPushRegistryDelegate {
     }
   }
 }
+
+// 注: `PKPushRegistry(queue: nil)` は delegate コールバックを main queue で受ける指定。
+// Apple TN3052 で「重い処理は専用 serial queue を渡せ」と推奨されているが、
+// 本書の delegate 実装は同期処理のみ (即 reportNewIncomingCall) のため main queue で問題ない。
+// 検証ロジックを Swift Concurrency で重くするなら `PKPushRegistry(queue: DispatchQueue(label: "..."))` に変更を検討。
 ```
 
 ### 4.4 CXProviderDelegate ハンドラ
@@ -369,9 +384,10 @@ extension CallBridgeProvider: CXProviderDelegate {
   func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
     // ★ CallKit が AudioSession を activate したタイミング ★
     // この時点で LiveKit SDK の audio session 設定が反映される
+    // allowBluetooth (HFP) は Bluetooth ヘッドセットのマイク入力に必須、allowBluetoothA2DP は出力品質向上用
     try? audioSession.setCategory(.playAndRecord,
                                    mode: .voiceChat,
-                                   options: [.defaultToSpeaker, .allowBluetoothA2DP])
+                                   options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
     try? audioSession.setPreferredSampleRate(48000)  // LiveKit Opus 48kHz と整合
   }
 
@@ -384,13 +400,15 @@ extension CallBridgeProvider: CXProviderDelegate {
 ### 4.5 着信フロー (要点まとめ)
 
 ```
-APNs VoIP Push
+APNs VoIP Push (notification-detail.md §1 の nested payload)
    │
    ▼
 PKPushRegistryDelegate.pushRegistry(_:didReceiveIncomingPushWith:for:completion:)
    │
    │ ★ 5 秒以内厳守 ★
-   ▼
+   ▼ payload.dictionaryPayload["trancall"] を取り出し、HMAC + expiresAt 検証
+   │
+   ▼ 検証 OK の場合のみ:
 CXProvider.reportNewIncomingCall(with: uuid, update: update) { error in completion() }
    │
    ▼
@@ -400,21 +418,20 @@ CallKit が UI 表示 (Lock screen / 通知センター)
 ユーザー応答
    │
    ▼
-CXProviderDelegate.provider(_:perform:CXAnswerCallAction)
+CXProviderDelegate.provider(_:perform:CXAnswerCallAction) → action.fulfill()
    │
    ▼ Native → JS event 'callAnswered'
    │
    ▼ JS が apiClient.post('/rooms/:id/join') → token 取得 → room.connect
    │
    ▼
-CXProvider.reportOutgoingCall(with: uuid, connectedAt: Date()) でアクティブ確定
+provider(_:didActivate:) コールバックで AVAudioSession 設定 (Apple 推奨の正規タイミング)
    │
    ▼
-provider(_:didActivate:) で AVAudioSession 設定
-   │
-   ▼
-LiveKit が publishTrack(mic) 開始
+LiveKit が publishTrack(mic) 開始 (JS 側で実行)
 ```
+
+注: `CXProvider.reportOutgoingCall(with:connectedAt:)` は **発信側 (caller) 専用 API** であり、着信応答フローでは呼ばない (誤って呼ぶと CallKit 側で "unexpected call state" エラー)。発信フローのアクティブ確定は §3.2.1 を参照。
 
 ### 4.6 終話 / cleanup
 
@@ -449,11 +466,15 @@ import { AudioSession } from "@livekit/react-native";
 await AudioSession.configureAudio({
   ios: {
     defaultOutput: "speaker",  // ハンズフリー優先
-    audioCategoryOptions: ["allowBluetoothA2DP", "defaultToSpeaker"],
+    audioCategoryOptions: ["allowBluetooth", "allowBluetoothA2DP", "defaultToSpeaker"],
     audioMode: "voiceChat",
   },
 });
-await AudioSession.startAudioSession();  // CallKit が activate する瞬間と協調
+// AudioSession.startAudioSession() は CallKit の didActivate が発火した「後」に呼ぶ。
+// LiveKit RN SDK の AudioSession は CallKit が AVAudioSession を activate した瞬間と協調するため、
+// startAudioSession を didActivate より早く呼ぶと CallKit と category 競合する。
+// 実装では Native bridge の 'didActivate' event を購読してから startAudioSession を呼ぶ pattern を採用。
+await AudioSession.startAudioSession();
 ```
 
 ---
@@ -497,12 +518,12 @@ await AudioSession.startAudioSession();  // CallKit が activate する瞬間と
 </service>
 ```
 
-`MANAGE_OWN_CALLS` は API 26+ で normal permission (runtime request 不要だが Android 13+ では runtime 確認推奨)。`FOREGROUND_SERVICE_PHONE_CALL` は Android 14+ で **必須**、未付与で `SecurityException` 発生。
+`MANAGE_OWN_CALLS` は API 26+ で **normal permission**、manifest 宣言のみでインストール時に自動付与される (runtime request 不可)。`POST_NOTIFICATIONS` は Android 13+ で **dangerous permission** のため runtime 要求が必要。`FOREGROUND_SERVICE_PHONE_CALL` は Android 14+ で **必須**、未付与で `SecurityException` 発生 (Android 14 で導入された通話用 ForegroundService 専用 permission)。
 
 ### 5.2 PhoneAccount 登録
 
 ```kotlin
-// apps/mobile/android/app/src/main/java/app/trancall/CallConnectionService.kt
+// apps/mobile/android/app/src/main/java/tech/hori/trancall/TranCallApplication.kt
 class TranCallApplication : Application() {
   override fun onCreate() {
     super.onCreate()
@@ -517,9 +538,9 @@ class TranCallApplication : Application() {
     )
     val account = PhoneAccount.builder(handle, "TranCall")
       .setCapabilities(
+        // Phase 1a は音声のみ。VIDEO capability は Phase 2 で追加する
+        // (CAPABILITY_VIDEO_CALLING を Phase 1a で付与すると Play Console 申請時に video 機能の宣言を要求される可能性)
         PhoneAccount.CAPABILITY_SELF_MANAGED  // VoIP / 自社 UI
-        or PhoneAccount.CAPABILITY_SUPPORTS_VIDEO_CALLING  // 将来 Phase 2
-        or PhoneAccount.CAPABILITY_VIDEO_CALLING
       )
       .setShortDescription("TranCall 翻訳通話")
       .build()
@@ -688,78 +709,118 @@ speakerphone は CallKit 同様 `setSpeakerphoneOn(true)` をデフォルト (�
 
 | 項目 | 値 |
 |---|---|
-| APNs topic | `app.trancall.voip` (Bundle ID + `.voip` suffix) |
+| APNs topic | `tech.hori.trancall.voip` (Bundle ID + `.voip` suffix) |
 | `apns-push-type` | `voip` |
 | `apns-priority` | `10` (即時配信) |
 | `apns-expiration` | `0` (即時のみ、保持しない) |
 | 認証 | APNs auth key (`*.p8`) を `notification` module の `apns adapter` で署名 |
 
-Payload (data-only、`aps` キーなし、最大 5KB):
+Payload は `docs/notification-detail.md` §1 で canonical 定義。本書では bridge 観点で要点のみ示す。**構造は nested** (`aps` キー + `trancall` キー):
 
 ```json
 {
-  "type": "incoming_call",
-  "uuid": "550e8400-e29b-41d4-a716-446655440000",
-  "callerId": "u_abc123",
-  "callerName": "山田太郎",
-  "callerTrancallId": "@yamada_taro",
-  "roomId": "room_xyz789",
-  "sourceLang": "ja",
-  "targetLang": "en",
-  "issuedAt": "2026-05-12T10:23:45.123Z",
-  "expiresAt": "2026-05-12T10:24:15.123Z",
-  "signature": "<HMAC-SHA256 of canonical payload, hex>"
-}
-```
-
-### 6.2 Android FCM data message 仕様
-
-```json
-{
-  "to": "<deviceToken>",
-  "priority": "high",
-  "data": {
+  "aps": {},
+  "trancall": {
     "type": "incoming_call",
-    "uuid": "550e8400-...",
+    "uuid": "fe2b8410-3a72-44f0-8d3a-2f6b3c9e1d77",
+    "roomId": "room_xyz789",
     "callerId": "u_abc123",
     "callerName": "山田太郎",
+    "callerAvatarUrl": "https://...",
     "callerTrancallId": "@yamada_taro",
-    "roomId": "room_xyz789",
-    "sourceLang": "ja",
-    "targetLang": "en",
-    "issuedAt": "2026-05-12T10:23:45.123Z",
-    "expiresAt": "2026-05-12T10:24:15.123Z",
-    "signature": "<HMAC-SHA256, hex>"
+    "roomType": "audio",
+    "translationEnabled": true,
+    "languagePair": "ja-en",
+    "callerLanguage": "ja",
+    "issuedAt": "2026-05-12T10:23:45.000Z",
+    "expiresAt": "2026-05-12T10:24:15.000Z",
+    "signature": "<HMAC-SHA256, 64 hex chars>"
   }
 }
 ```
 
-`notification` キーは含めない (含めると Doze 中に Notification Tray にしか出ず、`onMessageReceived` が起動しない可能性)。`priority: "high"` は Android が Doze を突破するのに必須。
+- `uuid` は **CallKit 専用 UUID** (CallKit `reportNewIncomingCall(with: UUID)` に渡す)。`roomId` (LiveKit room 識別子) と独立。
+- payload 上限 5KB (VoIP push の APNs 上限)。`signature` 含めて約 1KB に収まる。
+- 全フィールドの canonical 定義は `notification-detail.md` §1。本書から重複定義しない。
 
-### 6.3 Push payload の canonical 構造 (iOS / Android 共通)
+### 6.2 Android FCM data message 仕様
 
-```ts
-// packages/notification/src/schemas.ts (Sprint 3 で追加)
-export const IncomingCallPushPayloadSchema = z.object({
-  type: z.literal("incoming_call"),
-  uuid: z.string().uuid(),
-  callerId: z.string(),
-  callerName: z.string(),
-  callerTrancallId: z.string().regex(/^@[a-z0-9_]+$/),
-  roomId: z.string(),
-  sourceLang: OutputLanguageSchema,
-  targetLang: OutputLanguageSchema,
-  issuedAt: z.string().datetime(),
-  expiresAt: z.string().datetime(),
-  signature: z.string().regex(/^[0-9a-f]{64}$/),  // HMAC-SHA256 hex
-});
+FCM Legacy HTTP API (v0、`"to": "<token>"`) は 2024-06 廃止済。**HTTP v1 API** (`message.token` + `message.data` + `message.android`) を採用。`firebase-admin` の `messaging.send` ラッパで送る (`packages/notification/src/adapters/fcm-adapter.ts` 実装済)。
+
+```json
+{
+  "message": {
+    "token": "<fcm-device-token>",
+    "data": {
+      "type": "incoming_call",
+      "uuid": "fe2b8410-3a72-44f0-8d3a-2f6b3c9e1d77",
+      "roomId": "room_xyz789",
+      "callerId": "u_abc123",
+      "callerName": "山田太郎",
+      "callerAvatarUrl": "https://...",
+      "callerTrancallId": "@yamada_taro",
+      "roomType": "audio",
+      "translationEnabled": "true",
+      "languagePair": "ja-en",
+      "callerLanguage": "ja",
+      "issuedAt": "2026-05-12T10:23:45.000Z",
+      "expiresAt": "2026-05-12T10:24:15.000Z",
+      "signature": "<HMAC-SHA256, 64 hex chars>"
+    },
+    "android": {
+      "priority": "high",
+      "ttl": "30s"
+    }
+  }
+}
 ```
 
-Server (notification module) と Mobile (callBridge) で同 schema を Zod 検証する。
+- `notification` キーは含めない (含めると Doze 中に Notification Tray にしか出ず、`onMessageReceived` が起動しない)。
+- `message.android.priority: "high"` は Android が Doze を突破するのに必須。
+- `data` フィールド値は **string 型のみ** (FCM の制約)。`translationEnabled` は `"true"` / `"false"`、boolean リテラルは使わない。
+- 全フィールドの canonical 定義は `notification-detail.md` §2。
+
+### 6.3 Push payload の canonical 配置
+
+| canonical 文書 | Scope |
+|---|---|
+| `docs/notification-detail.md` §1-§3 | payload 構造 + HMAC 仕様 (この設計が真) |
+| `packages/notification/src/schemas.ts` の `ApnsVoipPayloadSchema` / `FcmDataPayloadSchema` | 実装側 Zod schema (現状 v1.0 相当、Sprint 3 で v1.1 拡張フィールド `uuid` / `callerId` / `issuedAt` / `expiresAt` / `signature` を追加) |
+| `packages/notification/src/schemas.ts` の `IncomingCallNotificationSchema` | Server 内部 (facade → adapter 間) で使う Notification 形式。adapter が APNs/FCM 形式に変換 |
+
+本書では新規 schema を **追加定義しない**。Sprint 3 の実装タスクで以下を実施:
+
+1. `packages/notification/src/schemas.ts` の `ApnsVoipPayloadSchema.trancall` および `FcmDataPayloadSchema` に `uuid` / `callerId` / `issuedAt` / `expiresAt` / `signature` を追加 (`notification-detail.md` v1.1 と整合)
+2. `packages/notification/src/adapters/apns-adapter.ts` / `fcm-adapter.ts` が HMAC 署名計算 (`notification-detail.md` §3) を組み込む
+3. Mobile bridge (`apps/mobile/modules/call-bridge/`) が APNs/FCM payload を Swift `Codable` / Kotlin `kotlinx.serialization` でデコードし HMAC 検証
+
+Server (notification module) と Mobile bridge は同じ canonical (`notification-detail.md`) を参照し、互換性 test (Layer 3-3 CI) で互換性を継続確認する。
 
 ### 6.4 NotificationFacade との関係
 
-`module-contracts.md` v1.1.0 §2.5 で `NotificationFacade.sendIncomingCall(targetUserId, notification: IncomingCallNotification)` が canonical。本書はその adapter 層 (`packages/notification/src/adapters/{apns,fcm}.ts`) で `IncomingCallPushPayloadSchema` を構築して APNs/FCM に送る contract を補強する。
+`module-contracts.md` v1.1.0 §2.5 で `NotificationFacade.sendIncomingCall(targetUserId, notification: IncomingCallNotification)` が canonical。本書はその adapter 層 (`packages/notification/src/adapters/{apns,fcm}.ts`) が `notification-detail.md` v1.1 に従って APNs/FCM payload を構築する責務を補強する。
+
+#### IncomingCallNotification と APNs/FCM payload のフィールド対応
+
+`packages/notification/src/schemas.ts` の `IncomingCallNotificationSchema` は server 内部の中間表現。adapter が `notification-detail.md` §1 / §2 の wire format に変換する。Sprint 3 拡張後の対応関係:
+
+| `IncomingCallNotification` フィールド | APNs `aps.trancall.*` | FCM `message.data.*` | 備考 |
+|---|---|---|---|
+| (server で生成) | `uuid` | `uuid` | CallKit 用 UUID、`crypto.randomUUID()` で発行 |
+| `roomId` | `roomId` | `roomId` | LiveKit room 識別子 |
+| (server で生成、auth から) | `callerId` | `callerId` | 内部 user ID |
+| `callerName` | `callerName` | `callerName` | 表示名 |
+| `callerAvatarUrl` | `callerAvatarUrl` | `callerAvatarUrl` | nullable |
+| `callerTrancallId` | `callerTrancallId` | `callerTrancallId` | `@username` |
+| `roomType` | `roomType` | `roomType` | `audio` / `video` |
+| `translationEnabled` | `translationEnabled` (boolean) | `translationEnabled` (`"true"`/`"false"`) | FCM data は文字列のみ |
+| `languagePair` | `languagePair` | `languagePair` | `"ja-en"` 等 |
+| `callerLanguage` | `callerLanguage` | `callerLanguage` | OutputLanguage |
+| `timestamp` (deprecated) → `issuedAt` | `issuedAt` | `issuedAt` | v1.1 で renamed |
+| (server で生成、issuedAt + 30s) | `expiresAt` | `expiresAt` | TTL |
+| (server で計算、§3 HMAC) | `signature` | `signature` | HMAC-SHA256 hex |
+
+Sprint 3 で `IncomingCallNotificationSchema` を v1.1 フィールド集合に拡張する PR が `module-contracts.md` §2.5 注釈とともに発行される予定。
 
 呼び出しシーケンス (canonical は `docs/call-lifecycle.md` §1):
 
@@ -790,7 +851,7 @@ PushKit / FCM service → CallBridge → CallKit / Telecom
 ```ts
 // apps/mobile/src/native/CallBridge.ts (Sprint 3 で実装)
 import { z } from "zod";
-import { OutputLanguageSchema } from "@trancall/shared-kernel/schemas/brand";
+import { OutputLanguage } from "@trancall/shared-kernel/schemas/language";  // 実 export 名
 
 export const CallStateSchema = z.enum([
   "idle",
@@ -811,8 +872,8 @@ export const CallEventSchema = z.discriminatedUnion("type", [
     callerName: z.string(),
     callerTrancallId: z.string(),
     roomId: z.string(),
-    sourceLang: OutputLanguageSchema,
-    targetLang: OutputLanguageSchema,
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
   }),
   z.object({
     type: z.literal("callAnswered"),
@@ -877,7 +938,10 @@ export interface CallBridge {
   ): () => void;
 }
 
-export const callBridge: CallBridge = NativeModules.TranCallBridge;
+// Expo Modules API では requireNativeModule を使う。autolinking 失敗時に明示的エラーになる
+// (NativeModules.TranCallBridge は undefined のままで TypeScript 型エラーが出ない問題を回避)
+import { requireNativeModule } from "expo-modules-core";
+export const callBridge: CallBridge = requireNativeModule("TranCallBridge");
 ```
 
 ### 7.2 JS → Native 呼出規約
@@ -1070,16 +1134,67 @@ OS の CallKit / Telecom が **真の call state** の所有者。JS Zustand `Ca
 - Native unit test は GitHub Actions の macOS runner (iOS) + Linux runner (Android) で実行。
 - 実機 E2E は Sprint 3 で Bitrise / EAS Build + 実機ラボ (例: BrowserStack App Live) を検討。Phase 1a 完了判定には手動実機チェック必須。
 
+### 11.6 Phase 1a 完了 Gate Check (Sprint 3 終盤に実施)
+
+Phase 1a を「完了」と宣言できる条件を以下に明示する。Sprint 3 終盤に下記すべてが PASS で合意できた場合のみ完了。1 項目でも未達なら Phase 1b 着手前に修正必須。
+
+**実機シナリオ (§11.3 と同じ端末セットを使用)**
+
+| # | シナリオ | iOS | Android (Pixel) | Android (Xiaomi/Huawei) | 合否記録 |
+|---|---|---|---|---|---|
+| G-1 | 前景着信 → 応答 → 30s 通話 → 自分終話 | ☐ | ☐ | ☐ | |
+| G-2 | Lock screen 着信 → 応答 → 30s 通話 → 相手終話 | ☐ | ☐ | ☐ | |
+| G-3 | アプリ killed 着信 → 応答 → 30s 通話 → 自分終話 | ☐ | ☐ | ☐ | |
+| G-4 | 着信無応答 (30s) → missed call 確認 | ☐ | ☐ | ☐ | |
+| G-5 | 通話中 home → 30s 後復帰 → 通話継続 | ☐ | ☐ | ☐ | |
+| G-6 | 通話中 Bluetooth ヘッドセット切替 → 音声経路追従 | ☐ (AirPods) | ☐ (Pixel Buds) | (任意) | |
+| G-7 | 通話中 mute → unmute (CallKit/Telecom UI 経由) | ☐ | ☐ | ☐ | |
+| G-8 | 通話中 speakerphone トグル | ☐ | ☐ | ☐ | |
+| G-9 | 同時着信 (普通電話) → CallKit/Telecom 競合解決 | ☐ | ☐ | (任意) | |
+
+**負テスト (Native unit test + 手動)**
+
+| # | テスト | 合否 |
+|---|---|---|
+| N-1 | HMAC signature 不正 payload を投入し CallKit/Telecom に何も投入されないことを log で確認 | ☐ |
+| N-2 | `expiresAt` 超過 payload を投入し黙殺されることを log で確認 | ☐ |
+| N-3 | `trancall` キー欠落 payload を投入し safeParse 失敗で破棄されることを確認 | ☐ |
+| N-4 | iOS 5 秒 rule: `reportNewIncomingCall` を遅延させてアプリが kill されることを実機で再現 (1 回確認すれば以降は禁止) | ☐ |
+| N-5 | Android 14: `FOREGROUND_SERVICE_PHONE_CALL` permission 未付与時に `SecurityException` が起きることを確認 | ☐ |
+
+**実装品質 Gate**
+
+| # | 項目 | 合否 |
+|---|---|---|
+| Q-1 | Native unit test (XCTest / JUnit) が 2 連続 PASS (modular-verification-loop 方針) | ☐ |
+| Q-2 | JS bridge unit test (vitest) が 2 連続 PASS | ☐ |
+| Q-3 | `notification-detail.md` v1.1 と本書 v1.x の field 集合が同期、CI 互換性 test PASS | ☐ |
+| Q-4 | `eslint` `tsc` warning ゼロ | ☐ |
+
+**禁止条件**: 実機未確認のまま Phase 1a 完了宣言は不可 (シミュレータ・エミュレータのみでの確認は Phase 1a 終了に不十分)。Xiaomi/Huawei 端末で確認できなかった場合は「Xiaomi/Huawei は Phase 1b 課題」と明示記録すれば Phase 1a 完了は可。
+
 ---
 
 ## 12. セキュリティ
 
 ### 12.1 VoIP Push payload 検証
 
-- Server (notification module) は payload に HMAC-SHA256 署名を付与。共有鍵は `TRANCALL_PUSH_HMAC_SECRET` (32 文字以上)、Server / Mobile bridge 両方に配布 (Mobile では encrypted at rest、`expo-secure-store` 経由)。
-- Mobile bridge は受信時に `IncomingCallPushPayloadSchema.safeParse` + `signature` 検証。失敗時は **CallKit / Telecom に何も投入せず黙殺**。
-- `expiresAt` を超過した payload も黙殺 (リプレイ攻撃対策)。
-- HMAC 鍵 rotation: `TRANCALL_PUSH_HMAC_SECRET_NEXT` を併走で発行可能、24h dual-accept 期間後に切替。詳細は `docs/security-detail.md` 参照。
+HMAC 署名仕様の **canonical は `docs/notification-detail.md` §3**。本書では bridge 側の検証順序を補強する。
+
+- 共有鍵 `TRANCALL_PUSH_HMAC_SECRET` (32 文字以上) は Server / Mobile bridge の両方に配布 (Mobile では `expo-secure-store` 経由で encrypted at rest)。
+- canonical string: `type|uuid|roomId|callerId|callerTrancallId|issuedAt|expiresAt` (`notification-detail.md` §3.2)。**表示用フィールド (`callerName`, `callerAvatarUrl`, `languagePair`, `callerLanguage`, `roomType`, `translationEnabled`) は署名対象外**。
+- 計算式: `HMAC-SHA256(secret, canonical).hexdigest()` (64 文字 lowercase hex)。実装例 (Swift CryptoKit / Kotlin javax.crypto / Node.js crypto) は `notification-detail.md` §3.3。
+
+**Mobile bridge 検証順序**:
+1. `payload.dictionaryPayload["trancall"]` (iOS) または `remoteMessage.data` (Android) を取得
+2. Codable / kotlinx.serialization で構造体にデコード (schema 不一致は破棄)
+3. `expiresAt` を現在時刻と比較、超過なら破棄
+4. canonical string を §3.2 順序で組み立て
+5. HMAC 再計算 → `signature` と constant-time 比較 (Swift: `Data` の byte-by-byte 比較、Kotlin: `MessageDigest.isEqual`)
+6. 不一致なら **CallKit / Telecom に何も投入せず**、log only で破棄
+7. すべて OK なら `CXProvider.reportNewIncomingCall` / `TelecomManager.addNewIncomingCall` を呼ぶ
+
+**HMAC 鍵 rotation**: `TRANCALL_PUSH_HMAC_SECRET_NEXT` を併走で発行、Mobile bridge は 24h 期間中、新旧両方の鍵で signature を試行 (古い鍵が一致したら log 警告)、24h 経過後に新鍵単独に切替。詳細は `docs/security-detail.md` HMAC rotation 節および `notification-detail.md` §3.1。
 
 ### 12.2 CallKit / Telecom UI の callerName スプーフィング対策
 
@@ -1162,11 +1277,15 @@ Step 6: 実機 E2E
 
 ### 13.4 dev / staging / prod 環境分離
 
-| 環境 | APNs | FCM | bundle ID | LiveKit |
+現状 `apps/mobile/app.json` は単一 bundle ID `tech.hori.trancall` で運用。Sprint 3 で env-specific bundle ID を導入する場合は以下の構成を想定 (Phase 1a 終盤の判断):
+
+| 環境 | APNs | FCM | bundle ID (案) | LiveKit |
 |---|---|---|---|---|
-| dev | development gateway | dev project | `app.trancall.dev` | LiveKit Cloud staging |
-| staging | production gateway (TestFlight / Internal) | staging project | `app.trancall.staging` | LiveKit Cloud staging |
-| prod | production gateway (App Store / Play Store) | prod project | `app.trancall` | LiveKit Cloud production |
+| dev | development gateway | dev project | `tech.hori.trancall.dev` | LiveKit Cloud staging |
+| staging | production gateway (TestFlight / Internal) | staging project | `tech.hori.trancall.staging` | LiveKit Cloud staging |
+| prod | production gateway (App Store / Play Store) | prod project | `tech.hori.trancall` | LiveKit Cloud production |
+
+env-specific bundle ID を採用しない場合は Apple Developer Console / Firebase Console 上で provisioning profile / `google-services.json` を環境別に切替える運用とし、bundle ID は `tech.hori.trancall` 単一とする (EAS Build profile で切替)。Sprint 3 着手時にチーム判断。
 
 ### 13.5 Sprint 3 リスク
 
@@ -1200,3 +1319,4 @@ Step 6: 実機 E2E
 | Version | Date | Changes |
 |---------|------|---------|
 | v1.0 | 2026-05-12 | Sprint 2 D4 設計書 初版。Scope: iOS CallKit + PushKit / Android Telecom + ConnectionService / VoIP Push 設計 / RN Native Module 仕様 / 状態遷移 / OS 制約 / Phase 1a スコープ / テスト戦略 / セキュリティ / Sprint 3 移行手順 / リスク。canonical 階層: architecture.md (システム全体) → call-lifecycle.md (シーケンス) → 本書 (native bridge 詳細) → packages/shared-kernel schema (Sprint 3 で追加)。 |
+| v1.1 | 2026-05-12 | Round 1 レビュー指摘 Critical 4 + Major 4-5 + Minor 5-7 を反映。主な変更: (1) §6.1 / §6.2 APNs/FCM payload を `notification-detail.md` v1.1 の nested 構造 (`{aps:{}, trancall:{...}}`) に整合、独立した IncomingCallPushPayloadSchema 定義は削除し canonical を notification-detail.md に一本化、(2) §6.2 FCM payload を HTTP v1 API (`message.token`/`message.data`/`message.android`) に修正 (Legacy v0 は 2024-06 廃止済)、(3) §4.3 Swift コードを `payload.dictionaryPayload["trancall"]` から読み出す nested 対応に修正、(4) §6.3 schema 配置を `packages/notification/src/schemas.ts` への拡張に一元化、(5) §3.2.2 ステップ 6 の「didActivate で room.connect」を「Native は AudioSession 設定のみ、room.connect は JS」に修正、(6) §3.2.2 Android `ForegroundServiceDidNotStartInTimeException` を Android 12+ に訂正 (旧記述 Android 14+ は誤り)、(7) §4.4 / §4.7 AudioSession options に `allowBluetooth` (HFP マイク) を追加、(8) §4.1 entitlement から `com.apple.developer.usernotifications.communication` を削除 (App Review リジェクト誘発)、(9) §4.5 着信フロー図から `reportOutgoingCall` 行を削除 (発信側専用 API、着信応答で呼ぶと CallKit エラー)、(10) §4.2 `ringtoneSound = nil` に修正 (§14 #8 と整合)、(11) §11.6 Phase 1a 完了 Gate Check 節を新設 (実機 9 + 負テスト 5 + 実装品質 4)、(12) §12.1 HMAC 検証順序を 7 ステップに具体化、canonical string は `notification-detail.md` §3.2 参照、(13) §2.1 Telecom Framework 導入 API を 23 から 21 に訂正、(14) §2.2.1 VoIP Services Certificate と p8 の二重記述を整理 (p8 のみ採用)、(15) §5.1 MANAGE_OWN_CALLS の runtime request 記述を削除 (normal permission のため不可)、(16) §5.2 `CAPABILITY_VIDEO_CALLING` を Phase 1a から除去 (Phase 2 で追加)、(17) §7.1 `OutputLanguageSchema` を `OutputLanguage` に修正 (実 export 名)、(18) §7.1 callBridge 初期化を `requireNativeModule` に修正 (autolinking 失敗時の明示的エラー)、(19) §13.4 bundle ID 例示を `tech.hori.trancall` に修正 (app.json 現状)、(20) §5.2 クラスファイル名コメントを `TranCallApplication.kt` に修正、(21) §4.3 PKPushRegistry queue 解説を追加。同時に `docs/notification-detail.md` を v1.1 に更新し HMAC 仕様 §3 を新設、payload に `uuid` / `callerId` / `issuedAt` / `expiresAt` / `signature` フィールドを追加。 |
