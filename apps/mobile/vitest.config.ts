@@ -18,6 +18,10 @@ export default defineConfig({
         __dirname,
         "../../packages/translation/src/index.ts",
       ),
+      "@trancall/billing": path.resolve(
+        __dirname,
+        "../../packages/billing/src/index.ts",
+      ),
     },
   },
   resolve: {
@@ -33,6 +37,10 @@ export default defineConfig({
       "@trancall/translation": path.resolve(
         __dirname,
         "../../packages/translation/src/index.ts",
+      ),
+      "@trancall/billing": path.resolve(
+        __dirname,
+        "../../packages/billing/src/index.ts",
       ),
     },
   },

@@ -3,7 +3,7 @@
  *
  * 通話前設定: 翻訳 ON/OFF、語ペア、字幕 ON/OFF、コスト見積、発信ボタン
  */
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -19,6 +19,11 @@ import { callTokens } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { useCallStore } from "../stores/call-store.js";
 import { useAuthStore } from "../stores/auth-store.js";
+import {
+  useBillingStore,
+  selectPreCallCostEstimate,
+} from "../stores/billing-store.js";
+import { PreCallCostEstimate } from "../components/PreCallCostEstimate.js";
 import { createCall } from "../api/room-api.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { CallStackParamList } from "../navigation/call-overlay.js";
@@ -39,6 +44,9 @@ export function PreCallScreen({ route, navigation }: Props) {
   const setRoomId = useCallStore((state) => state.setRoomId);
   const setError = useCallStore((state) => state.setError);
 
+  const costEstimate = useBillingStore(selectPreCallCostEstimate);
+  const refreshSubscription = useBillingStore((s) => s.refreshSubscription);
+
   const [translationEnabled, setTranslationEnabled] = useState(true);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,10 +56,25 @@ export function PreCallScreen({ route, navigation }: Props) {
   const myLanguage = profile?.native_language ?? "ja";
   const langPair = `${myLanguage.toUpperCase()} → ${calleeLanguage.toUpperCase()}`;
 
-  // Cost estimate (placeholder — billing module integration in Phase 2)
-  const costPerMin = 3;
-  const remainingMin = 60;
-  const plan = "Free";
+  // 画面表示時にサブスクリプション状態を更新
+  useEffect(() => {
+    void refreshSubscription();
+  }, [refreshSubscription]);
+
+  // upgrade ブロック: upgrade 状態の場合は通話開始ボタンを無効化
+  const isCallBlocked =
+    costEstimate != null && costEstimate.recommendedAction === "upgrade";
+
+  const handleUpgrade = () => {
+    // TODO: Settings → Subscription 画面への cross-stack ナビゲーションは
+    // Subscription 画面実装後 (T-18 以降) に実装予定。
+    // 現状はキャンセルして戻る (課金ブロック)。
+    navigation.goBack();
+  };
+
+  const handleProceedFromOverage = () => {
+    void handleCall();
+  };
 
   const handleCall = async () => {
     if (session == null) return;
@@ -171,30 +194,18 @@ export function PreCallScreen({ route, navigation }: Props) {
         </View>
 
         {/* Cost estimate */}
-        <View
-          style={[
-            styles.costSection,
-            {
-              marginTop: s[8],
-              borderRadius: theme.radii[12],
-              backgroundColor: c.bgSecondary,
-              padding: s[16],
-            },
-          ]}
-        >
-          <Text style={[styles.costLabel, { color: c.textSecondary }]}>
-            {t("precall.estimatedCost")}
-          </Text>
-          <Text style={[styles.costValue, { color: c.textPrimary, marginTop: s[4] }]}>
-            {t("precall.perMinute", { cost: String(costPerMin) })}
-          </Text>
-          <Text style={[styles.costRemaining, { color: c.textTertiary, marginTop: s[4] }]}>
-            {t("precall.remainingMinutes", {
-              minutes: String(remainingMin),
-              plan,
-            })}
-          </Text>
-        </View>
+        {costEstimate != null && (
+          <View style={{ marginTop: s[8] }}>
+            <PreCallCostEstimate
+              estimatedMinutes={costEstimate.expectedMinutes}
+              estimatedCostYen={costEstimate.predictedCostYen}
+              remainingMinutes={costEstimate.remainingMinutes}
+              recommendedAction={costEstimate.recommendedAction}
+              onUpgradePress={handleUpgrade}
+              onProceedPress={handleProceedFromOverage}
+            />
+          </View>
+        )}
 
         {/* Error banner */}
         {errorMessage != null && (
@@ -218,7 +229,7 @@ export function PreCallScreen({ route, navigation }: Props) {
         <View style={[styles.footer, { marginTop: s[32] }]}>
           <Pressable
             onPress={() => { void handleCall(); }}
-            disabled={isLoading}
+            disabled={isLoading || isCallBlocked}
             accessibilityLabel={t("call.startCall")}
             accessibilityRole="button"
             style={[
@@ -227,7 +238,8 @@ export function PreCallScreen({ route, navigation }: Props) {
                 width: callTokens.actionSize,
                 height: callTokens.actionSize,
                 borderRadius: theme.radii.full,
-                backgroundColor: isLoading ? c.secondary : c.primary,
+                backgroundColor:
+                  isLoading || isCallBlocked ? c.secondary : c.primary,
               },
             ]}
           >
@@ -289,20 +301,6 @@ const styles = StyleSheet.create({
   langPairText: {
     fontSize: 13,
     fontVariant: ["tabular-nums"],
-  },
-  costSection: {},
-  costLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  costValue: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  costRemaining: {
-    fontSize: 13,
   },
   errorBanner: {},
   errorText: {
