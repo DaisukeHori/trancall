@@ -25,3 +25,17 @@ export {
 export {
   DomainEventBase,
 } from "./schemas/events.js";
+
+export {
+  ConsentScopeSchema,
+  LegalDocumentVersionSchema,
+  ConsentRecordSchema,
+  RequiredConsentViewSchema,
+} from "./schemas/consent.js";
+
+export type {
+  ConsentScope,
+  LegalDocumentVersion,
+  ConsentRecord,
+  RequiredConsentView,
+} from "./schemas/consent.js";
