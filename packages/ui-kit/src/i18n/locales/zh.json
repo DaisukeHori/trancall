@@ -447,7 +447,17 @@
     "notificationTitle": "通知权限",
     "notificationDescription": "接收来电通知需要此权限",
     "allow": "允许",
-    "later": "稍后"
+    "later": "稍后",
+    "microphoneDeniedTitle": "需要麦克风权限",
+    "microphoneDeniedDescription": "通话需要发送音频，请在设置中允许麦克风访问。",
+    "microphoneDeniedAction": "打开设置",
+    "notificationDeniedTitle": "未授权通知",
+    "notificationDeniedDescription": "需要通知权限才能接收来电。",
+    "notificationDeniedAction": "允许",
+    "telecomRevokedTitle": "通话权限已撤销",
+    "telecomRevokedDescription": "无法接收来电，请在设置中重新启用。",
+    "telecomRevokedAction": "在设置中启用",
+    "openSettingsCancel": "取消"
   },
   "errors": {
     "AUTH_INVALID_CREDENTIALS": "邮箱或密码不正确",

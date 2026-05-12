@@ -22,7 +22,9 @@ import { useAuthStore } from "../stores/auth-store.js";
 import {
   useBillingStore,
   selectPreCallCostEstimate,
+  computeHistoryAverageMinutes,
 } from "../stores/billing-store.js";
+import { useRecentCallsStore } from "../stores/recent-calls-store.js";
 import { PreCallCostEstimate } from "../components/PreCallCostEstimate.js";
 import { createCall } from "../api/room-api.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -44,7 +46,15 @@ export function PreCallScreen({ route, navigation }: Props) {
   const setRoomId = useCallStore((state) => state.setRoomId);
   const setError = useCallStore((state) => state.setError);
 
-  const costEstimate = useBillingStore(selectPreCallCostEstimate);
+  // 通話履歴から想定通話時間を算出 (5 件未満は fallback 15 分)
+  const recentCalls = useRecentCallsStore((state) => state.recentCalls);
+  const historyAverageMinutes = computeHistoryAverageMinutes(
+    recentCalls.slice(0, 10).map((c) => c.durationSeconds),
+  );
+
+  const costEstimate = useBillingStore((state) =>
+    selectPreCallCostEstimate(state, historyAverageMinutes),
+  );
   const refreshSubscription = useBillingStore((s) => s.refreshSubscription);
 
   const [translationEnabled, setTranslationEnabled] = useState(true);

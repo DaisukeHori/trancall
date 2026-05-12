@@ -447,7 +447,17 @@
     "notificationTitle": "通知の許可",
     "notificationDescription": "着信通知を受け取るために必要です",
     "allow": "許可する",
-    "later": "あとで"
+    "later": "あとで",
+    "microphoneDeniedTitle": "マイクへのアクセスが必要です",
+    "microphoneDeniedDescription": "通話には音声送信が必要です。設定で許可してください",
+    "microphoneDeniedAction": "設定アプリで許可",
+    "notificationDeniedTitle": "通知が許可されていません",
+    "notificationDeniedDescription": "着信を受けるには通知許可が必要です",
+    "notificationDeniedAction": "許可する",
+    "telecomRevokedTitle": "通話権限が無効です",
+    "telecomRevokedDescription": "着信機能が利用できません。設定で再有効化してください",
+    "telecomRevokedAction": "設定で有効化",
+    "openSettingsCancel": "キャンセル"
   },
   "errors": {
     "AUTH_INVALID_CREDENTIALS": "メールアドレスまたはパスワードが正しくありません",
