@@ -669,7 +669,7 @@ Server 処理: `isFinal=true` のみ `trancall_transcript.segments` に `appendF
     captureToAgent: number[],     // mic capture → Agent 到達
     agentToOpenAI: number[],      // Agent → OpenAI WS 送信
     openAIFirstDelta: number[],   // session.input_audio_buffer.append 送信 → 最初の session.output_audio.delta 受信
-    agentPublish: number[],       // OpenAI delta → LiveKit Publish
+    agentPublish: number[],       // audioSource.captureFrame 呼び出し → LiveKit publish 完了
     totalEndToEnd: number[]       // mic capture → Callee 再生
   },
   memoryRssBytes: int (>=0),

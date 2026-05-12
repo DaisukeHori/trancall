@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.3 (2026-05-12) |
+| Status | Draft v1.4 (2026-05-12) |
 | Owner | translation-agent / バックエンド |
 | 上位文書 | `docs/architecture.md` (§ Translation Pipeline)、`docs/module-contracts.md` v1.1.0 (§2.7 TranslationFacade / §3.3 §3.4 / §7.4) |
 | 補助 | `docs/requirements.md` (PERF-002, TRANS-001〜007), `apps/translation-agent/CLAUDE.md`, `apps/translation-agent/src/openai-ws-client.ts` |
@@ -22,7 +22,7 @@
 - 入力フラッシュ手段 (Translation API には commit イベントが存在せず、`session.close` でサーバ側がフラッシュ)
 - レイテンシ計測 5 点 (captureToAgent / agentToOpenAI / openAIFirstDelta / agentPublish / totalEndToEnd) と発火タイミング
 - Track 命名 (`trans-{sourceIdentity}-to-{targetLang}`)
-- session ライフサイクル (start / pause / resume / end) と理由コード
+- session ライフサイクル (start / active / ending / terminated の 4 状態) と end 理由コード
 - エラーコード ↔ HTTP status の対応 (`module-contracts.md` §5 準拠)
 - degraded/recovered 判定の閾値素案 (D3 で正式契約化)
 
@@ -85,7 +85,7 @@ Sprint 2 の Gate Check 実走で計測、Sprint 2 完了基準。
 
 ### 3.3 フレーム粒度
 - LiveKit 側: 10ms = 240 sample / frame (`gate-check.ts:128-134`)
-- OpenAI 側: 200ms (Realtime API 仕様、サーバが内部で集約) — クライアントは任意フレーム長で `append` 可、commit までは累積される
+- OpenAI 側: 200ms (Realtime API 仕様、サーバが内部で集約) — クライアントは任意フレーム長で `append` 可、`session.close` 送信までサーバが累積管理 (Translation API には commit イベントなし、§4.1 §4.5)
 
 ---
 
@@ -194,7 +194,7 @@ await audioSource.captureFrame(frame);
 | `agentToOpenAI` | `AudioStream.read()` から取得した時刻 | `session.input_audio_buffer.append` WS 送信完了 | ms | Agent 内部 + OpenAI WS 送信経路 |
 | `openAIFirstDelta` | `session.input_audio_buffer.append` 送信時刻 | 最初の `session.output_audio.delta` 受信時刻 | ms | OpenAI 側翻訳遅延 (主要 KPI) |
 | `agentPublish` | `audioSource.captureFrame` 呼び出し時刻 | LiveKit 内部の publish 完了 (heuristic) | ms | publish 経路の遅延 |
-| `totalEndToEnd` | raw audio frame 生成時刻 | 翻訳音声の最初の frame が publish 完了 | ms | **PERF-002 主指標** |
+| `totalEndToEnd` | raw audio frame 生成時刻 | 翻訳音声の最初の frame が publish 完了 | ms | **PERF-002 主指標** (4 区間合算: captureToAgent + agentToOpenAI + openAIFirstDelta + agentPublish) |
 
 ### 5.2 PERF-002 との対応
 - p50/p95/p99 計測対象 = **`totalEndToEnd`**
@@ -207,7 +207,8 @@ await audioSource.captureFrame(frame);
 | `captureToAgent` | 未計測 (`recordCaptureToAgent` メソッドは存在、呼び出しなし) | `pipeAudioTrack` 内で `reader.read()` 直後にタイムスタンプ採取し前フレーム差分を `recordCaptureToAgent` に渡す |
 | `openAIRequestSentAt` 毎フレーム上書き | 既知バグ (`translation-session.ts:205`) | **発話開始 = 最初の append** とみなし、`session.output_audio.delta` 受信で計測完了したら `openAIRequestSentAt = null` にリセット。次の発話 (deltas 途絶 200ms 以上後の append) で再採取 |
 | `agentPublish` | 未計測 | `translated-audio` ハンドラ内で `captureFrame` 前後の wallclock 差分を `recordAgentPublish` に渡す |
-| `totalEndToEnd` | 未計測 | 上記 3 つの合算 (captureToAgent + openAIFirstDelta + agentPublish) を `recordTotalEndToEnd` に渡す |
+| `agentToOpenAI` | 未計測 (`recordAgentToOpenAI` メソッドは存在、呼び出しなし) | `pushAudioFrame` 内で WS `send` 前後の wallclock 差分を計測 |
+| `totalEndToEnd` | 未計測 | 上記 4 区間の合算 (captureToAgent + agentToOpenAI + openAIFirstDelta + agentPublish) を `recordTotalEndToEnd` に渡す |
 
 ### 5.4 metrics 送信
 - 30 秒ごとに集計値を `agent.metrics` イベントで `/internal/agent/events` に POST (現実装維持)
@@ -382,7 +383,7 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 ## 12. 既知のリスク
 
 1. **OpenAI Translation endpoint の `audio.input.format` 受理可否**: §4.3 で「`audio.output.language` のみ送信して挙動確認」と書いたが、もし `format` 未指定で 400 が返るなら gate-check の最初の試験で判明。判明次第、本書の次バージョン (gate-check 後) で更新。
-2. **`session.output_transcript.done` の存在**: 公式リファレンスに `.done` バリアントの記載を取得できず (researcher 調査結果 §3)。**gate-check 実走で `.done` が来るか観測**、来ない場合は `.delta` の `elapsed_ms` 終端で判定する代替実装。
+2. **`session.output_transcript.done` の存在**: 公式 server events リファレンス (`developers.openai.com/api/reference/resources/realtime/translation-server-events`) に `.done` バリアントの記載なし。**gate-check 実走で `.done` が来るか観測**、来ない場合は `.delta` の `elapsed_ms` 終端で判定する代替実装。
 3. **LiveKit Cloud のリージョン**: 翻訳音声の往復遅延に影響する。D2 deployment.md で region を明示確定する (Sprint 2)。
 4. **VAD なしの pending buffer フラッシュ漏れ**: Translation API には commit イベントが存在せず (§4.1 §4.5)、`end()` で `session.close` を送ったとき pending input audio が server 側で確実にフラッシュされるかは公式未確認。長時間無音→突然 close の場合に最終翻訳が出ない可能性がある。OpenAI サーバ VAD が自動処理する想定だが gate-check で要確認。
 5. **AudioStream 接続後の最初の 100ms**: SDK のリサンプル初期化で最初の数フレームが歪む既知の挙動 (LiveKit GitHub Issue 多数)。`captureToAgent` 計測の最初の値はノイズとして除外する。
@@ -394,3 +395,4 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 - v1.1 (2026-05-12) PR #28 Round 1 レビュー反映 (Critical 4 + Warning 5): commit イベントは Translation API に未存在 → `session.close` フラッシュに変更、レイテンシ計測 4→5 点 (`agentToOpenAI` 追加、`module-contracts.md` §7.4.4 と同期)、`module-contracts.md` 参照を §2.7 → §7.4.2 / §7.4.4 に修正、ヘッダーの上位文書バージョン v1.0.0 → v1.1.0、T11 のファイルパスを `apps/translation-agent/scripts/gate-check.ts` に修正、`architecture.md` 行番号 558→557。
 - v1.2 (2026-05-12) PR #28 Round 2 レビュー反映 (Critical 1 + Warning 2): §6.1 状態遷移図の `[ending]` ブロックを `session.close` 送信に修正 (§4.5 と同期)、`module-contracts.md` §7.4.2 に「実装側 Zod 同期は T8 で実施」「`architecture.md` Track 名修正は別 PR」を明示、§7.4.4 `openAIFirstDelta` コメントを公式名 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正。
 - v1.3 (2026-05-12) PR #28 Round 3 レビュー反映 (Warning 1 + Suggestion 1): §12 リスク 1 の「v1.1 に更新」陳腐化表記を「次バージョンで更新」に修正、§12 リスク 4 の「commit 漏れ」表現を §4.5 と整合する「pending buffer フラッシュ漏れ (session.close 経由)」に書き換え。
+- v1.4 (2026-05-12) PR #28 Round 5 レビュー反映 (B Warning 2 + C Warning 3): §1.1 の session ライフサイクル列挙を「start / active / ending / terminated の 4 状態」に修正 (pause/resume は実装しないため記述削除)、§5.1 totalEndToEnd の用途欄に 4 区間合算式を明示、§5.3 表に `agentToOpenAI` 行追加 (合算式を 4 区間に拡張)、§3.3 「commit までは累積される」を「`session.close` 送信までサーバが累積管理」に書き換え、§12 リスク 2 の「researcher 調査結果 §3」参照を公式 reference URL に置換、`module-contracts.md` §7.4.4 `agentPublish` コメントを「captureFrame → publish 完了」に修正。
