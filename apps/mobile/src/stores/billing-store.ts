@@ -544,18 +544,43 @@ export const selectIsRestoring = (state: BillingScreenState): boolean =>
 // =============================================================================
 
 /**
+ * 通話履歴から想定通話時間 (分) を算出する。
+ * 直近 10 件のうち 5 件以上ある場合に平均を返す。
+ * 0 件・5 件未満・全件 durationSeconds=0 のときは fallback を返す。
+ *
+ * docs/billing-ui-flow.md §10.1
+ * @param recentDurationsSeconds durationSeconds の配列 (newest-first 想定、最大 10 件)
+ * @param fallbackMinutes 履歴不足時の fallback 値 (省略時 DEFAULT_EXPECTED_MINUTES)
+ */
+export function computeHistoryAverageMinutes(
+  recentDurationsSeconds: number[],
+  fallbackMinutes: number = DEFAULT_EXPECTED_MINUTES,
+): number {
+  const candidates = recentDurationsSeconds.slice(0, 10);
+  if (candidates.length < 5) return fallbackMinutes;
+  const totalSeconds = candidates.reduce((acc, s) => acc + s, 0);
+  if (totalSeconds === 0) return fallbackMinutes;
+  return Math.max(1, Math.round(totalSeconds / candidates.length / 60));
+}
+
+/**
  * 通話前コスト見積を計算する。
- * Sprint 3 では expectedMinutes = 15 (固定値)。
- * Sprint 3 後半で通話履歴から平均を算出する予定。
+ * historyAverageMinutes が指定された場合はその値を使う。
+ * 省略時は DEFAULT_EXPECTED_MINUTES (15 分) を使用する。
+ *
+ * docs/billing-ui-flow.md §10.1
  */
 export function computePreCallCostEstimate(
   subscriptionState: SubscriptionStateType,
   expectedMinutes: number,
+  historyAverageMinutes?: number,
 ): PreCallCostEstimate {
+  const resolved =
+    historyAverageMinutes != null ? historyAverageMinutes : expectedMinutes;
   const { remainingMinutes, plan } = subscriptionState;
-  const overageMinutes = Math.max(0, expectedMinutes - remainingMinutes);
+  const overageMinutes = Math.max(0, resolved - remainingMinutes);
   const predictedCostYen = Math.ceil(overageMinutes * plan.overageRateYen);
-  const willExceedQuota = expectedMinutes > remainingMinutes;
+  const willExceedQuota = resolved > remainingMinutes;
 
   let recommendedAction: PreCallCostEstimate["recommendedAction"];
   if (!willExceedQuota) {
@@ -568,7 +593,7 @@ export function computePreCallCostEstimate(
   }
 
   return {
-    expectedMinutes,
+    expectedMinutes: resolved,
     remainingMinutes,
     predictedCostYen,
     willExceedQuota,
@@ -577,22 +602,26 @@ export function computePreCallCostEstimate(
 }
 
 /**
- * Sprint 3 固定値: 想定通話時間 15 分
- * Sprint 3 後半で通話履歴平均を使う予定 (docs/billing-ui-flow.md §10.1)
+ * Fallback 値: 想定通話時間 15 分
+ * 通話履歴が 5 件未満のときに使用する。
+ * docs/billing-ui-flow.md §10.1
  */
 export const DEFAULT_EXPECTED_MINUTES = 15;
 
 /**
  * billing store から PreCallCostEstimate を取得するセレクター。
  * subscriptionState が null の場合は null を返す。
+ * historyAverageMinutes が指定された場合はその値を expectedMinutes に使用する。
  */
 export const selectPreCallCostEstimate = (
   state: BillingScreenState,
+  historyAverageMinutes?: number,
 ): PreCallCostEstimate | null => {
   if (state.subscriptionState == null) return null;
   return computePreCallCostEstimate(
     state.subscriptionState,
     DEFAULT_EXPECTED_MINUTES,
+    historyAverageMinutes,
   );
 };
 

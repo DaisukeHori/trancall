@@ -447,7 +447,17 @@
     "notificationTitle": "Notification Permission",
     "notificationDescription": "Required to receive incoming call notifications",
     "allow": "Allow",
-    "later": "Later"
+    "later": "Later",
+    "microphoneDeniedTitle": "Microphone access required",
+    "microphoneDeniedDescription": "Calls require audio. Please allow microphone access in Settings.",
+    "microphoneDeniedAction": "Open Settings",
+    "notificationDeniedTitle": "Notifications not allowed",
+    "notificationDeniedDescription": "Notification permission is required to receive incoming calls.",
+    "notificationDeniedAction": "Allow",
+    "telecomRevokedTitle": "Call permission revoked",
+    "telecomRevokedDescription": "Incoming calls are unavailable. Please re-enable in Settings.",
+    "telecomRevokedAction": "Enable in Settings",
+    "openSettingsCancel": "Cancel"
   },
   "errors": {
     "AUTH_INVALID_CREDENTIALS": "Invalid email or password",
