@@ -2,14 +2,14 @@
 
 | | |
 |---|---|
-| Status | Draft v1.4 (2026-05-12) |
+| Status | Draft v1.5 (2026-05-12) |
 | Owner | translation-agent / バックエンド |
 | 上位文書 | `docs/architecture.md` (§ Translation Pipeline)、`docs/module-contracts.md` v1.1.0 (§2.7 TranslationFacade / §3.3 §3.4 / §7.4) |
 | 補助 | `docs/requirements.md` (PERF-002, TRANS-001〜007), `apps/translation-agent/CLAUDE.md`, `apps/translation-agent/src/openai-ws-client.ts` |
 | 改訂条件 | OpenAI Realtime API 仕様変更時 / LiveKit Agents SDK breaking change 時 / metrics 計測点追加時 |
 | 関連 PR (確定後) | D3 (`translation.degraded/recovered` DomainEvent + module-contracts v1.1.0) |
 
-本書は **translation-agent プロセスが LiveKit Room の参加者 AudioFrame を OpenAI Realtime Translation API に流し、翻訳音声と字幕を LiveKit に publish するまでの実装契約** を canonical 化する。Sprint 1 で骨格は実装済み、本書で **OpenAI API 仕様との不一致解消 / レイテンシ計測点の整備 / session.input_audio_buffer.commit タイミング** を確定して Sprint 2 で Gate Check 実走に持ち込む。
+本書は **translation-agent プロセスが LiveKit Room の参加者 AudioFrame を OpenAI Realtime Translation API に流し、翻訳音声と字幕を LiveKit に publish するまでの実装契約** を canonical 化する。Sprint 1 で骨格は実装済み、本書で **OpenAI API 仕様との不一致解消 / レイテンシ計測点の整備 / `session.close` によるフラッシュタイミング** を確定して Sprint 2 で Gate Check 実走に持ち込む。
 
 ---
 
@@ -22,7 +22,7 @@
 - 入力フラッシュ手段 (Translation API には commit イベントが存在せず、`session.close` でサーバ側がフラッシュ)
 - レイテンシ計測 5 点 (captureToAgent / agentToOpenAI / openAIFirstDelta / agentPublish / totalEndToEnd) と発火タイミング
 - Track 命名 (`trans-{sourceIdentity}-to-{targetLang}`)
-- session ライフサイクル (start / active / ending / terminated の 4 状態) と end 理由コード
+- session ライフサイクル (idle / active / ending / terminated の 4 状態、start はアクション名) と end 理由コード
 - エラーコード ↔ HTTP status の対応 (`module-contracts.md` §5 準拠)
 - degraded/recovered 判定の閾値素案 (D3 で正式契約化)
 
@@ -371,7 +371,7 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 | T3 | `captureToAgent` 計測点を `pipeAudioTrack` に追加 | `agent.ts:249-276`, `translation-session.ts` | unit test (mock AudioStream) |
 | T4 | `openAIRequestSentAt` リセットロジック修正 (delta 受信で null 化、200ms 途絶後の append で再採取) | `translation-session.ts:205, 216-218` | unit test 追加 |
 | T5 | `agentPublish` 計測点を `translated-audio` ハンドラに追加 | `agent.ts:218-224` | unit test |
-| T6 | `totalEndToEnd` を 3 計測点の合算で算出 | `translation-session.ts` 新規メソッド | unit test |
+| T6 | `totalEndToEnd` を 4 区間の合算 (`captureToAgent + agentToOpenAI + openAIFirstDelta + agentPublish`) で算出 | `translation-session.ts` 新規メソッド | unit test |
 | T7 | `session.close` を `end()` 内で送信 (commit は使わない、Translation API には存在しない)。既存の `commitInputBuffer()` 実装は削除 | `translation-session.ts`, `openai-ws-client.ts` 該当ブロック | integration test |
 | T8 | `agent_publish_failed` 理由は v1.1.0 で `module-contracts.md` §7.4.2 に追加済み。Agent 側 `internal-api-client.ts` の Zod schema (session_ended の reason enum) に同値を追加 | `packages/translation/src/schemas.ts`, `apps/translation-agent/src/internal-api-client.ts` | スキーマ test |
 | T9 | error event → AppError mapping を `openai-ws-client.ts` 内に実装 (§10.1 表) | `openai-ws-client.ts` | unit test |
@@ -396,3 +396,4 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 - v1.2 (2026-05-12) PR #28 Round 2 レビュー反映 (Critical 1 + Warning 2): §6.1 状態遷移図の `[ending]` ブロックを `session.close` 送信に修正 (§4.5 と同期)、`module-contracts.md` §7.4.2 に「実装側 Zod 同期は T8 で実施」「`architecture.md` Track 名修正は別 PR」を明示、§7.4.4 `openAIFirstDelta` コメントを公式名 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正。
 - v1.3 (2026-05-12) PR #28 Round 3 レビュー反映 (Warning 1 + Suggestion 1): §12 リスク 1 の「v1.1 に更新」陳腐化表記を「次バージョンで更新」に修正、§12 リスク 4 の「commit 漏れ」表現を §4.5 と整合する「pending buffer フラッシュ漏れ (session.close 経由)」に書き換え。
 - v1.4 (2026-05-12) PR #28 Round 5 レビュー反映 (B Warning 2 + C Warning 3): §1.1 の session ライフサイクル列挙を「start / active / ending / terminated の 4 状態」に修正 (pause/resume は実装しないため記述削除)、§5.1 totalEndToEnd の用途欄に 4 区間合算式を明示、§5.3 表に `agentToOpenAI` 行追加 (合算式を 4 区間に拡張)、§3.3 「commit までは累積される」を「`session.close` 送信までサーバが累積管理」に書き換え、§12 リスク 2 の「researcher 調査結果 §3」参照を公式 reference URL に置換、`module-contracts.md` §7.4.4 `agentPublish` コメントを「captureFrame → publish 完了」に修正。
+- v1.5 (2026-05-12) PR #28 Round 6 レビュー反映 (Warning 3 件): §1.1 ライフサイクル列挙の最初の状態を `start` → `idle` に訂正 (`start` はアクション名、状態は idle/active/ending/terminated の 4 つ)、§11 T6 の合算式表現「3 計測点」→「4 区間 (captureToAgent + agentToOpenAI + openAIFirstDelta + agentPublish)」、§1 冒頭の概要文「session.input_audio_buffer.commit タイミング」→「`session.close` によるフラッシュタイミング」(§4.1 §4.5 と同期)。
