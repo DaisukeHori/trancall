@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.8 (2026-05-12) |
+| Status | Draft v1.9 (2026-05-12) |
 | Owner | DevOps / バックエンド |
 | 目的 | Sprint 2 P0 (Gate Check 実走) の前提として、translation-agent / apps/server / Supabase を Render + Vercel + Supabase Cloud にスムーズに上げる |
 | 上位文書 | `docs/deploy.md` (インフラ全体設計、canonical)、`docs/translation-pipeline-design.md` (D1) |
@@ -370,12 +370,13 @@ supabase db push --linked
 # 出力例 (2 回目以降 = 5b を選ぶケース):
 #         LOCAL                                                   │ REMOTE │ TIME (UTC)
 #   ──────────────────────────────────────────────────────────────┼────────┼──────────
-#         00001_initial_schema                                    │   ✔    │ 2024-01-01 00:00:00+00
-#         00002_add_translation_sessions_table                    │   ✔    │ 2024-01-02 00:00:00+00
-#         00003_add_agent_metrics_table                           │   ✔    │ 2024-01-03 00:00:00+00
-#         00004_strengthen_rls_policies                           │   ✔    │ 2024-01-04 00:00:00+00
-#         00005_add_indexes                                       │   ✔    │ 2024-01-05 00:00:00+00
-#         00006_add_translation_sessions_agent_job_unique         │   ✔    │ 2024-01-06 00:00:00+00
+#         00001_initial_schema                                    │   ✔    │ <applied at>
+#         00002_add_translation_sessions_table                    │   ✔    │ <applied at>
+#         00003_add_agent_metrics_table                           │   ✔    │ <applied at>
+#         00004_strengthen_rls_policies                           │   ✔    │ <applied at>
+#         00005_add_indexes                                       │   ✔    │ <applied at>
+#         00006_add_translation_sessions_agent_job_unique         │   ✔    │ <applied at>
+# (TIME 列は適用 UTC 時刻が表示される)
 
 # 6. staging で RLS テスト + アプリ疎通確認 (§9.2 参照)
 
@@ -391,9 +392,10 @@ supabase db push --linked --include-all
 # 通常の `db push` は history table の記録に基づき差分のみ適用するが、`--include-all` でローカルの全 migration を強制適用する
 # (history table が空またはスキップされた migration がある場合の救済用)。
 # production 初回投入時は remote history table が空のため `--include-all` でローカル全 migration を強制適用する。
-# 補足: staging 初回 (5a) も同様に --include-all 付き、2 回目以降 (5b) は不要。production 初回 (本ステップ) のみ本フラグが必須。
+# 補足: staging 初回 (5a) および production 初回 (本ステップ) で --include-all が必須。staging 2 回目以降 (5b) は不要。
 # ※ seed.sql について: 本プロジェクトには supabase/seed.sql は存在しないため seed 適用は不要。
-#    将来 seed.sql を追加した場合は `supabase db push --include-seed` または `supabase db reset` で別途適用すること。
+#    将来 seed.sql を追加した場合は `supabase db push --include-seed --linked` で適用する。
+#    (`supabase db reset --linked` は DB を全消去して再構築する破壊的操作のため通常運用では使用しない。)
 
 # 8. push 後の確認
 supabase migration list --linked
@@ -733,3 +735,4 @@ Phase 1b で Sentry または Datadog Logs に集約予定。
 - v1.6 (2026-05-12): Round 6 残存 Minor 1 件反映 — §5.2 step 5 を 5a (staging 初回 seed 未適用、`--include-all`) / 5b (2 回目以降) の条件分岐構造に再構成し operator のコピーペースト誤操作リスクを排除
 - v1.7 (2026-05-12): Round 8 残存 Minor 3 件反映 — ヘッダー Status を v1.5 から v1.7 に同期、§5.2 step 5a/5b 判別方法を `supabase migration list --linked` の Applied 件数判定に置換し機械判別可能化、§5.2 step 7 注記の疑問文形式を補足言い切りに整理
 - v1.8 (2026-05-12): Round 10 残存 Warning + Suggestion 反映 — §5.2 5a/5b 判別注記に `supabase migration list --linked` 出力例 (初回 / 2 回目以降の 2 ケース、実 migration ファイル名ベース) を追記し初見者の判別を容易化、`--include-all` の説明を「seed 適用」誤解から「remote history 未登録 migration の強制適用」に事実訂正、seed.sql 不在の現状と将来 seed 追加時の対処も明記
+- v1.9 (2026-05-12): Round 12 残存 Warning + Suggestion 反映 — §5.2 step 7 注記の `supabase db reset` 並列提示を除去し誤誘導リスク (本番 DB 全消去) を排除、出力例 TIME 列日付を `<applied at>` プレースホルダー化、step 7 補足の「production 初回のみ」を「staging 初回 (5a) および production 初回」の網羅的表現に修正
