@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | SUPPORT-FLOW-001 |
-| Status | Draft v1.0 (2026-05-12) |
+| Status | Draft v1.1 (2026-05-12) |
 | Sprint | Sprint 2 R1 補追 (C-12 TODO 対応) |
 | 上位文書 | `docs/architecture.md` §8 / `docs/legal-and-consent.md` v1.2 / `docs/account-deletion.md` |
 | 関連文書 | `docs/billing-ui-flow.md` v1.3 (プラン管理 UI) / `docs/native-call-bridge.md` v1.4 / `docs/app-store-submission.md` v1.2 |
@@ -88,7 +88,7 @@ docs/support-flow.md         ★本書 (サポート導線 canonical)
 | 用語 | 定義 |
 |------|------|
 | **サポートチケット** | ユーザーからのお問い合わせ 1 件。`POST /api/support/inquiry` の成功レスポンスに含まれる `ticketId` で識別する。 |
-| **ticketId** | サーバーが発行するショート ID (例: `TC-2026-0512-A1B2`)。メール件名に含め、ユーザーとのやり取りで参照する。 |
+| **ticketId** | サーバーが発行するショート ID (`TC-YYYYMMDD-[A-F0-9]{6}` canonical、例: `TC-20260512-A1B2C3`)。メール件名に含め、ユーザーとのやり取りで参照する。 |
 | **diagnosticData** | お問い合わせ送信時に mobile が自動収集・添付するデバッグ情報。User ID (匿名化済) / App version / OS / 端末モデル / 送信日時 / ロケール / 直近 7 日の通話数 / プランを含む。 |
 | **SLA** | Service Level Agreement。本書ではサポートへの初回応答時間の目標値を指す。 |
 | **Resend** | Sprint 3 で採用するトランザクションメール送信サービス。`resend.com`。TS native SDK を提供。 |
@@ -126,7 +126,7 @@ docs/support-flow.md         ★本書 (サポート導線 canonical)
 
 | 優先度 | 対象 | 初回応答目標 |
 |--------|------|-------------|
-| **緊急** | 通話不可・課金トラブル (二重請求等) | 営業日 24 時間以内 |
+| **緊急** | 通話不可 (重大バグ) / 課金トラブル (二重請求等) | 24 時間以内 (土日含む) |
 | **通常** | 機能の使い方・バグ報告・プライバシー問い合わせ | 営業日 2 営業日以内 |
 | **低** | 機能要望・その他 | 営業日 5 営業日以内 |
 
@@ -298,8 +298,9 @@ Mobile                     Server                     Resend
 ```typescript
 // apps/server/src/routes/support.ts (Sprint 3 で新規作成)
 import { z } from "zod";
-import { UserIdSchema } from "@trancall/shared-kernel";
-import { PlanTierSchema } from "@trancall/billing/schemas";
+// 注: UserIdSchema は server side で JWT から取得するためここでは import 不要
+//     PlanTier は @trancall/billing/schemas の export 名 (PlanTierSchema ではない)
+import { PlanTier } from "@trancall/billing/schemas";
 
 /**
  * お問い合わせカテゴリ
@@ -326,8 +327,8 @@ export const DiagnosticDataSchema = z.object({
   deviceModel: z.string().max(128),         // "iPhone 15 Pro" / "Pixel 8"
   submittedAt: z.iso.datetime(),            // クライアント送信日時 (UTC ISO 8601)
   locale: z.string().max(16),              // "ja-JP"
-  callHistoryLast7d: z.number().int().nonneg(), // 直近 7 日の通話数
-  subscriptionTier: PlanTierSchema.optional(),  // 未取得時は省略
+  callHistoryLast7d: z.number().int().nonnegative(), // 直近 7 日の通話数
+  subscriptionTier: PlanTier.optional(),  // 未取得時は省略
 });
 export type DiagnosticData = z.infer<typeof DiagnosticDataSchema>;
 
@@ -351,7 +352,7 @@ export type SupportInquiry = z.infer<typeof SupportInquirySchema>;
 export const SupportInquiryResponseSchema = z.object({
   ok: z.literal(true),
   data: z.object({
-    ticketId: z.string(),                 // "TC-2026-0512-A1B2"
+    ticketId: z.string(),                 // "TC-YYYYMMDD-[A-F0-9]{6}"、例: "TC-20260512-A1B2C3"
     estimatedResponseHours: z.number(),   // 通常=48, 緊急 (billing) =24, 要望=120
   }),
 });
@@ -828,3 +829,4 @@ appId: tech.hori.trancall
 | バージョン | 日付 | 変更内容 |
 |-----------|------|---------|
 | v1.0 | 2026-05-12 | Sprint 2 R1 補追 (C-12 TODO 対応) として新規作成。スコープ: サポート方針 + SLA / Settings → お問い合わせ画面 wireframe + インタラクション仕様 / Zod スキーマ (`SupportInquirySchema` / `DiagnosticDataSchema` / `SupportCategorySchema`) + API endpoint `POST /api/support/inquiry` / Resend メール送信 backend / FAQ 画面 (ja/en/zh、アプリ内 + Web ミラー) / OSS ライセンス表示 (`license-checker` 自動生成) / ステータスページ連携 (BetterStack + Sentry webhook) / Apple App Review note 連携 / テスト戦略 (unit + integration + E2E Maestro)。連絡先 `support@trancall.app`、SLA: 緊急 24 時間・通常 2 営業日・要望 5 営業日。 |
+| v1.1 | 2026-05-12 | Round 1 軽量レビュー (Opus) 指摘 Critical 1 + Warning 3 を反映。(Critical) §6.2 `PlanTierSchema` → `PlanTier` (実 export 名)、`UserIdSchema` import 削除 (JWT 取得のため不要)。(Warning) `.nonneg()` → `.nonnegative()` に統一 (既存コードベースとの一貫性)。(Warning) `ticketId` フォーマットを §2.1 `TC-2026-0512-A1B2` と §6.2 実装 `TC-YYYYMMDD-[A-F0-9]{6}` で混在していたため canonical を実装側に統一。(Warning) §3.2 SLA 「営業日 24 時間以内」の意味矛盾を「24 時間以内 (土日含む)」に修正、緊急カテゴリは通話不可 (重大バグ) / 課金トラブル に明示。(Suggestion) §7.1 DNS SPF 設定の `amazonses.com` 言及を削除し Resend (`_spf.resend.com`) 単独確定に。 |
