@@ -13,6 +13,7 @@ import {
   ParticipantIdSchema,
   TranslationSessionIdSchema,
   OutputLanguage,
+  DomainEventBase,
 } from "@trancall/shared-kernel";
 
 // =============================================================================
@@ -152,6 +153,35 @@ export const AgentMetricsPayloadSchema = z.object({
 });
 export type AgentMetricsPayload = z.infer<typeof AgentMetricsPayloadSchema>;
 
+// =============================================================================
+// Translation Degraded / Recovered Payload Schemas
+// Agent → Server POST /internal/agent/events 用 (module-contracts.md §3.3 準拠)
+// =============================================================================
+
+export const TranslationDegradedPayloadSchema = z.object({
+  type: z.literal("translation.degraded"),
+  agentJobId: z.string(),
+  roomId: z.string(),
+  sessionId: z.string(),
+  sourceLang: OutputLanguage,
+  targetLang: OutputLanguage,
+  reason: z.enum(["openai_ws_reconnecting", "high_latency", "output_silence"]),
+  occurredAt: z.iso.datetime(),
+});
+export type TranslationDegradedPayload = z.infer<typeof TranslationDegradedPayloadSchema>;
+
+export const TranslationRecoveredPayloadSchema = z.object({
+  type: z.literal("translation.recovered"),
+  agentJobId: z.string(),
+  roomId: z.string(),
+  sessionId: z.string(),
+  sourceLang: OutputLanguage,
+  targetLang: OutputLanguage,
+  degradedDurationMs: z.number().int().min(0),
+  occurredAt: z.iso.datetime(),
+});
+export type TranslationRecoveredPayload = z.infer<typeof TranslationRecoveredPayloadSchema>;
+
 /**
  * Agent イベントの Union Schema。
  * discriminatedUnion で type フィールドで分岐。
@@ -161,8 +191,78 @@ export const AgentEventSchema = z.discriminatedUnion("type", [
   SessionEndedPayloadSchema,
   TranscriptDeltaPayloadSchema,
   AgentMetricsPayloadSchema,
+  TranslationDegradedPayloadSchema,
+  TranslationRecoveredPayloadSchema,
 ]);
 export type AgentEvent = z.infer<typeof AgentEventSchema>;
+
+// =============================================================================
+// EventBus DomainEvent Schemas (in-process pub/sub)
+// module-contracts.md §3.3 canonical
+// =============================================================================
+
+export const TranslationDegradedEventSchema = DomainEventBase.extend({
+  type: z.literal("translation.degraded"),
+  payload: z.object({
+    sessionId: TranslationSessionIdSchema,
+    agentJobId: z.uuid(),
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    reason: z.enum(["openai_ws_reconnecting", "high_latency", "output_silence"]),
+    timestamp: z.iso.datetime(),
+    latencyP95Ms: z.number().int().nonnegative().nullable(),
+    consecutiveSilenceMs: z.number().int().nonnegative().nullable(),
+  }),
+});
+export type TranslationDegradedEvent = z.infer<typeof TranslationDegradedEventSchema>;
+
+export const TranslationRecoveredEventSchema = DomainEventBase.extend({
+  type: z.literal("translation.recovered"),
+  payload: z.object({
+    sessionId: TranslationSessionIdSchema,
+    agentJobId: z.uuid(),
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    degradedDurationMs: z.number().int().nonnegative(),
+    timestamp: z.iso.datetime(),
+  }),
+});
+export type TranslationRecoveredEvent = z.infer<typeof TranslationRecoveredEventSchema>;
+
+// =============================================================================
+// LiveKit Data Channel Payload Schema (UI 配信用)
+// Agent → mobile 直接配信 (module-contracts.md §3.4 canonical)
+// =============================================================================
+
+export const TranslationStatusChannelPayloadSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("subtitle.delta"),
+    sessionId: TranslationSessionIdSchema,
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    text: z.string(),
+    elapsedMs: z.number().int().nonnegative(),
+    isFinal: z.boolean(),
+    timestamp: z.iso.datetime(),
+  }),
+  z.object({
+    type: z.literal("translation.degraded"),
+    sessionId: TranslationSessionIdSchema,
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    reason: z.enum(["openai_ws_reconnecting", "high_latency", "output_silence"]),
+    timestamp: z.iso.datetime(),
+  }),
+  z.object({
+    type: z.literal("translation.recovered"),
+    sessionId: TranslationSessionIdSchema,
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    degradedDurationMs: z.number().int().nonnegative(),
+    timestamp: z.iso.datetime(),
+  }),
+]);
+export type TranslationStatusChannelPayload = z.infer<typeof TranslationStatusChannelPayloadSchema>;
 
 // =============================================================================
 // Translation Usage — billing 連携用集計

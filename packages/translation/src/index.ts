@@ -20,6 +20,11 @@ export {
   SessionEndedPayloadSchema,
   TranscriptDeltaPayloadSchema,
   AgentMetricsPayloadSchema,
+  TranslationDegradedPayloadSchema,
+  TranslationRecoveredPayloadSchema,
+  TranslationDegradedEventSchema,
+  TranslationRecoveredEventSchema,
+  TranslationStatusChannelPayloadSchema,
   TranslationUsageSchema,
 } from "./schemas.js";
 
@@ -32,6 +37,11 @@ export type {
   SessionEndedPayload,
   TranscriptDeltaPayload,
   AgentMetricsPayload,
+  TranslationDegradedPayload,
+  TranslationRecoveredPayload,
+  TranslationDegradedEvent,
+  TranslationRecoveredEvent,
+  TranslationStatusChannelPayload,
   TranslationUsage,
 } from "./schemas.js";
 
