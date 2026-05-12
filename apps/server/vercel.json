@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "buildCommand": "pnpm --filter @trancall/app-server build",
+  "installCommand": "corepack enable && pnpm install --frozen-lockfile",
+  "outputDirectory": ".vercel/output",
+  "framework": null,
+  "functions": {
+    "api/index.ts": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 30
+    }
+  },
+  "regions": ["hnd1"],
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index.ts" }
+  ],
+  "env": {
+    "SUPABASE_URL": "@supabase-url-prod",
+    "SUPABASE_SERVICE_ROLE_KEY": "@supabase-service-role-key-prod",
+    "//": "SUPABASE_ANON_KEY は Server (Vercel) には不要 — D2 §7 配布マトリクスで Mobile のみと canonical 化",
+    "TRANCALL_AGENT_HMAC_SECRET": "@trancall-agent-hmac-secret-prod",
+    "TRANCALL_PUSH_HMAC_SECRET": "@trancall-push-hmac-secret-prod",
+    "//openai": "OPENAI_API_KEY は Server (Vercel) には不要 — translation-agent (Render) のみが参照",
+    "LIVEKIT_URL": "@livekit-url-prod",
+    "LIVEKIT_API_KEY": "@livekit-api-key-prod",
+    "LIVEKIT_API_SECRET": "@livekit-api-secret-prod",
+    "STRIPE_SECRET_KEY": "@stripe-secret-key-prod",
+    "STRIPE_WEBHOOK_SECRET": "@stripe-webhook-secret-prod",
+    "STRIPE_PRICE_ID_LIGHT": "@stripe-price-id-light-prod",
+    "STRIPE_PRICE_ID_STANDARD": "@stripe-price-id-standard-prod",
+    "STRIPE_PRICE_ID_BUSINESS": "@stripe-price-id-business-prod",
+    "APNS_KEY_ID": "@apns-key-id-prod",
+    "APNS_TEAM_ID": "@apns-team-id-prod",
+    "APNS_AUTH_KEY": "@apns-auth-key-prod",
+    "APNS_BUNDLE_ID": "tech.hori.trancall",
+    "FCM_PROJECT_ID": "@fcm-project-id-prod",
+    "FCM_SERVICE_ACCOUNT_JSON": "@fcm-service-account-json-prod",
+    "INVITE_BASE_URL": "https://trancall.app/invite",
+    "ENVIRONMENT": "production",
+    "LOG_LEVEL": "info",
+    "SENTRY_DSN": "@sentry-dsn-prod"
+  }
+}
