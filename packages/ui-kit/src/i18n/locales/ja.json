@@ -158,7 +158,17 @@
     "lowBalance": "残り僅か",
     "viewTranscript": "トランスクリプトを見る",
     "callAgain": "もう一度通話",
-    "backToHome": "ホームへ戻る"
+    "backToHome": "ホームへ戻る",
+    "costSummary": {
+      "title": "コストサマリー",
+      "callDuration": "通話時間",
+      "baseCost": "基本料",
+      "overageCost": "超過料金",
+      "totalCost": "合計",
+      "includedInPlan": "含有分内",
+      "upgradeSuggestion": "次回プランを見直す",
+      "yenFormat": "¥{{amount}}"
+    }
   },
   "transcript": {
     "title": "トランスクリプト",

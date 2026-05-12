@@ -158,7 +158,17 @@
     "lowBalance": "Low balance",
     "viewTranscript": "View transcript",
     "callAgain": "Call again",
-    "backToHome": "Back to home"
+    "backToHome": "Back to home",
+    "costSummary": {
+      "title": "Cost Summary",
+      "callDuration": "Call duration",
+      "baseCost": "Base cost",
+      "overageCost": "Overage",
+      "totalCost": "Total",
+      "includedInPlan": "Included in plan",
+      "upgradeSuggestion": "Review plan options",
+      "yenFormat": "¥{{amount}}"
+    }
   },
   "transcript": {
     "title": "Transcript",
