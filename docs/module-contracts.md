@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |---|---|
 | ドキュメント ID | CONTRACT-001 |
-| バージョン | 1.0.0 |
+| バージョン | 1.1.0 |
 | 作成日 | 2026-05-12 |
 | ステータス | canonical (現実装に整合) |
 | 対象 | Sprint 0 + Layer 1 完了モジュール (auth / media / billing / contact / notification / transcript / translation / shared-kernel / translation-agent) |
@@ -302,8 +302,8 @@ export interface RoomFacade {
 | `room.participant_left` | room (Layer 2) | translation | `ParticipantLeftEvent` | 非同期 | EventBus |
 | `translation.started` | translation | transcript | `TranslationStartedEvent` | 非同期 | EventBus |
 | `translation.ended` | translation | **billing**, transcript | `TranslationEndedEvent` | 非同期 | EventBus |
-| `translation.degraded` | translation | (UI 配信用、client へ data channel) | `TranslationDegradedEvent` (docs/schemas.ts 定義のみ、packages/translation/src/schemas.ts には Layer 3 で追加予定) | 非同期 | LiveKit Data Channel |
-| `translation.recovered` | translation | (同上) | `TranslationRecoveredEvent` (同上、Layer 3 で追加予定) | 非同期 | LiveKit Data Channel |
+| `translation.degraded` | translation | (a) server: billing(課金除外候補) / metrics、(b) client UI: 直接配信 | `TranslationDegradedEvent` (EventBus 経由) / `TranslationStatusChannelPayload` (Data Channel 経由) — §3.3 §3.4 参照 | 非同期 | **2 系統並列**: (a) EventBus (server 内)、(b) LiveKit Data Channel (Agent → mobile 直接) |
+| `translation.recovered` | translation | 同上 | `TranslationRecoveredEvent` / `TranslationStatusChannelPayload` | 非同期 | 同上 |
 
 ### 3.2 EventBus 契約
 
@@ -325,13 +325,99 @@ interface EventBus {
 
 実装場所: Layer 3 server で in-process EventBus を提供 (`apps/server/src/event-bus.ts` 予定)。
 
-### 3.3 payload schema 参照
+### 3.3 EventBus payload schema (in-process pub/sub)
 
 各イベントの payload 構造は `docs/schemas.ts` および各モジュールの `schemas.ts` を参照:
 
 - `UserRegisteredEvent` → `packages/auth/src/schemas.ts` (Sprint 1 では未 export、Layer 3 で追加予定)
 - `Room*Event` → `docs/schemas.ts` の Room セクション (Layer 2 で実装)
-- `Translation*Event` → `packages/translation/src/schemas.ts`
+- `TranslationStartedEvent` / `TranslationEndedEvent` → `packages/translation/src/schemas.ts`
+- `TranslationDegradedEvent` / `TranslationRecoveredEvent` — v1.1.0 で追加、下記:
+
+```ts
+// packages/translation/src/schemas.ts (v1.1.0 で追加)
+// import { DomainEventBase } from "@trancall/shared-kernel/schemas/events";
+// import { TranslationSessionId, OutputLanguage } from "@trancall/shared-kernel/schemas/brand";
+// NOTE: `AgentJobId` は v1.1.0 時点で shared-kernel に未 brand 化のため当面 `z.uuid()` を使用。
+//       Sprint 2 で `AgentJobIdSchema = z.uuid().brand("AgentJobId")` を shared-kernel/brand.ts に追加予定 (別 PR)。
+export const TranslationDegradedEventSchema = DomainEventBase.extend({
+  type: z.literal("translation.degraded"),
+  payload: z.object({
+    sessionId: TranslationSessionId,
+    agentJobId: z.uuid(),  // 将来 AgentJobId branded type に置換
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    reason: z.enum(["openai_ws_reconnecting", "high_latency", "output_silence"]),
+    timestamp: z.iso.datetime(),  // 統一キー名 (EventBus / Data Channel 両系統で突き合わせ可能)
+    // 観測値 (degraded 判定の根拠、metrics 結合に使う)
+    latencyP95Ms: z.number().int().nonnegative().nullable(),
+    consecutiveSilenceMs: z.number().int().nonnegative().nullable(),
+  }),
+});
+
+export const TranslationRecoveredEventSchema = DomainEventBase.extend({
+  type: z.literal("translation.recovered"),
+  payload: z.object({
+    sessionId: TranslationSessionId,
+    agentJobId: z.uuid(),  // 将来 AgentJobId branded type に置換
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    degradedDurationMs: z.number().int().nonnegative(),
+    timestamp: z.iso.datetime(),  // 統一キー名
+  }),
+});
+```
+
+判定条件と発火タイミングは `docs/translation-pipeline-design.md` §7 が canonical。本書は **契約 (schema + 発行/購読)** のみを規定する。
+
+### 3.4 LiveKit Data Channel Payload Schema (UI 配信用)
+
+EventBus (in-process) は **server プロセス内** の購読しか届かない。mobile UI に低遅延で配信する必要がある以下のイベントは **LiveKit Data Channel** で Agent → クライアント直接配信する:
+
+| event | 用途 | 発行元 | 発行頻度 |
+|---|---|---|---|
+| `subtitle.delta` | 字幕 (translation の output_transcript.delta) | translation-agent | 翻訳テキスト到着のたび |
+| `translation.degraded` | UI に degraded バッジ表示 | translation-agent | degraded 判定瞬間 1 回 |
+| `translation.recovered` | UI を normal 表示に復帰 | translation-agent | recovered 判定瞬間 1 回 |
+
+Data Channel は **reliable** モードで送信 (字幕損失防止)。バイト数を抑えるため flat な discriminated union:
+
+```ts
+// packages/translation/src/schemas.ts (v1.1.0 で追加)
+// EventBus 側の TranslationDegradedEvent / TranslationRecoveredEvent と timestamp フィールド名を統一済 (突き合わせ用)
+export const TranslationStatusChannelPayloadSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("subtitle.delta"),
+    sessionId: TranslationSessionId,
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    text: z.string(),
+    elapsedMs: z.number().int().nonnegative(),
+    isFinal: z.boolean(),
+    timestamp: z.iso.datetime(),
+  }),
+  z.object({
+    type: z.literal("translation.degraded"),
+    sessionId: TranslationSessionId,
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    reason: z.enum(["openai_ws_reconnecting", "high_latency", "output_silence"]),
+    timestamp: z.iso.datetime(),
+  }),
+  z.object({
+    type: z.literal("translation.recovered"),
+    sessionId: TranslationSessionId,
+    sourceLang: OutputLanguage,
+    targetLang: OutputLanguage,
+    degradedDurationMs: z.number().int().nonnegative(),
+    timestamp: z.iso.datetime(),
+  }),
+]);
+```
+
+mobile 側 (`apps/mobile/src/lib/livekit/subtitles.ts`) は同 schema で **Zod safeParse** してから Zustand に反映。検証失敗は log のみで UI を更新しない (字幕一発で UI 破綻させない)。
+
+**EventBus 経路と Data Channel 経路は同時発行**: degraded/recovered イベントを Agent は (a) `/internal/agent/events` 経由で server に POST (EventBus 発行) と (b) LiveKit Data Channel publish の両方を実行する。a は metrics / 課金例外処理用、b は UI 即時更新用。両者は **同一の sessionId / timestamp** で対応付け可能。
 
 ---
 
@@ -544,10 +630,16 @@ Server 処理: `trancall_event.translation_sessions` に INSERT。`outputLanguag
   endedAt: ISO8601,
   durationMs: int (>=0),
   billableSeconds: int (>=0),  // ceil(durationMs / 1000)
-  reason: "participant_left" | "agent_shutdown" | "openai_fatal_error" | "client_requested"
+  reason: "participant_left" | "agent_shutdown" | "openai_fatal_error" | "client_requested" | "agent_publish_failed"
 }
 ```
 Server 処理: `trancall_event.translation_sessions` を update。**フィールド `reason` → DB 列 `ended_reason` へマッピング** (DB 列名は予約語回避とセマンティクス明示のため別名を採用、`supabase/migrations/00002_add_translation_sessions_table.sql` のコメント参照)。
+
+`agent_publish_failed` は v1.1.0 で **契約上拡張** (Agent → LiveKit Track publish が連続失敗した場合の終了理由、判定条件は `docs/translation-pipeline-design.md` §10.3)。本 v1.1.0 時点で **実装側 Zod schema は未同期**:
+- `apps/translation-agent/src/internal-api-client.ts` L52-57 の `TranslationSessionEndedSchema.reason` は 4 値のまま
+- `packages/translation/src/schemas.ts` の Server 側 `AgentEventSchema` 内 session_ended も 4 値のまま
+
+これらは `docs/translation-pipeline-design.md` §11 T8 (Sprint 2) で 5 値に同期する。本書 (canonical) は **契約 = 5 値** が正で、実装側は同期待ち状態。
 
 Server で `translation.ended` DomainEvent を発行 → billing が購読して `recordUsage` (将来実装)。
 
@@ -576,8 +668,8 @@ Server 処理: `isFinal=true` のみ `trancall_transcript.segments` に `appendF
   latencyMs: {
     captureToAgent: number[],     // mic capture → Agent 到達
     agentToOpenAI: number[],      // Agent → OpenAI WS 送信
-    openAIFirstDelta: number[],   // session.update → 最初の response.audio.delta
-    agentPublish: number[],       // OpenAI delta → LiveKit Publish
+    openAIFirstDelta: number[],   // session.input_audio_buffer.append 送信 → 最初の session.output_audio.delta 受信
+    agentPublish: number[],       // audioSource.captureFrame 呼び出し → LiveKit publish 完了
     totalEndToEnd: number[]       // mic capture → Callee 再生
   },
   memoryRssBytes: int (>=0),
@@ -633,6 +725,7 @@ Agent 側 (`apps/translation-agent/src/internal-api-client.ts`) の Zod schema �
 | 日付 | 版 | 内容 |
 |---|---|---|
 | 2026-05-12 | 1.0.0 | 初版作成 (Layer 1 完了時点の canonical 抽出) |
+| 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、§3.1 表の当該行を 2 系統並列 (EventBus + LiveKit Data Channel) に更新、§7.4.2 session_ended の `reason` enum に `agent_publish_failed` を **契約上追加** (実装側 Zod 同期は T8 で実施)、§7.4.4 `openAIFirstDelta` のコメントを公式仕様 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正、ヘッダーのバージョン 1.0.0 → 1.1.0、`AgentJobId` を `z.uuid()` で当面運用 (Sprint 2 で brand 化予定)、EventBus / Data Channel 両系統で `timestamp` キー名を統一。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。`architecture.md` §5.3 の旧 Track 名 `mic-a` 表記は本 PR スコープ外、Sprint 2 別 PR で `raw-{participantId}` 形式に統一予定。|
 
 ---
 
