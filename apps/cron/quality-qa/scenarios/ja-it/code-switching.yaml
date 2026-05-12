@@ -1,0 +1,60 @@
+scenario_id: TC-S5-it
+scenario: S5
+name: "Misto linguistico / Code-Switching & Ambient Passthrough"
+source_lang: ja
+target_lang: it
+context: "10-turn conversation (ja→it). Evaluates article-noun gender agreement and subjunctive/conditional usage."
+audio_url: null
+expected_keywords: ["grazie", "piano di lancio del prodotto", "obiettivo di vendita", "scadenza"]
+ambient_passthrough_check: true
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今日はお越しいただきありがとうございます。"
+    expected_translation: "Grazie per essere venuto oggi."
+    eval_point: "通常の ja→it 翻訳"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S5 turn 2)"
+    expected_translation: "(it translation)"
+    eval_point: "冠詞の性・数一致"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S5 turn 3)"
+    expected_translation: "(it translation)"
+    eval_point: "動詞活用の正確さ"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S5 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "条件法・接続法の適切な使用"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S5 turn 5)"
+    expected_translation: "(it translation)"
+    eval_point: "数値・通貨表現"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S5 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S5 turn 7)"
+    expected_translation: "(it translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S5 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "敬語 (Lei) の一貫した使用"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S5 turn 9)"
+    expected_translation: "(it translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S5 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

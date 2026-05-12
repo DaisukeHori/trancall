@@ -1,0 +1,60 @@
+scenario_id: TC-S1-it
+scenario: S1
+name: "Conversazione quotidiana / Daily Conversation"
+source_lang: ja
+target_lang: it
+context: "10-turn conversation (ja→it). Evaluates article-noun gender agreement and subjunctive/conditional usage."
+audio_url: null
+expected_keywords: ["piacere", "fotografia", "Monte Fuji", "Instagram", "follower"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "はじめまして、田中と申します。よろしくお願いします。"
+    expected_translation: "Piacere, mi chiamo Tanaka. Spero che possiamo lavorare bene insieme."
+    eval_point: "謙譲表現の自然なイタリア語化"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S1 turn 2)"
+    expected_translation: "(it translation)"
+    eval_point: "冠詞の性・数一致"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S1 turn 3)"
+    expected_translation: "(it translation)"
+    eval_point: "動詞活用の正確さ"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S1 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "条件法・接続法の適切な使用"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S1 turn 5)"
+    expected_translation: "(it translation)"
+    eval_point: "数値・通貨表現"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S1 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S1 turn 7)"
+    expected_translation: "(it translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S1 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "敬語 (Lei) の一貫した使用"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S1 turn 9)"
+    expected_translation: "(it translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S1 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

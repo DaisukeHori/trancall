@@ -1,0 +1,65 @@
+scenario_id: TC-S3-es
+scenario: S3
+name: Viaje y lugares / Travel & Place Names
+source_lang: ja
+target_lang: es
+context: "10-turn travel conversation (ja→es). Proper nouns should be preserved in Spanish conventions."
+audio_url: null
+expected_keywords:
+  - "Torre de Tokio"
+  - "Estación de Shinjuku"
+  - "Estatua de la Libertad"
+  - "Times Square"
+  - "Arco de Triunfo"
+  - "Bali"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今週末、東京タワーに行く予定です。展望台からの夜景が楽しみです。"
+    expected_translation: "Tengo planeado visitar la Torre de Tokio este fin de semana. Me muero de ganas de ver el paisaje nocturno desde el mirador."
+    eval_point: "東京タワー → Torre de Tokio"
+  - turn: 2
+    speaker: B
+    script_text: "¡Qué divertido! ¿Cómo vas a llegar? ¿En metro?"
+    expected_translation: "楽しそうですね！どうやって行くんですか？地下鉄で？"
+    eval_point: "交通手段の語彙"
+  - turn: 3
+    speaker: A
+    script_text: "新宿駅から都営大江戸線に乗って、赤羽橋駅で降ります。徒歩10分くらいです。"
+    expected_translation: "Tomo la línea Toei Oedo desde la Estación de Shinjuku y bajo en la Estación de Akabanebashi. Son unos 10 minutos a pie."
+    eval_point: "駅名・路線名の固有名詞保持"
+  - turn: 4
+    speaker: B
+    script_text: "Visité la Estatua de la Libertad cuando estuve en Nueva York. Fue impresionante."
+    expected_translation: "私はニューヨークにいたとき自由の女神を訪れました。圧倒されました。"
+    eval_point: "Estatua de la Libertad の翻訳"
+  - turn: 5
+    speaker: A
+    script_text: "自由の女神は迫力がありますよね。タイムズスクエアも見たいです。"
+    expected_translation: "La Estatua de la Libertad impone mucho, ¿verdad? También me gustaría ver Times Square."
+    eval_point: "Times Square の保持"
+  - turn: 6
+    speaker: B
+    script_text: "Times Square es increíble de noche. ¿Has estado en París? El Arco de Triunfo es impresionante."
+    expected_translation: "タイムズスクエアは夜すごいですよ。パリには行ったことがありますか？凱旋門が素晴らしい。"
+    eval_point: "Arco de Triunfo の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "パリはまだです。でもドイツのノイシュヴァンシュタイン城には行ったことがあります。"
+    expected_translation: "Aún no he estado en París. Pero sí he visitado el Castillo de Neuschwanstein en Alemania."
+    eval_point: "Neuschwanstein の固有名詞保持"
+  - turn: 8
+    speaker: B
+    script_text: "¡Está en mi lista de deseos! ¿Cuál fue tu parte favorita del viaje?"
+    expected_translation: "それはバケットリストに入っています！旅で一番よかった部分は何ですか？"
+    eval_point: "lista de deseos (bucket list)"
+  - turn: 9
+    speaker: A
+    script_text: "湖から見るお城の景色が最高でした。特に夕暮れ時は絵のようでした。"
+    expected_translation: "La vista del castillo desde el lago fue espectacular. Especialmente al atardecer, era como una pintura."
+    eval_point: "情景描写"
+  - turn: 10
+    speaker: A
+    script_text: "次の旅行はバリ島を考えています。おすすめのスポットはありますか？"
+    expected_translation: "Estoy pensando en Bali para mi próximo viaje. ¿Tienes algún lugar recomendado?"
+    eval_point: "バリ島 → Bali"

@@ -1,0 +1,64 @@
+scenario_id: TC-S5-ko
+scenario: S5
+name: 동일 언어 발화 혼입 / Code-Switching & Ambient Passthrough
+source_lang: ja
+target_lang: ko
+context: "10-turn conversation with Korean phrases mixed into Japanese speech (ja→ko). Tests ambient passthrough."
+audio_url: null
+expected_keywords:
+  - "감사합니다"
+  - "제품 출시 계획"
+  - "판매 목표"
+  - "마감일"
+ambient_passthrough_check: true
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今日はお越しいただきありがとうございます。"
+    expected_translation: "오늘 와주셔서 감사합니다."
+    eval_point: "通常の ja→ko 翻訳"
+  - turn: 2
+    speaker: A
+    script_text: "まず、\"감사합니다\" とお伝えしたいです。"
+    expected_translation: "먼저, \"감사합니다\"라고 전하고 싶습니다."
+    eval_point: "韓国語フレーズ混入。ambient passthrough で原音が届くことを確認"
+  - turn: 3
+    speaker: B
+    script_text: "물론이죠. 계속하세요."
+    expected_translation: "もちろんです。続けてください。"
+    eval_point: "前ターンの混入後も通常翻訳継続"
+  - turn: 4
+    speaker: A
+    script_text: "次のアジェンダは3点です。一つ目は \"제품 출시 계획\" について。"
+    expected_translation: "다음 안건은 3가지입니다. 첫 번째는 \"제품 출시 계획\"에 대해서입니다."
+    eval_point: "韓国語固有名詞句の混入"
+  - turn: 5
+    speaker: A
+    script_text: "二つ目は Q2 の 판매 목표、三つ目は 마케팅 예산 の話です。"
+    expected_translation: "두 번째는 Q2의 판매 목표, 세 번째는 마케팅 예산 이야기입니다."
+    eval_point: "韓国語キーワード複数混入"
+  - turn: 6
+    speaker: B
+    script_text: "알겠어요. 제가 메모를 할까요?"
+    expected_translation: "了解です。メモを取りましょうか？"
+    eval_point: "通常の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "はい、お願いします。あと、\"마감일\" は来週金曜日です。"
+    expected_translation: "네, 부탁드립니다. 그리고 \"마감일\"은 다음 주 금요일입니다."
+    eval_point: "韓国語単語の混入処理"
+  - turn: 8
+    speaker: A
+    script_text: "\"OK\" と \"알겠어요\" は同じ意味で使っています。"
+    expected_translation: "\"OK\"와 \"알겠어요\"를 같은 의미로 사용하고 있습니다."
+    eval_point: "単語の混在処理"
+  - turn: 9
+    speaker: B
+    script_text: "알겠습니다. 다른 사항이 있나요?"
+    expected_translation: "了解しました。他に何かありますか？"
+    eval_point: "通常の翻訳継続"
+  - turn: 10
+    speaker: A
+    script_text: "以上です。\"수고하셨습니다\" でまとめましょう。"
+    expected_translation: "이상입니다. \"수고하셨습니다\"로 마무리하겠습니다."
+    eval_point: "締めくくりの混入"

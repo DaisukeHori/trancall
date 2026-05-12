@@ -1,0 +1,64 @@
+scenario_id: TC-S5-de
+scenario: S5
+name: Sprachmischung / Code-Switching & Ambient Passthrough
+source_lang: ja
+target_lang: de
+context: "10-turn conversation with German phrases mixed into Japanese speech (ja→de). Tests ambient passthrough."
+audio_url: null
+expected_keywords:
+  - "Danke"
+  - "Produkteinführungsplan"
+  - "Verkaufsziel"
+  - "Frist"
+ambient_passthrough_check: true
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今日はお越しいただきありがとうございます。"
+    expected_translation: "Vielen Dank für Ihr Kommen heute."
+    eval_point: "通常の ja→de 翻訳"
+  - turn: 2
+    speaker: A
+    script_text: "まず、\"Vielen Dank für Ihre Geduld\" とお伝えしたいです。"
+    expected_translation: "Zunächst möchte ich sagen: \"Vielen Dank für Ihre Geduld\"."
+    eval_point: "ドイツ語フレーズ混入。ambient passthrough 確認"
+  - turn: 3
+    speaker: B
+    script_text: "Natürlich. Bitte fahren Sie fort."
+    expected_translation: "もちろんです。続けてください。"
+    eval_point: "前ターンの混入後も通常翻訳継続"
+  - turn: 4
+    speaker: A
+    script_text: "次のアジェンダは3点です。一つ目は \"Produkteinführungsplan\" について。"
+    expected_translation: "Die nächste Tagesordnung hat 3 Punkte. Erstens geht es um den \"Produkteinführungsplan\"."
+    eval_point: "ドイツ語複合語の混入"
+  - turn: 5
+    speaker: A
+    script_text: "二つ目は Q2 の Verkaufsziel、三つ目は Marketingbudget の話です。"
+    expected_translation: "Zweitens das Verkaufsziel für Q2, und drittens das Marketingbudget."
+    eval_point: "ドイツ語キーワード複数混入"
+  - turn: 6
+    speaker: B
+    script_text: "Verstanden. Soll ich Notizen machen?"
+    expected_translation: "了解です。メモを取りましょうか？"
+    eval_point: "通常の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "はい、お願いします。あと、\"Frist\" は来週金曜日です。"
+    expected_translation: "Ja, bitte. Außerdem ist die \"Frist\" nächsten Freitag."
+    eval_point: "ドイツ語単語の混入処理"
+  - turn: 8
+    speaker: A
+    script_text: "\"OK\" と \"in Ordnung\" は同じ意味で使っています。"
+    expected_translation: "Ich verwende \"OK\" und \"in Ordnung\" als Synonyme."
+    eval_point: "単語の混在処理"
+  - turn: 9
+    speaker: B
+    script_text: "Verstanden. Gibt es noch andere Punkte?"
+    expected_translation: "了解しました。他に何かありますか？"
+    eval_point: "通常の翻訳継続"
+  - turn: 10
+    speaker: A
+    script_text: "以上です。\"Danke an alle!\" でまとめましょう。"
+    expected_translation: "Das war alles. Lassen Sie uns mit \"Danke an alle!\" abschließen."
+    eval_point: "締めくくりの混入"

@@ -1,0 +1,65 @@
+scenario_id: TC-S4-ko
+scenario: S4
+name: 숫자 및 통화 / Numbers & Currency
+source_lang: ja
+target_lang: ko
+context: "10-turn conversation with numbers and currency (ja→ko). Validates Korean counter words and date expressions."
+audio_url: null
+expected_keywords:
+  - "1500엔"
+  - "5명"
+  - "200엔"
+  - "8000엔"
+  - "오후 3시"
+  - "3월 15일"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "ランチのセットは1500円です。飲み物込みで1800円になります。"
+    expected_translation: "런치 세트는 1500엔입니다. 음료 포함 1800엔이 됩니다."
+    eval_point: "通貨単位 (엔) + 数値"
+  - turn: 2
+    speaker: B
+    script_text: "5명이 주문하면 할인이 있나요?"
+    expected_translation: "5人分注文すると割引はありますか？"
+    eval_point: "人数の量詞 (명)"
+  - turn: 3
+    speaker: A
+    script_text: "5名様以上のご利用でお一人様200円引きになります。合計で8,000円になります。"
+    expected_translation: "5명 이상이면 1인당 200엔 할인이 됩니다. 합계 8000엔입니다."
+    eval_point: "条件付き割引と合計額"
+  - turn: 4
+    speaker: B
+    script_text: "오후 3시 반까지 장소를 사용해야 합니다. 가능한가요?"
+    expected_translation: "午後3時半まで会場を使う必要があります。それは可能ですか？"
+    eval_point: "時刻の韓国語表現"
+  - turn: 5
+    speaker: A
+    script_text: "午後3時30分まででしたら、追加料金は1時間あたり3,500円になります。"
+    expected_translation: "오후 3시 30분까지라면 추가 요금은 시간당 3500엔입니다."
+    eval_point: "時刻と時間単位の料金"
+  - turn: 6
+    speaker: B
+    script_text: "환율이 어떻게 되나요? 달러로 지불할 예정입니다."
+    expected_translation: "為替レートはどのくらいですか？ドルで支払う予定です。"
+    eval_point: "通貨変換への言及"
+  - turn: 7
+    speaker: A
+    script_text: "本日の換算ですと、1ドル約155円です。8,000円は約51ドル65セントです。"
+    expected_translation: "오늘 환율로는 1달러가 약 155엔입니다. 8000엔은 약 51달러 65센트입니다."
+    eval_point: "為替レート・小数点込みドル表記"
+  - turn: 8
+    speaker: B
+    script_text: "알겠습니다. 그럼 1인당 약 50달러 20센트네요."
+    expected_translation: "なるほど。では一人あたり約50ドル20セントになりますね。"
+    eval_point: "小数点2桁の通貨"
+  - turn: 9
+    speaker: A
+    script_text: "承りました。ご予約は3月15日午後12時から、10名様でよろしいでしょうか。"
+    expected_translation: "알겠습니다. 예약은 3월 15일 오후 12시부터, 10명으로 맞죠?"
+    eval_point: "日付・時刻・人数の複合"
+  - turn: 10
+    speaker: B
+    script_text: "맞습니다. 3월 10일까지 확인하겠습니다."
+    expected_translation: "そうです。3月10日までに確認します。"
+    eval_point: "日付のデッドライン"

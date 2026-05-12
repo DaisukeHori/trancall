@@ -1,0 +1,66 @@
+scenario_id: TC-S3-en
+scenario: S3
+name: 旅行・地名 / Travel & Place Names
+source_lang: ja
+target_lang: en
+context: "10-turn travel conversation with proper nouns. Expects proper nouns to be preserved as-is."
+audio_url: null
+expected_keywords:
+  - "Tokyo Tower"
+  - "Shinjuku Station"
+  - "Statue of Liberty"
+  - "Times Square"
+  - "Arc de Triomphe"
+  - "Neuschwanstein Castle"
+  - "Bali"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今週末、東京タワーに行く予定です。展望台からの夜景が楽しみです。"
+    expected_translation: "I'm planning to visit Tokyo Tower this weekend. I'm looking forward to the night view from the observation deck."
+    eval_point: "「東京タワー」はそのまま Tokyo Tower"
+  - turn: 2
+    speaker: B
+    script_text: "Sounds fun! How will you get there? By subway?"
+    expected_translation: "楽しそうですね！どうやって行くんですか？地下鉄で？"
+    eval_point: "交通手段の語彙"
+  - turn: 3
+    speaker: A
+    script_text: "新宿駅から都営大江戸線に乗って、赤羽橋駅で降ります。徒歩10分くらいです。"
+    expected_translation: "Take the Toei Oedo Line from Shinjuku Station and get off at Akabanebashi Station. It's about a 10-minute walk."
+    eval_point: "駅名・路線名の固有名詞保持"
+  - turn: 4
+    speaker: B
+    script_text: "I visited the Statue of Liberty when I was in New York. It was breathtaking."
+    expected_translation: "私はニューヨークにいたとき自由の女神を訪れました。圧倒されました。"
+    eval_point: "Statue of Liberty の翻訳 (自由の女神)"
+  - turn: 5
+    speaker: A
+    script_text: "自由の女神は迫力がありますよね。私もいつかニューヨークに行ってみたいです。タイムズスクエアも見たい。"
+    expected_translation: "The Statue of Liberty is quite impressive. I'd like to visit New York someday too. I'd also love to see Times Square."
+    eval_point: "自由の女神 → Statue of Liberty の逆翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "Times Square is amazing at night. Have you been to Paris? The Arc de Triomphe is stunning."
+    expected_translation: "タイムズスクエアは夜すごいですよ。パリには行ったことがありますか？凱旋門が素晴らしい。"
+    eval_point: "Arc de Triomphe → 凱旋門"
+  - turn: 7
+    speaker: A
+    script_text: "パリはまだです。でもドイツのノイシュヴァンシュタイン城には行ったことがあります。"
+    expected_translation: "I haven't been to Paris yet. But I have visited Neuschwanstein Castle in Germany."
+    eval_point: "長い固有名詞 (Neuschwanstein) の正確な発音・表記"
+  - turn: 8
+    speaker: B
+    script_text: "That's on my bucket list! What was your favorite part of the trip?"
+    expected_translation: "それはバケットリストに入っています！旅で一番よかった部分は何ですか？"
+    eval_point: "bucket list (英語文化的表現)"
+  - turn: 9
+    speaker: A
+    script_text: "湖から見るお城の景色が最高でした。特に夕暮れ時は絵のようでした。"
+    expected_translation: "The view of the castle from the lake was stunning. Especially at dusk, it was like a painting."
+    eval_point: "情景描写"
+  - turn: 10
+    speaker: A
+    script_text: "次の旅行はバリ島を考えています。おすすめのスポットはありますか？"
+    expected_translation: "I'm thinking of Bali for my next trip. Do you have any recommended spots?"
+    eval_point: "バリ島 → Bali"

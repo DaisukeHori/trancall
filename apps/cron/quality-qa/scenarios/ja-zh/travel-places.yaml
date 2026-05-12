@@ -1,0 +1,65 @@
+scenario_id: TC-S3-zh
+scenario: S3
+name: 旅行・地名 / Travel & Place Names
+source_lang: ja
+target_lang: zh
+context: "10-turn travel conversation (ja→zh). Proper nouns should be preserved in Chinese conventions."
+audio_url: null
+expected_keywords:
+  - "东京塔"
+  - "新宿站"
+  - "自由女神像"
+  - "时代广场"
+  - "凯旋门"
+  - "巴厘岛"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今週末、東京タワーに行く予定です。展望台からの夜景が楽しみです。"
+    expected_translation: "我计划这个周末去东京塔。期待从观景台看夜景。"
+    eval_point: "東京タワー → 东京塔"
+  - turn: 2
+    speaker: B
+    script_text: "听起来不错！你怎么去？坐地铁吗？"
+    expected_translation: "楽しそうですね！どうやって行くんですか？地下鉄で？"
+    eval_point: "交通手段の語彙"
+  - turn: 3
+    speaker: A
+    script_text: "新宿駅から都営大江戸線に乗って、赤羽橋駅で降ります。"
+    expected_translation: "从新宿站乘坐都营大江户线，在赤羽桥站下车。"
+    eval_point: "駅名・路線名の固有名詞保持"
+  - turn: 4
+    speaker: B
+    script_text: "我在纽约的时候参观了自由女神像，非常壮观。"
+    expected_translation: "私はニューヨークにいたとき自由の女神を訪れました。とても壮観でした。"
+    eval_point: "自由女神像 (Statue of Liberty の中国語)"
+  - turn: 5
+    speaker: A
+    script_text: "自由の女神は迫力がありますよね。タイムズスクエアも見たいです。"
+    expected_translation: "自由女神像确实很有气势。我也想去时代广场看看。"
+    eval_point: "タイムズスクエア → 时代广场"
+  - turn: 6
+    speaker: B
+    script_text: "时代广场夜晚很美。你去过巴黎吗？那里的凯旋门很壮观。"
+    expected_translation: "タイムズスクエアは夜すごいですよ。パリには行ったことがありますか？凱旋門が素晴らしい。"
+    eval_point: "凯旋门 (Arc de Triomphe の中国語)"
+  - turn: 7
+    speaker: A
+    script_text: "パリはまだです。でもドイツのノイシュヴァンシュタイン城には行ったことがあります。"
+    expected_translation: "我还没去过巴黎。但我去过德国的新天鹅堡。"
+    eval_point: "ノイシュヴァンシュタイン城 → 新天鹅堡"
+  - turn: 8
+    speaker: B
+    script_text: "那在我的愿望清单上！旅行中最喜欢的部分是什么？"
+    expected_translation: "それはバケットリストに入っています！旅で一番よかった部分は何ですか？"
+    eval_point: "愿望清单 (bucket list の中国語)"
+  - turn: 9
+    speaker: A
+    script_text: "湖から見るお城の景色が最高でした。特に夕暮れ時は絵のようでした。"
+    expected_translation: "从湖边看城堡的景色是最美的。尤其是黄昏时分，如画一般。"
+    eval_point: "情景描写"
+  - turn: 10
+    speaker: A
+    script_text: "次の旅行はバリ島を考えています。おすすめのスポットはありますか？"
+    expected_translation: "我在考虑下次去巴厘岛旅行。有什么推荐的景点吗？"
+    eval_point: "バリ島 → 巴厘岛"

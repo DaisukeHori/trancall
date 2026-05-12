@@ -1,0 +1,60 @@
+scenario_id: TC-S1-id
+scenario: S1
+name: "Percakapan Sehari-hari / Daily Conversation"
+source_lang: ja
+target_lang: id
+context: "10-turn conversation (ja→id). Evaluates SVO word order, prefix-suffix (me-/-kan), and foreign word handling."
+audio_url: null
+expected_keywords: ["Salam kenal", "fotografi", "Gunung Fuji", "Instagram", "pengikut"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "はじめまして、田中と申します。よろしくお願いします。"
+    expected_translation: "Salam kenal, nama saya Tanaka. Saya harap kita bisa bekerja sama dengan baik."
+    eval_point: "謙譲表現の自然なインドネシア語化"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S1 turn 2)"
+    expected_translation: "(id translation)"
+    eval_point: "語順 (SVO) の正確さ"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S1 turn 3)"
+    expected_translation: "(id translation)"
+    eval_point: "接頭辞・接尾辞 (me-/-kan) の自然さ"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S1 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "外来語 (英語・オランダ語) の処理"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S1 turn 5)"
+    expected_translation: "(id translation)"
+    eval_point: "数値の正確な翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S1 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S1 turn 7)"
+    expected_translation: "(id translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S1 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "レジスターの一貫性"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S1 turn 9)"
+    expected_translation: "(id translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S1 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

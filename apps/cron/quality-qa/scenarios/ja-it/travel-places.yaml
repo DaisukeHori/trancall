@@ -1,0 +1,60 @@
+scenario_id: TC-S3-it
+scenario: S3
+name: "Viaggi e luoghi / Travel & Place Names"
+source_lang: ja
+target_lang: it
+context: "10-turn conversation (ja→it). Evaluates article-noun gender agreement and subjunctive/conditional usage."
+audio_url: null
+expected_keywords: ["Torre di Tokyo", "Stazione di Shinjuku", "Statua della Libertà", "Times Square", "Arco di Trionfo", "Bali"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今週末、東京タワーに行く予定です。展望台からの夜景が楽しみです。"
+    expected_translation: "Ho in programma di visitare la Torre di Tokyo questo fine settimana. Non vedo l'ora di vedere la vista notturna dalla piattaforma panoramica."
+    eval_point: "東京タワー → Torre di Tokyo"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S3 turn 2)"
+    expected_translation: "(it translation)"
+    eval_point: "冠詞の性・数一致"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S3 turn 3)"
+    expected_translation: "(it translation)"
+    eval_point: "動詞活用の正確さ"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S3 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "条件法・接続法の適切な使用"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S3 turn 5)"
+    expected_translation: "(it translation)"
+    eval_point: "数値・通貨表現"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S3 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S3 turn 7)"
+    expected_translation: "(it translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S3 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "敬語 (Lei) の一貫した使用"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S3 turn 9)"
+    expected_translation: "(it translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S3 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

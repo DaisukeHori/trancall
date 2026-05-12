@@ -1,0 +1,60 @@
+scenario_id: TC-S3-vi
+scenario: S3
+name: "Du lịch và địa danh / Travel & Place Names"
+source_lang: ja
+target_lang: vi
+context: "10-turn conversation (ja→vi). Evaluates 6-tone system pronunciation quality and Sino-Vietnamese word usage."
+audio_url: null
+expected_keywords: ["Tháp Tokyo", "ga Shinjuku", "Tượng Nữ thần Tự do", "Times Square", "Khải Hoàn Môn", "Bali"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今週末、東京タワーに行く予定です。展望台からの夜景が楽しみです。"
+    expected_translation: "Tôi dự định đến thăm Tháp Tokyo vào cuối tuần này. Tôi rất háo hức xem cảnh đêm từ tầng quan sát."
+    eval_point: "東京タワー → Tháp Tokyo"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S3 turn 2)"
+    expected_translation: "(vi translation)"
+    eval_point: "声調 (6声調) の発音品質"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S3 turn 3)"
+    expected_translation: "(vi translation)"
+    eval_point: "漢字語 (Sino-Vietnamese) の適切な処理"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S3 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "南部 vs 北部方言差の許容"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S3 turn 5)"
+    expected_translation: "(vi translation)"
+    eval_point: "数値の正確な翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S3 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S3 turn 7)"
+    expected_translation: "(vi translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S3 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "丁寧語レベルの一貫性"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S3 turn 9)"
+    expected_translation: "(vi translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S3 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

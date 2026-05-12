@@ -1,0 +1,65 @@
+scenario_id: TC-S3-ko
+scenario: S3
+name: 여행 및 지명 / Travel & Place Names
+source_lang: ja
+target_lang: ko
+context: "10-turn travel conversation (ja→ko). Proper nouns should use conventional Korean translations."
+audio_url: null
+expected_keywords:
+  - "도쿄 타워"
+  - "신주쿠역"
+  - "자유의 여신상"
+  - "타임스 스퀘어"
+  - "개선문"
+  - "발리"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今週末、東京タワーに行く予定です。展望台からの夜景が楽しみです。"
+    expected_translation: "이번 주말 도쿄 타워에 갈 예정이에요. 전망대에서 야경이 기대돼요."
+    eval_point: "東京タワー → 도쿄 타워"
+  - turn: 2
+    speaker: B
+    script_text: "재미있겠네요! 어떻게 가실 건가요? 지하철로요?"
+    expected_translation: "楽しそうですね！どうやって行くんですか？地下鉄で？"
+    eval_point: "交通手段の語彙"
+  - turn: 3
+    speaker: A
+    script_text: "新宿駅から都営大江戸線に乗って、赤羽橋駅で降ります。"
+    expected_translation: "신주쿠역에서 도에이 오에도선을 타고 아카바네바시역에서 내려요."
+    eval_point: "駅名・路線名の保持"
+  - turn: 4
+    speaker: B
+    script_text: "저는 뉴욕에 있을 때 자유의 여신상을 방문했어요. 정말 웅장했어요."
+    expected_translation: "私はニューヨークにいたとき自由の女神を訪れました。とても壮大でした。"
+    eval_point: "자유의 여신상 (Statue of Liberty の韓国語)"
+  - turn: 5
+    speaker: A
+    script_text: "自由の女神は迫力がありますよね。タイムズスクエアも見たいです。"
+    expected_translation: "자유의 여신상은 정말 위압감이 있죠. 저도 타임스 스퀘어를 보고 싶어요."
+    eval_point: "タイムズスクエア → 타임스 스퀘어"
+  - turn: 6
+    speaker: B
+    script_text: "타임스 스퀘어는 밤에 정말 멋져요. 파리에 가본 적 있어요? 개선문이 정말 아름다워요."
+    expected_translation: "タイムズスクエアは夜すごいですよ。パリには行ったことがありますか？凱旋門が素晴らしい。"
+    eval_point: "개선문 (Arc de Triomphe の韓国語)"
+  - turn: 7
+    speaker: A
+    script_text: "パリはまだです。でもドイツのノイシュヴァンシュタイン城には行ったことがあります。"
+    expected_translation: "아직 파리는 못 가봤어요. 하지만 독일의 노이슈반슈타인 성에는 가봤어요."
+    eval_point: "ノイシュヴァンシュタイン城 → 노이슈반슈타인 성"
+  - turn: 8
+    speaker: B
+    script_text: "그건 제 버킷 리스트에 있어요! 여행에서 가장 좋았던 부분이 뭔가요?"
+    expected_translation: "それはバケットリストに入っています！旅で一番よかった部分は何ですか？"
+    eval_point: "버킷 리스트 (bucket list の韓国語)"
+  - turn: 9
+    speaker: A
+    script_text: "湖から見るお城の景色が最高でした。特に夕暮れ時は絵のようでした。"
+    expected_translation: "호수에서 바라보는 성의 경치가 최고였어요. 특히 황혼 무렵에는 그림 같았어요."
+    eval_point: "情景描写"
+  - turn: 10
+    speaker: A
+    script_text: "次の旅行はバリ島を考えています。おすすめのスポットはありますか？"
+    expected_translation: "다음 여행은 발리를 생각하고 있어요. 추천 명소가 있나요?"
+    eval_point: "バリ島 → 발리"

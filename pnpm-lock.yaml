@@ -24,6 +24,40 @@ importers:
         specifier: ^8.59.3
         version: 8.59.3(eslint@10.3.0(jiti@2.7.0))(typescript@5.9.3)
 
+  apps/cron:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.43.4
+        version: 2.105.4
+      '@trancall/shared-kernel':
+        specifier: workspace:*
+        version: link:../../packages/shared-kernel
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.1.1
+      livekit-server-sdk:
+        specifier: ^2.13.0
+        version: 2.15.2
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.18
+      tsx:
+        specifier: ^4.19.1
+        version: 4.21.0
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.18)(lightningcss@1.32.0)(terser@5.47.1)
+
   apps/mobile:
     dependencies:
       '@expo/vector-icons':
@@ -2762,6 +2796,9 @@ packages:
 
   '@types/istanbul-reports@3.0.4':
     resolution: {integrity: sha512-pk2B1NWalF9toCRu6gjBzR69syFjP4Od8WRAX+0mmf9lAjCRicLOWc+ZrxZHx/0XRjotgkF9t6iaMJ+aXcOdZQ==}
+
+  '@types/js-yaml@4.0.9':
+    resolution: {integrity: sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -9326,6 +9363,8 @@ snapshots:
   '@types/istanbul-reports@3.0.4':
     dependencies:
       '@types/istanbul-lib-report': 3.0.3
+
+  '@types/js-yaml@4.0.9': {}
 
   '@types/json-schema@7.0.15': {}
 
