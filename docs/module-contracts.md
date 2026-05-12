@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |---|---|
 | ドキュメント ID | CONTRACT-001 |
-| バージョン | 1.0.0 |
+| バージョン | 1.1.0 |
 | 作成日 | 2026-05-12 |
 | ステータス | canonical (現実装に整合) |
 | 対象 | Sprint 0 + Layer 1 完了モジュール (auth / media / billing / contact / notification / transcript / translation / shared-kernel / translation-agent) |
@@ -336,15 +336,19 @@ interface EventBus {
 
 ```ts
 // packages/translation/src/schemas.ts (v1.1.0 で追加)
+// import { DomainEventBase } from "@trancall/shared-kernel/schemas/events";
+// import { TranslationSessionId, OutputLanguage } from "@trancall/shared-kernel/schemas/brand";
+// NOTE: `AgentJobId` は v1.1.0 時点で shared-kernel に未 brand 化のため当面 `z.uuid()` を使用。
+//       Sprint 2 で `AgentJobIdSchema = z.uuid().brand("AgentJobId")` を shared-kernel/brand.ts に追加予定 (別 PR)。
 export const TranslationDegradedEventSchema = DomainEventBase.extend({
   type: z.literal("translation.degraded"),
   payload: z.object({
     sessionId: TranslationSessionId,
-    agentJobId: AgentJobId,
+    agentJobId: z.uuid(),  // 将来 AgentJobId branded type に置換
     sourceLang: OutputLanguage,
     targetLang: OutputLanguage,
     reason: z.enum(["openai_ws_reconnecting", "high_latency", "output_silence"]),
-    degradedAt: z.iso.datetime(),
+    timestamp: z.iso.datetime(),  // 統一キー名 (EventBus / Data Channel 両系統で突き合わせ可能)
     // 観測値 (degraded 判定の根拠、metrics 結合に使う)
     latencyP95Ms: z.number().int().nonnegative().nullable(),
     consecutiveSilenceMs: z.number().int().nonnegative().nullable(),
@@ -355,11 +359,11 @@ export const TranslationRecoveredEventSchema = DomainEventBase.extend({
   type: z.literal("translation.recovered"),
   payload: z.object({
     sessionId: TranslationSessionId,
-    agentJobId: AgentJobId,
+    agentJobId: z.uuid(),  // 将来 AgentJobId branded type に置換
     sourceLang: OutputLanguage,
     targetLang: OutputLanguage,
     degradedDurationMs: z.number().int().nonnegative(),
-    recoveredAt: z.iso.datetime(),
+    timestamp: z.iso.datetime(),  // 統一キー名
   }),
 });
 ```
@@ -380,6 +384,7 @@ Data Channel は **reliable** モードで送信 (字幕損失防止)。バイ�
 
 ```ts
 // packages/translation/src/schemas.ts (v1.1.0 で追加)
+// EventBus 側の TranslationDegradedEvent / TranslationRecoveredEvent と timestamp フィールド名を統一済 (突き合わせ用)
 export const TranslationStatusChannelPayloadSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("subtitle.delta"),
@@ -625,10 +630,12 @@ Server 処理: `trancall_event.translation_sessions` に INSERT。`outputLanguag
   endedAt: ISO8601,
   durationMs: int (>=0),
   billableSeconds: int (>=0),  // ceil(durationMs / 1000)
-  reason: "participant_left" | "agent_shutdown" | "openai_fatal_error" | "client_requested"
+  reason: "participant_left" | "agent_shutdown" | "openai_fatal_error" | "client_requested" | "agent_publish_failed"
 }
 ```
 Server 処理: `trancall_event.translation_sessions` を update。**フィールド `reason` → DB 列 `ended_reason` へマッピング** (DB 列名は予約語回避とセマンティクス明示のため別名を採用、`supabase/migrations/00002_add_translation_sessions_table.sql` のコメント参照)。
+
+`agent_publish_failed` は v1.1.0 で追加 (Agent → LiveKit Track publish が連続失敗した場合の終了理由、判定条件は `docs/translation-pipeline-design.md` §10.3)。
 
 Server で `translation.ended` DomainEvent を発行 → billing が購読して `recordUsage` (将来実装)。
 
@@ -714,7 +721,7 @@ Agent 側 (`apps/translation-agent/src/internal-api-client.ts`) の Zod schema �
 | 日付 | 版 | 内容 |
 |---|---|---|
 | 2026-05-12 | 1.0.0 | 初版作成 (Layer 1 完了時点の canonical 抽出) |
-| 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、`translation.degraded/recovered` の発行を **EventBus + Data Channel 2 系統並列** に明示。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。|
+| 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、§3.1 表の当該行を 2 系統並列 (EventBus + LiveKit Data Channel) に更新、§7.4.2 session_ended の `reason` enum に `agent_publish_failed` 追加、ヘッダーのバージョン 1.0.0 → 1.1.0、`AgentJobId` を `z.uuid()` で当面運用 (Sprint 2 で brand 化予定)、EventBus / Data Channel 両系統で `timestamp` キー名を統一。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。|
 
 ---
 

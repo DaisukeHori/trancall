@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| Status | Draft v1 (2026-05-12) |
+| Status | Draft v1.1 (2026-05-12) |
 | Owner | translation-agent / バックエンド |
-| 上位文書 | `docs/architecture.md` (§ Translation Pipeline)、`docs/module-contracts.md` v1.0.0 (§2.7 TranslationFacade) |
+| 上位文書 | `docs/architecture.md` (§ Translation Pipeline)、`docs/module-contracts.md` v1.1.0 (§2.7 TranslationFacade / §3.3 §3.4 / §7.4) |
 | 補助 | `docs/requirements.md` (PERF-002, TRANS-001〜007), `apps/translation-agent/CLAUDE.md`, `apps/translation-agent/src/openai-ws-client.ts` |
 | 改訂条件 | OpenAI Realtime API 仕様変更時 / LiveKit Agents SDK breaking change 時 / metrics 計測点追加時 |
 | 関連 PR (確定後) | D3 (`translation.degraded/recovered` DomainEvent + module-contracts v1.1.0) |
@@ -19,8 +19,8 @@
 - AudioFrame の取り回し (LiveKit `AudioStream` 24kHz mono Int16 → PCM16 base64)
 - OpenAI Realtime Translation API のイベント名 (現コードと公式仕様の差異解消)
 - `session.update` payload の正式形 (`audio.output.language` 中心)
-- 入力 commit タイミング (`session.input_audio_buffer.commit` の発火条件)
-- レイテンシ計測 4 点 (captureToAgent / openAIFirstDelta / agentPublish / totalEndToEnd) と発火タイミング
+- 入力フラッシュ手段 (Translation API には commit イベントが存在せず、`session.close` でサーバ側がフラッシュ)
+- レイテンシ計測 5 点 (captureToAgent / agentToOpenAI / openAIFirstDelta / agentPublish / totalEndToEnd) と発火タイミング
 - Track 命名 (`trans-{sourceIdentity}-to-{targetLang}`)
 - session ライフサイクル (start / pause / resume / end) と理由コード
 - エラーコード ↔ HTTP status の対応 (`module-contracts.md` §5 準拠)
@@ -55,7 +55,7 @@ Room: "room-{roomId}"
 ### 2.2 PERF-002 (`requirements.md:254`)
 発話終了 → 翻訳音声開始までの遅延:
 - p50 ≤ 1.5s
-- p95 ≤ 3.0s (英日など語順差大のペアは 4.0s 許容、`architecture.md:558` レビュー対応で合意)
+- p95 ≤ 3.0s (英日など語順差大のペアは 4.0s 許容、`architecture.md:557` レビュー対応で合意)
 - p99 ≤ 5.0s
 
 Sprint 2 の Gate Check 実走で計測、Sprint 2 完了基準。
@@ -95,14 +95,15 @@ Sprint 2 の Gate Check 実走で計測、Sprint 2 完了基準。
 
 Sprint 1 実装時に旧 Realtime API (汎用) の event 名を使ったが、Translation 専用 endpoint は `session.*` prefix が公式仕様。**Sprint 2 着手時に下表のとおり置換**:
 
-| 用途 | 現コード (誤) | **公式仕様 (採用)** | コード位置 |
+| 用途 | 現コード (誤) | **公式仕様 (採用)** | コード位置 (関数 / 関連行) |
 |---|---|---|---|
-| 音声送信 (client→server) | `input_audio_buffer.append` | **`session.input_audio_buffer.append`** | `openai-ws-client.ts:226` |
-| 音声 commit (client→server) | `input_audio_buffer.commit` | **`session.input_audio_buffer.commit`** | `openai-ws-client.ts:236` |
-| 翻訳音声受信 (server→client) | `response.audio.delta` | **`session.output_audio.delta`** | `openai-ws-client.ts:321` |
-| 翻訳字幕受信 (server→client) | `response.audio_transcript.delta` | **`session.output_transcript.delta`** | `openai-ws-client.ts:327` |
-| 字幕完了 (server→client) | `response.audio_transcript.done` | **`session.output_transcript.done`** (公式リファレンス未確認、gate-check で実測) | `openai-ws-client.ts:329` |
-| セッション設定 | `session.update` | `session.update` (同名、payload 構造変更) | `openai-ws-client.ts:262-281` |
+| 音声送信 (client→server) | `input_audio_buffer.append` | **`session.input_audio_buffer.append`** | `openai-ws-client.ts` 音声送信 `send` 呼び出し |
+| ~~音声 commit~~ | ~~`input_audio_buffer.commit`~~ | **存在しない** (Translation API は commit イベント未提供、`session.close` でサーバが pending buffer 自動フラッシュ) | 該当コード削除予定 (T7) |
+| 翻訳音声受信 (server→client) | `response.audio.delta` | **`session.output_audio.delta`** | `openai-ws-client.ts` の switch case |
+| 翻訳字幕受信 (server→client) | `response.audio_transcript.delta` | **`session.output_transcript.delta`** | 同上 |
+| 字幕完了 (server→client) | `response.audio_transcript.done` | **公式 server events に未記載** (gate-check で `.delta` のみで完結するか実測、§12-2 参照) | 同上 |
+| セッション設定 | `session.update` | `session.update` (同名、payload 構造変更) | `openai-ws-client.ts` の session.update 送信ブロック |
+| セッション終了 (client→server) | (なし、WS close で代替) | **`session.close`** (公式) — pending input audio をフラッシュして残りの翻訳出力を出してから close | T7 で追加実装 |
 
 公式ソース:
 - https://developers.openai.com/api/docs/guides/realtime-translation
@@ -144,14 +145,15 @@ ws.send(JSON.stringify({
 }));
 ```
 
-### 4.5 `session.input_audio_buffer.commit` 発火タイミング
+### 4.5 セッション終了時のフラッシュ手段
 
-**Sprint 2 で確定**: Agent 側 VAD (Voice Activity Detection) は実装しない。OpenAI 側のサーバ VAD に任せる (Translation endpoint のデフォルト挙動)。`commit` は以下の場合のみ送信:
+OpenAI Realtime Translation API には汎用 Realtime API の `input_audio_buffer.commit` イベントは **存在しない** (公式 client events は `session.update` / `session.input_audio_buffer.append` / `session.close` の 3 種のみ)。Agent 側 VAD (Voice Activity Detection) も実装しない (サーバ側 VAD 任せ、多言語で安定)。
 
-1. **session 終了時 (`end()` 呼び出し)** — pending buffer を確実にフラッシュする目的
-2. **明示的な発話区切り signal** が将来追加された場合 (Sprint 2 では追加しない)
+session 終了時の pending buffer フラッシュは:
+- **`session.close` イベントを送信** (公式仕様: "The server flushes pending input audio and emits any remaining translated output before closing the session")
+- 受信側は `session.output_audio.delta` の最終 chunk を受け取り次第 `audioSource.captureFrame` を完了
 
-理由: サーバ VAD のほうが多言語で安定する、クライアント側 VAD は Sprint 2 スコープ拡大要因。
+「明示的な発話区切り signal」を将来加える場合も `session.close → 新規 session.update` で session 再生成する形になる (Translation API スコープ外)。
 
 ### 4.6 受信イベントの処理
 
@@ -180,13 +182,16 @@ await audioSource.captureFrame(frame);
 
 ---
 
-## 5. レイテンシ計測点 4 種
+## 5. レイテンシ計測点 5 種
+
+`module-contracts.md` §7.4.4 `agent.metrics` event の `latencyMs` 5 配列と完全に同期する。
 
 ### 5.1 計測点定義
 
 | 計測点 | 始点 | 終点 | 単位 | 用途 |
 |---|---|---|---|---|
 | `captureToAgent` | LiveKit raw track の audio frame 生成 (発話) | Agent の `AudioStream.read()` で受領 | ms | LiveKit ↔ Agent 間の RTT |
+| `agentToOpenAI` | `AudioStream.read()` から取得した時刻 | `session.input_audio_buffer.append` WS 送信完了 | ms | Agent 内部 + OpenAI WS 送信経路 |
 | `openAIFirstDelta` | `session.input_audio_buffer.append` 送信時刻 | 最初の `session.output_audio.delta` 受信時刻 | ms | OpenAI 側翻訳遅延 (主要 KPI) |
 | `agentPublish` | `audioSource.captureFrame` 呼び出し時刻 | LiveKit 内部の publish 完了 (heuristic) | ms | publish 経路の遅延 |
 | `totalEndToEnd` | raw audio frame 生成時刻 | 翻訳音声の最初の frame が publish 完了 | ms | **PERF-002 主指標** |
@@ -205,9 +210,9 @@ await audioSource.captureFrame(frame);
 | `totalEndToEnd` | 未計測 | 上記 3 つの合算 (captureToAgent + openAIFirstDelta + agentPublish) を `recordTotalEndToEnd` に渡す |
 
 ### 5.4 metrics 送信
-- 30 秒ごとに集計値を `agent_metrics.recorded` イベントで `/internal/agent/events` に POST (現実装維持)
-- payload schema は `module-contracts.md` §2.7 `recordAgentMetrics` 既存
-- JSONB の `latencyMs` フィールドに `{captureToAgent: number[], openAIFirstDelta: number[], agentPublish: number[], totalEndToEnd: number[]}` で送信
+- 30 秒ごとに集計値を `agent.metrics` イベントで `/internal/agent/events` に POST (現実装維持)
+- payload schema は `module-contracts.md` §7.4.4 `agent.metrics` event 既存
+- JSONB の `latencyMs` フィールドに 5 配列 `{captureToAgent: number[], agentToOpenAI: number[], openAIFirstDelta: number[], agentPublish: number[], totalEndToEnd: number[]}` で送信
 
 ---
 
@@ -243,14 +248,14 @@ await audioSource.captureFrame(frame);
   └─ emit("ended") → [terminated]
 ```
 
-### 6.2 End 理由 (`module-contracts.md` §2.7 の `AgentEvent.session_ended.payload.reason` enum)
+### 6.2 End 理由 (`module-contracts.md` §7.4.2 の `translation.session_ended.reason` enum、v1.1.0 で 5 値に拡張済み)
 | 値 | 説明 |
 |---|---|
 | `participant_left` | 参加者離脱 |
 | `agent_shutdown` | Agent プロセス停止 (SIGTERM) |
 | `openai_fatal_error` | OpenAI WS が 4000-4999 で close |
 | `client_requested` | クライアント側から終了要求 (将来用) |
-| `agent_publish_failed` | **新規追加 (Sprint 2)** Agent → LiveKit publish が失敗 |
+| `agent_publish_failed` | v1.1.0 で追加。Agent → LiveKit publish が連続失敗 (§10.3 参照) |
 
 ### 6.3 同言語 skip
 - `language-pair.shouldStartSession(sourceLang, targetLang)` が false のとき `start()` は no-op
@@ -308,23 +313,21 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 - **30 秒周期** (Sprint 1 実装維持) で `agent_metrics.recorded` イベント
 - session 終了時に **最終バッチ** を `session_ended` 直前に送信
 
-### 9.2 payload (module-contracts.md §2.7 既存契約)
+### 9.2 payload (`module-contracts.md` §7.4.4 既存契約と完全同期)
 ```ts
 {
-  type: "agent_metrics.recorded",
-  agentJobId: AgentJobId,
-  sessionId: TranslationSessionId,
-  intervalSeconds: 30,
+  type: "agent.metrics",
+  agentJobId: UUID,           // v1.1.0 では z.uuid()、将来 AgentJobId brand
+  roomId: UUID,
   latencyMs: {
-    captureToAgent: number[],     // 30秒間に観測した全サンプル
+    captureToAgent: number[],     // 30 秒間に観測した全サンプル
+    agentToOpenAI: number[],
     openAIFirstDelta: number[],
     agentPublish: number[],
     totalEndToEnd: number[],
   },
-  framesProcessed: number,
-  reconnections: number,
-  degraded: boolean,
-  timestamp: ISODateTime,
+  memoryRssBytes: number,
+  collectedAt: ISO8601,
 }
 ```
 
@@ -368,11 +371,11 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 | T4 | `openAIRequestSentAt` リセットロジック修正 (delta 受信で null 化、200ms 途絶後の append で再採取) | `translation-session.ts:205, 216-218` | unit test 追加 |
 | T5 | `agentPublish` 計測点を `translated-audio` ハンドラに追加 | `agent.ts:218-224` | unit test |
 | T6 | `totalEndToEnd` を 3 計測点の合算で算出 | `translation-session.ts` 新規メソッド | unit test |
-| T7 | `session.input_audio_buffer.commit` を `end()` 内で送信 | `translation-session.ts`, `openai-ws-client.ts:234-239` | integration test |
-| T8 | `agent_publish_failed` 理由を `module-contracts.md` §2.7 enum に追加 | `module-contracts.md`, `packages/translation/src/schemas.ts` | スキーマ test |
+| T7 | `session.close` を `end()` 内で送信 (commit は使わない、Translation API には存在しない)。既存の `commitInputBuffer()` 実装は削除 | `translation-session.ts`, `openai-ws-client.ts` 該当ブロック | integration test |
+| T8 | `agent_publish_failed` 理由は v1.1.0 で `module-contracts.md` §7.4.2 に追加済み。Agent 側 `internal-api-client.ts` の Zod schema (session_ended の reason enum) に同値を追加 | `packages/translation/src/schemas.ts`, `apps/translation-agent/src/internal-api-client.ts` | スキーマ test |
 | T9 | error event → AppError mapping を `openai-ws-client.ts` 内に実装 (§10.1 表) | `openai-ws-client.ts` | unit test |
 | T10 | degraded/recovered 判定ロジック (§7) を `translation-session.ts` に追加。Data Channel publish 未実装で良い (D3 で確定後に publish 実装) | `translation-session.ts` | unit test |
-| T11 | gate-check.ts で 30 分連続実行モードと WS 強制切断/再接続シナリオを実装 | `scripts/gate-check.ts` | Gate Check 緑 |
+| T11 | gate-check.ts で 30 分連続実行モードと WS 強制切断/再接続シナリオを実装 | `apps/translation-agent/scripts/gate-check.ts` | Gate Check 緑 |
 
 ---
 
@@ -388,3 +391,4 @@ degraded/recovered の判定が成立した瞬間、Agent は **2 系統並列**
 
 ## 13. 改訂履歴
 - v1 (2026-05-12) 初版。Sprint 1 残課題 (event 名 / 計測点 / commit タイミング) を canonical 化し、Sprint 2 Gate Check 着手の入口を整備。OpenAI 公式 spec との差異 6 項目を明示。
+- v1.1 (2026-05-12) PR #28 Round 1 レビュー反映 (Critical 4 + Warning 5): commit イベントは Translation API に未存在 → `session.close` フラッシュに変更、レイテンシ計測 4→5 点 (`agentToOpenAI` 追加、`module-contracts.md` §7.4.4 と同期)、`module-contracts.md` 参照を §2.7 → §7.4.2 / §7.4.4 に修正、ヘッダーの上位文書バージョン v1.0.0 → v1.1.0、T11 のファイルパスを `apps/translation-agent/scripts/gate-check.ts` に修正、`architecture.md` 行番号 558→557。
