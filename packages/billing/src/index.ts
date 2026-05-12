@@ -10,11 +10,9 @@ export { createBillingFacade } from "./facade.js";
 export type {
   BillingFacade,
   BillingFacadeDeps,
-  IapTransactionResult,
-  StoreKitExternalRedirectResult,
-  PlanComparisonView,
-  UpgradePreview,
 } from "./facade.js";
+// IapTransactionResult / StoreKitExternalRedirectResult / PlanComparisonView / UpgradePreview は
+// view-models/index.ts から canonical export される (下記参照)
 
 // Schemas（モジュール境界の契約）
 export {
