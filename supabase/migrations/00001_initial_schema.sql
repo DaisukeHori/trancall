@@ -181,7 +181,7 @@ CREATE TABLE trancall_billing.usage_windows (
 );
 
 -- BRIN index: append-only高頻度書き込み向け
-CREATE INDEX idx_usage_windows_recorded USING BRIN ON trancall_billing.usage_windows(recorded_at);
+CREATE INDEX idx_usage_windows_recorded ON trancall_billing.usage_windows USING BRIN (recorded_at);
 CREATE INDEX idx_usage_windows_user ON trancall_billing.usage_windows(user_id, recorded_at DESC);
 CREATE INDEX idx_usage_windows_session ON trancall_billing.usage_windows(session_id);
 
@@ -224,7 +224,7 @@ CREATE TABLE trancall_transcript.segments (
 );
 
 -- BRIN for append-only writes
-CREATE INDEX idx_segments_room USING BRIN ON trancall_transcript.segments(room_id);
+CREATE INDEX idx_segments_room ON trancall_transcript.segments USING BRIN (room_id);
 CREATE INDEX idx_segments_room_time ON trancall_transcript.segments(room_id, start_time_ms);
 CREATE INDEX idx_segments_retention ON trancall_transcript.segments(retention_until)
   WHERE retention_until IS NOT NULL;
@@ -280,7 +280,7 @@ CREATE TABLE trancall_notification.push_logs (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_push_logs_user USING BRIN ON trancall_notification.push_logs(created_at);
+CREATE INDEX idx_push_logs_user ON trancall_notification.push_logs USING BRIN (created_at);
 
 -- =============================================================================
 -- RLS Policies
@@ -426,8 +426,8 @@ CREATE TABLE trancall_event.translation_events (
   processing_error TEXT
 );
 
-CREATE INDEX idx_translation_events_received USING BRIN
-  ON trancall_event.translation_events(received_at);
+CREATE INDEX idx_translation_events_received
+  ON trancall_event.translation_events USING BRIN (received_at);
 
 CREATE INDEX idx_translation_events_unprocessed
   ON trancall_event.translation_events(received_at)
@@ -502,8 +502,8 @@ CREATE TABLE trancall_billing.webhook_events (
 );
 
 -- BRIN for append-only
-CREATE INDEX idx_webhook_events_received USING BRIN
-  ON trancall_billing.webhook_events(received_at);
+CREATE INDEX idx_webhook_events_received
+  ON trancall_billing.webhook_events USING BRIN (received_at);
 
 -- 未処理イベント検索用
 CREATE INDEX idx_webhook_events_unprocessed

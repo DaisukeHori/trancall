@@ -37,6 +37,11 @@ ALTER TABLE trancall_auth.consent_versions
   ADD COLUMN supersedes     VARCHAR(20),   -- 直前バージョンの version 値 (任意)
   ADD COLUMN change_summary TEXT;          -- 改訂概要 (任意)
 
+-- policy_url は voice_to_openai / push_notification 等の scope で
+-- 必須 URL が存在しないため NULL 許容化する
+ALTER TABLE trancall_auth.consent_versions
+  ALTER COLUMN policy_url DROP NOT NULL;
+
 -- =============================================================================
 -- Step 2: data migration — 既存行の version='v1.0' を '2026-01-01' に正規化
 -- =============================================================================

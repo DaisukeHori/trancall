@@ -2,7 +2,7 @@
 -- Gate Check 実行結果を永続化するテーブル (PERF-002 計測 T-31)
 -- 設計参照: docs/production-runbook.md §15 (Gate Check runbook)
 
-CREATE TABLE IF NOT EXISTS trancall_translation.gate_check_runs (
+CREATE TABLE IF NOT EXISTS trancall_event.gate_check_runs (
   run_id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   started_at      TIMESTAMPTZ NOT NULL,
   ended_at        TIMESTAMPTZ,
@@ -18,17 +18,17 @@ CREATE TABLE IF NOT EXISTS trancall_translation.gate_check_runs (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE trancall_translation.gate_check_runs IS
+COMMENT ON TABLE trancall_event.gate_check_runs IS
   'Phase 1a Gate Check (PERF-002) 実行結果。production-runbook.md §15 参照。';
 
-COMMENT ON COLUMN trancall_translation.gate_check_runs.verdict IS
+COMMENT ON COLUMN trancall_event.gate_check_runs.verdict IS
   'PASS: p95 < 3000ms かつ pass_count >= 99 / CONDITIONAL_PASS: p95 < 3500ms かつ pass_count >= 95 / FAIL: 上記以外 / PENDING: 実行中';
 
 -- RLS: service_role のみ書き込み、閲覧はサービス内部のみ
-ALTER TABLE trancall_translation.gate_check_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trancall_event.gate_check_runs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY gate_check_runs_service_only
-  ON trancall_translation.gate_check_runs
+  ON trancall_event.gate_check_runs
   FOR ALL
   TO service_role
   USING (true)

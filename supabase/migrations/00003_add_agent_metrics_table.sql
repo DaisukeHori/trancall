@@ -21,7 +21,7 @@ CREATE TABLE trancall_event.agent_metrics (
 );
 
 CREATE INDEX idx_agent_metrics_collected
-  USING BRIN ON trancall_event.agent_metrics(collected_at);
+  ON trancall_event.agent_metrics USING BRIN (collected_at);
 
 CREATE INDEX idx_agent_metrics_room
   ON trancall_event.agent_metrics(room_id);

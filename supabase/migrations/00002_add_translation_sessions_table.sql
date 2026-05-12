@@ -25,7 +25,7 @@ CREATE INDEX idx_translation_sessions_room
   ON trancall_event.translation_sessions(room_id);
 
 CREATE INDEX idx_translation_sessions_started
-  USING BRIN ON trancall_event.translation_sessions(started_at);
+  ON trancall_event.translation_sessions USING BRIN (started_at);
 
 ALTER TABLE trancall_event.translation_sessions ENABLE ROW LEVEL SECURITY;
 
