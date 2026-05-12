@@ -169,11 +169,83 @@ Side effects:
 
 ### GET /api/rooms/history?limit=20&before=2026-05-11T00:00:00Z
 
-> **未実装 (Phase 2 予定)**: `RoomFacade.history` メソッドが未実装のため、このエンドポイントは Layer 3-A スコープ外。Phase 2 で実装予定。
+> **Phase 1a P1 (Sprint 2/3) 実装対象** (Sprint 1 完了報告 v12 §7 P1 と整合)。Sprint 1 では `mobile/recent-calls-store` が `[]` 固定で待機中。実装は Layer 3 server で `RoomFacade.history` を新規追加し、mobile からの REST 経由取得を有効化する。
 
+**Query parameters**:
+- `limit`: integer, 1-50, default 20
+- `before`: ISO8601 datetime (`startedAt < before` フィルタ、初回呼出は省略可)
+
+**Response Zod schema** (新規、`packages/room/src/schemas.ts` Sprint 3 拡張で追加):
+
+```ts
+export const RoomHistoryParticipantSchema = z.object({
+  userId: UserIdSchema,
+  displayName: z.string(),
+  trancallId: z.string().regex(/^@[a-z0-9_]+$/),
+  avatarUrl: z.url().nullable(),
+  isHost: z.boolean(),
+});
+
+export const RoomHistoryEntrySchema = z.object({
+  roomId: RoomIdSchema,
+  status: z.enum(["ended"]),                                  // history は ended のみ返す
+  roomType: z.enum(["audio", "video"]),
+  translationEnabled: z.boolean(),
+  startedAt: z.iso.datetime(),                                // status='active' 遷移時刻
+  endedAt: z.iso.datetime(),                                  // history は必ず非 null
+  durationSeconds: z.number().int().nonnegative(),
+  participants: z.array(RoomHistoryParticipantSchema).min(1), // 自分を含む参加者全員
+  myRole: z.enum(["host", "member"]),
+  costYen: z.number().int().nonnegative(),                    // 当該通話の billing usage 合計 (heartbeat 集計)
+  hasTranscript: z.boolean(),                                 // transcript_access.can_view=true なら true
+});
+export type RoomHistoryEntry = z.infer<typeof RoomHistoryEntrySchema>;
+
+export const RoomHistoryResponseSchema = z.object({
+  rooms: z.array(RoomHistoryEntrySchema),
+  nextCursor: z.iso.datetime().nullable(),                    // 次ページ取得用 (最古 entry の startedAt、null = これ以上なし)
+});
+export type RoomHistoryResponse = z.infer<typeof RoomHistoryResponseSchema>;
 ```
-Response: { "ok": true, "data": RoomState[] }
+
+**Response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "rooms": [
+      {
+        "roomId": "550e8400-...",
+        "status": "ended",
+        "roomType": "audio",
+        "translationEnabled": true,
+        "startedAt": "2026-05-11T10:00:00.000Z",
+        "endedAt": "2026-05-11T10:15:32.000Z",
+        "durationSeconds": 932,
+        "participants": [
+          { "userId": "u_self", "displayName": "自分", "trancallId": "@me", "avatarUrl": null, "isHost": true },
+          { "userId": "u_abc", "displayName": "John", "trancallId": "@john", "avatarUrl": "https://...", "isHost": false }
+        ],
+        "myRole": "host",
+        "costYen": 0,
+        "hasTranscript": true
+      }
+    ],
+    "nextCursor": "2026-05-11T09:30:00.000Z"
+  }
+}
 ```
+
+**実装側の制約** (Sprint 3 で `RoomFacade.history` 実装時):
+- ソート: `startedAt DESC`
+- 表示対象: `rooms.status = 'ended' AND <自分が participant に含まれる>`
+- 上限: 過去 90 日 (Free/Light) / 365 日 (Standard/Business、subscription tier に従う、`getSubscription` 経由)
+- 必要 Repository メソッド: `RoomRepository.findEndedByParticipantId(userId, limit, before)` (Sprint 3 で追加)
+- `costYen` は同 PR で `BillingFacade.getCostByRoomId(roomId, userId)` を追加して集計するか、`UsageRepository.sumByRoomId(roomId)` を追加するかは Sprint 3 着手時に判断
+- `RoomFacade.history` の contract は `docs/module-contracts.md` v1.4.0 で正式追加予定 (Sprint 3 同期時)
+
+**エラー**: HTTP 401 `AUTH_TOKEN_EXPIRED` のみ (空配列は正常系、`rooms: [], nextCursor: null`)
 
 ### POST /api/rooms/:id/token
 

@@ -1066,15 +1066,79 @@ function computePreCallCostEstimate(
 
 SCR-002 Home (Recent) 画面のヘッダー下部に残量を常時表示する (BILL-008 要件、design-system.md canonical)。
 
-**表示文言**: `残り {{minutes}} 分（{{plan}}プラン）`  (ja) / `{{minutes}} min remaining ({{plan}})` (en)
+**表示文言**: `残り {{minutes}} 分（{{plan}}プラン）`  (ja) / `{{minutes}} min remaining ({{plan}})` (en) / `剩余 {{minutes}} 分钟（{{plan}}套餐）` (zh)
+
+#### 10.2.1 残量バナー Wireframe (Sprint 3 mobile 実装)
+
+```
+┌──────────────────────────────────────┐
+│ 🌐 TranCall                       ⚙ │ ← Header (logo + Settings icon)
+├──────────────────────────────────────┤
+│                                       │
+│  ┌─────────────────────────────┐     │
+│  │ ⏱ 残り 23 分               │     │ ← 残量バナー (色: primary, plan: Light)
+│  │   Light プラン (¥980/月)    │     │
+│  │   次回更新: 2026-06-12      │     │
+│  │              [プラン管理 ▶ ] │     │
+│  └─────────────────────────────┘     │
+│                                       │
+│ ─── 通話履歴 ───                     │
+│                                       │
+│  [Avatar] John Wang        2026-05-11│
+│           5 分 32 秒               │
+│  ──────────────────────────────────  │
+│  [Avatar] Maria García     2026-05-10│
+│           12 分 14 秒              │
+└──────────────────────────────────────┘
+```
+
+#### 10.2.2 残量バナーの状態別表示
+
+| プラン | 残量 ≥ 1 分 | 残量 = 0 分 | 期限切れ |
+|---|---|---|---|
+| Free | `残り {N} 分 (Freeプラン)`、`success` 色 | `¥0 / 翻訳利用不可 (Freeプラン)`、`warning` 色、`プランをアップグレード ▶` ボタン表示 | (該当なし) |
+| Light | `残り {N} 分 (Lightプラン)`、`primary` 色 + 「次回更新: YYYY-MM-DD」 | `残 0 分 (Lightプラン、超過 ¥40/分)`、`warning` 色 | `期限切れ、アップグレード必要`、`danger` 色、CTA `アップグレード ▶` |
+| Standard | 同上 (色 / 文言は Light と同様) | `残 0 分 (Standardプラン、超過 ¥30/分)` | 同上 |
+| Business | 同上 | `残 0 分 (Businessプラン、超過 ¥25/分)` | 同上 |
+
+#### 10.2.3 BillingScreenState (mobile billingStore) と残量バナーの結線
+
+```ts
+// apps/mobile/src/components/home-balance-banner.tsx (Sprint 3 新規)
+export const HomeBalanceBanner: React.FC = () => {
+  const subscription = useBillingStore((s) => s.subscription);
+  const refresh = useBillingStore((s) => s.refresh);
+
+  useEffect(() => {
+    void refresh();  // mount 時 + Home 表示時に最新化
+  }, [refresh]);
+
+  if (!subscription) return <Skeleton />;  // ロード中
+  const tier = subscription.tier;
+  const remaining = subscription.remainingMinutes;
+  const overageRate = PLAN_CONFIGS[tier].overageRateYen;
+  const status = remaining <= 0 ? "depleted" : "ok";
+  return (
+    <Card variant={status === "depleted" ? "warning" : "primary"}>
+      <Text>{t("home.balance.remaining", { minutes: remaining, plan: tier })}</Text>
+      <Text>{t(`plans.${tier}.label`)}</Text>
+      <Text>{t("home.balance.nextBilling", { date: subscription.currentPeriodEnd })}</Text>
+      <Button onPress={() => navigation.navigate("Subscription")}>
+        {t("home.balance.managePlan")}
+      </Button>
+    </Card>
+  );
+};
+```
 
 **更新タイミング**:
 1. アプリ起動時: `billingStore` が `GET /api/billing/subscription` を呼び出し
 2. 通話終了後: `reconcile` 完了後に `refreshSubscription()` を自動呼び出し
 3. heartbeat 受信: Agent からの heartbeat response に含まれる `remainingMinutes` で即時更新
 4. Settings → Subscription 画面表示時: `refreshSubscription()` を呼び出し
+5. Home 画面表示時: 5 秒以上経過していれば `refreshSubscription()` (頻度制御で API 負荷回避)
 
-**残量が 0 以下の場合**: `¥0 / 翻訳利用不可（Freeプラン）` または `残 0 分（Lightプラン）` と表示。通話開始時に Pre-call 画面でブロック (BILL-009 要件)。
+**残量が 0 以下の場合**: 上記 §10.2.2 表通り。通話開始時に Pre-call 画面でブロック (BILL-009 要件)。
 
 ### 10.3 通話終了後コストサマリー (Call Summary)
 
