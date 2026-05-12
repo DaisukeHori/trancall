@@ -1,8 +1,10 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { HomeScreen, ContactsScreen, SettingsScreen } from "../screens/placeholder-tab-screens.js";
 import { useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
+import { RecentStack } from "./recent-stack.js";
+import { ContactsStack } from "./contacts-stack.js";
+import { SettingsStack } from "./settings-stack.js";
 
 export type MainTabParamList = {
   Home: undefined;
@@ -31,7 +33,7 @@ export function MainTabs() {
     >
       <Tab.Screen
         name="Home"
-        component={HomeScreen}
+        component={RecentStack}
         options={{
           tabBarLabel: t("home.recentCalls"),
           tabBarAccessibilityLabel: t("home.recentCalls"),
@@ -39,7 +41,7 @@ export function MainTabs() {
       />
       <Tab.Screen
         name="Contacts"
-        component={ContactsScreen}
+        component={ContactsStack}
         options={{
           tabBarLabel: t("contacts.title"),
           tabBarAccessibilityLabel: t("contacts.title"),
@@ -47,7 +49,7 @@ export function MainTabs() {
       />
       <Tab.Screen
         name="Settings"
-        component={SettingsScreen}
+        component={SettingsStack}
         options={{
           tabBarLabel: t("settings.title"),
           tabBarAccessibilityLabel: t("settings.title"),

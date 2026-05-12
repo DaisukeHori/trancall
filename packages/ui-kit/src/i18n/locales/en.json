@@ -57,7 +57,13 @@
     "recentCalls": "Recent Calls",
     "searchContacts": "Search contacts...",
     "noRecentCalls": "No recent calls",
-    "missed": "Missed"
+    "missed": "Missed",
+    "searchPlaceholder": "Search contacts...",
+    "empty": {
+      "title": "No recent calls",
+      "subtitle": "Your call history will appear here"
+    },
+    "lowBalanceWarning": "{{minutes}} min remaining"
   },
   "contacts": {
     "title": "Contacts",
@@ -71,7 +77,17 @@
     "block": "Block",
     "report": "Report",
     "unblock": "Unblock",
-    "blocked": "Blocked"
+    "blocked": "Blocked",
+    "empty": {
+      "title": "No contacts yet",
+      "subtitle": "Add contacts to start making translation calls"
+    },
+    "deleteConfirmTitle": "Remove Contact",
+    "deleteConfirmMessage": "Remove {{name}} from your contacts?",
+    "blockConfirmTitle": "Block",
+    "blockConfirmMessage": "Block {{name}}?",
+    "reportConfirmTitle": "Report",
+    "reportConfirmMessage": "Report {{name}}?"
   },
   "call": {
     "startCall": "Start Call",
@@ -154,7 +170,42 @@
     "about": "About TranCall",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
-    "deleteAccount": "Delete Account"
+    "deleteAccount": "Delete Account",
+    "displayName": "Display Name",
+    "trancallId": "TranCall ID",
+    "translation": {
+      "sectionTitle": "Translation",
+      "subtitles": "Show Subtitles",
+      "defaultLanguagePair": "Default Language Pair",
+      "ambientPassthrough": "Ambient Passthrough"
+    },
+    "planSection": {
+      "sectionTitle": "Plan",
+      "currentPlan": "Current Plan",
+      "manage": "Manage",
+      "upgrade": "Upgrade",
+      "upgradeNote": "Plan upgrades are completed in your browser"
+    },
+    "notificationsSection": {
+      "sectionTitle": "Notifications",
+      "push": "Push Notifications"
+    },
+    "aboutSection": {
+      "sectionTitle": "About",
+      "version": "Version",
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy",
+      "contact": "Contact Us"
+    },
+    "danger": {
+      "sectionTitle": "Account",
+      "signOut": "Sign Out",
+      "deleteAccount": "Delete Account",
+      "deleteConfirmTitle": "Delete Account?",
+      "deleteConfirmMessage": "This action cannot be undone. All your data will be deleted.",
+      "signOutConfirmTitle": "Sign Out",
+      "signOutConfirmMessage": "Are you sure you want to sign out?"
+    }
   },
   "consent": {
     "title": "About Translation Calls",
@@ -204,6 +255,62 @@
     "RATE_LIMITED": "Too many requests. Please wait a moment.",
     "INTERNAL_ERROR": "An error occurred. Please try again.",
     "NETWORK_ERROR": "Cannot connect. Please check your network."
+  },
+  "addContact": {
+    "title": "Add Contact",
+    "tab": {
+      "search": "Search ID",
+      "qr": "Scan QR",
+      "invite": "Invite Link",
+      "import": "Import"
+    },
+    "search": {
+      "placeholder": "TranCall ID or name...",
+      "noResults": "No users found",
+      "addButton": "Add"
+    },
+    "qr": {
+      "comingSoon": "QR code scanning is coming in Phase 2",
+      "title": "Scan QR Code"
+    },
+    "invite": {
+      "title": "Invite Link",
+      "generate": "Generate Link",
+      "share": "Share Link",
+      "copied": "Link copied",
+      "generating": "Generating..."
+    },
+    "import": {
+      "title": "Import from Device",
+      "permissionRequired": "Please allow access to your contacts",
+      "allow": "Allow",
+      "noMatches": "No TranCall users found",
+      "addAll": "Add All",
+      "importing": "Importing..."
+    },
+    "successMessage": "Contact added"
+  },
+  "contactProfile": {
+    "call": "Call",
+    "message": "Message",
+    "messageComingSoon": "Messaging is coming in Phase 2",
+    "edit": "Edit",
+    "callHistory": "Call History",
+    "noCallHistory": "No calls with this contact",
+    "favorite": "Add to Favorites",
+    "unfavorite": "Remove from Favorites",
+    "block": "Block",
+    "unblock": "Unblock",
+    "report": "Report",
+    "remove": "Remove Contact",
+    "nativeLanguage": "Native Language",
+    "trancallId": "TranCall ID",
+    "deleteConfirmTitle": "Remove Contact",
+    "deleteConfirmMessage": "Remove {{name}} from your contacts?",
+    "blockConfirmTitle": "Block",
+    "blockConfirmMessage": "Block {{name}}? You will no longer be able to call each other.",
+    "reportConfirmTitle": "Report",
+    "reportConfirmMessage": "Report {{name}}?"
   },
   "dev": {
     "notImplementedYet": "Not implemented yet (Layer 4-B)"

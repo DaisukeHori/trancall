@@ -57,7 +57,13 @@
     "recentCalls": "最近の通話",
     "searchContacts": "連絡先を検索...",
     "noRecentCalls": "通話履歴はありません",
-    "missed": "不在着信"
+    "missed": "不在着信",
+    "searchPlaceholder": "連絡先を検索...",
+    "empty": {
+      "title": "通話履歴はありません",
+      "subtitle": "通話を開始すると、ここに表示されます"
+    },
+    "lowBalanceWarning": "残り {{minutes}} 分"
   },
   "contacts": {
     "title": "連絡先",
@@ -71,7 +77,17 @@
     "block": "ブロック",
     "report": "通報",
     "unblock": "ブロック解除",
-    "blocked": "ブロック済み"
+    "blocked": "ブロック済み",
+    "empty": {
+      "title": "連絡先がありません",
+      "subtitle": "連絡先を追加して、翻訳通話を始めましょう"
+    },
+    "deleteConfirmTitle": "連絡先を削除",
+    "deleteConfirmMessage": "{{name}} を連絡先から削除しますか？",
+    "blockConfirmTitle": "ブロック",
+    "blockConfirmMessage": "{{name}} をブロックしますか？",
+    "reportConfirmTitle": "通報",
+    "reportConfirmMessage": "{{name}} を通報しますか？"
   },
   "call": {
     "startCall": "通話を開始",
@@ -154,7 +170,42 @@
     "about": "TranCallについて",
     "privacy": "プライバシーポリシー",
     "terms": "利用規約",
-    "deleteAccount": "アカウントを削除"
+    "deleteAccount": "アカウントを削除",
+    "displayName": "表示名",
+    "trancallId": "TranCall ID",
+    "translation": {
+      "sectionTitle": "翻訳設定",
+      "subtitles": "字幕表示",
+      "defaultLanguagePair": "デフォルト言語ペア",
+      "ambientPassthrough": "原音重畳"
+    },
+    "planSection": {
+      "sectionTitle": "プラン",
+      "currentPlan": "現在のプラン",
+      "manage": "管理",
+      "upgrade": "アップグレード",
+      "upgradeNote": "プランのアップグレードはブラウザで行います"
+    },
+    "notifications": {
+      "sectionTitle": "通知",
+      "push": "プッシュ通知"
+    },
+    "about": {
+      "sectionTitle": "アプリ情報",
+      "version": "バージョン",
+      "terms": "利用規約",
+      "privacy": "プライバシーポリシー",
+      "contact": "お問い合わせ"
+    },
+    "danger": {
+      "sectionTitle": "アカウント",
+      "signOut": "ログアウト",
+      "deleteAccount": "アカウントを削除",
+      "deleteConfirmTitle": "アカウントを削除しますか？",
+      "deleteConfirmMessage": "この操作は取り消せません。すべてのデータが削除されます。",
+      "signOutConfirmTitle": "ログアウト",
+      "signOutConfirmMessage": "ログアウトしてもよろしいですか？"
+    }
   },
   "consent": {
     "title": "翻訳通話について",
@@ -204,6 +255,62 @@
     "RATE_LIMITED": "リクエストが多すぎます。しばらくお待ちください",
     "INTERNAL_ERROR": "エラーが発生しました。再試行してください",
     "NETWORK_ERROR": "接続できません。ネットワークを確認してください"
+  },
+  "addContact": {
+    "title": "連絡先を追加",
+    "tab": {
+      "search": "ID検索",
+      "qr": "QRスキャン",
+      "invite": "招待リンク",
+      "import": "端末インポート"
+    },
+    "search": {
+      "placeholder": "TranCall IDまたは名前...",
+      "noResults": "ユーザーが見つかりません",
+      "addButton": "追加"
+    },
+    "qr": {
+      "comingSoon": "QRコードスキャンはPhase 2で実装予定です",
+      "title": "QRコードをスキャン"
+    },
+    "invite": {
+      "title": "招待リンク",
+      "generate": "リンクを生成",
+      "share": "リンクを共有",
+      "copied": "リンクをコピーしました",
+      "generating": "生成中..."
+    },
+    "import": {
+      "title": "端末の連絡先からインポート",
+      "permissionRequired": "連絡先へのアクセスを許可してください",
+      "allow": "許可する",
+      "noMatches": "TranCallユーザーが見つかりません",
+      "addAll": "全員を追加",
+      "importing": "インポート中..."
+    },
+    "successMessage": "連絡先に追加しました"
+  },
+  "contactProfile": {
+    "call": "通話",
+    "message": "メッセージ",
+    "messageComingSoon": "メッセージ機能はPhase 2で実装予定です",
+    "edit": "編集",
+    "callHistory": "通話履歴",
+    "noCallHistory": "この連絡先との通話はありません",
+    "favorite": "お気に入りに追加",
+    "unfavorite": "お気に入りから削除",
+    "block": "ブロック",
+    "unblock": "ブロック解除",
+    "report": "通報",
+    "remove": "連絡先から削除",
+    "nativeLanguage": "母国語",
+    "trancallId": "TranCall ID",
+    "deleteConfirmTitle": "連絡先を削除",
+    "deleteConfirmMessage": "{{name}} を連絡先から削除しますか？",
+    "blockConfirmTitle": "ブロック",
+    "blockConfirmMessage": "{{name}} をブロックしますか？ブロック後は通話できなくなります。",
+    "reportConfirmTitle": "通報",
+    "reportConfirmMessage": "{{name}} を通報しますか？"
   },
   "dev": {
     "notImplementedYet": "実装予定 (Layer 4-B)"
