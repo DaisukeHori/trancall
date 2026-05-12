@@ -16,7 +16,7 @@ import type {
   NativeStackNavigationProp,
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
-import { Avatar, PlanCard, useTheme } from "@trancall/ui-kit";
+import { Avatar, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { useAuthStore } from "../stores/auth-store.js";
 import type { SettingsStackParamList } from "../navigation/settings-stack.js";
@@ -251,13 +251,14 @@ export function SettingsScreen(_props: Props) {
 
         {/* Section: Plan */}
         <SectionHeader>{t("settings.planSection.sectionTitle")}</SectionHeader>
-        <PlanCard
-          planName="Free"
-          priceYen={0}
-          includedMinutes={60}
-          isSelected={true}
-          accessibilityLabel={t("settings.planSection.currentPlan")}
-        />
+        <SettingsGroup>
+          <SettingsRow
+            label={t("settings.planSection.manage")}
+            chevron
+            onPress={() => { navigation.navigate("Subscription"); }}
+            accessibilityLabel={t("settings.planSection.manage")}
+          />
+        </SettingsGroup>
 
         {/* Section: Notifications */}
         <SectionHeader>{t("settings.notificationsSection.sectionTitle")}</SectionHeader>
