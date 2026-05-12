@@ -1,0 +1,11 @@
+appId: tech.hori.trancall
+name: "SCR-002 — Home recent calls list display"
+tags: [P0, home]
+---
+- launchApp:
+    clearState: true
+- runFlow: shared/login_as_e2e_user.yaml
+- assertVisible:
+    text: ${T_home_recentCalls}
+- assertVisible:
+    id: "home-recent-list"

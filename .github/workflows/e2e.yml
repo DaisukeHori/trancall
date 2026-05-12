@@ -1,0 +1,186 @@
+name: E2E (Maestro)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "apps/mock-server/**"
+      - "packages/ui-kit/**"
+      - ".github/workflows/e2e.yml"
+
+jobs:
+  ios:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck mock-server
+        run: pnpm --filter @trancall/mock-server typecheck
+
+      - name: Build mock-server
+        run: pnpm --filter @trancall/mock-server build
+
+      - name: Start mock-server
+        run: pnpm --filter @trancall/mock-server start &
+        env:
+          PORT: 4010
+
+      - name: Wait for mock-server
+        run: |
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:4010/health; then
+              echo "mock-server ready"
+              break
+            fi
+            echo "Waiting for mock-server... attempt $i"
+            sleep 2
+          done
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Boot iOS Simulator
+        run: |
+          DEVICE_UDID=$(xcrun simctl list devices available | grep "iPhone 15" | head -1 | grep -o '[A-Z0-9-]\{36\}')
+          if [ -z "$DEVICE_UDID" ]; then
+            DEVICE_UDID=$(xcrun simctl create "iPhone 15 E2E" "com.apple.CoreSimulator.SimDeviceType.iPhone-15" "com.apple.CoreSimulator.SimRuntime.iOS-17-0")
+          fi
+          xcrun simctl boot "$DEVICE_UDID" || true
+          echo "SIMULATOR_UDID=$DEVICE_UDID" >> "$GITHUB_ENV"
+
+      - name: Build Expo app for E2E (iOS Simulator)
+        run: |
+          cd apps/mobile
+          pnpm exec expo build:ios --no-wait --type simulator || true
+        env:
+          EXPO_PUBLIC_API_BASE_URL: http://localhost:4010
+          NODE_ENV: test
+
+      - name: Install app on simulator
+        run: |
+          APP_PATH=$(find . -name "*.app" -path "*/ios-simulator/*" | head -1)
+          if [ -n "$APP_PATH" ]; then
+            xcrun simctl install "$SIMULATOR_UDID" "$APP_PATH"
+          fi
+        continue-on-error: true
+
+      - name: Run Maestro P0 flows
+        run: |
+          maestro test apps/mobile/e2e/maestro/flows/ \
+            --include-tags P0 \
+            --config apps/mobile/e2e/maestro/config.yaml \
+            --format junit \
+            --output maestro-results.xml
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: 60000
+
+      - name: Upload Maestro test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-results-ios
+          path: |
+            maestro-results.xml
+            ~/.maestro/tests/**/*.png
+          retention-days: 7
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-screenshots-ios-failure
+          path: ~/.maestro/tests/**/*.png
+          retention-days: 7
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build mock-server
+        run: pnpm --filter @trancall/mock-server build
+
+      - name: Start mock-server
+        run: |
+          pnpm --filter @trancall/mock-server start &
+        env:
+          PORT: 4010
+
+      - name: Wait for mock-server
+        run: |
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:4010/health; then
+              echo "mock-server ready"
+              break
+            fi
+            echo "Waiting for mock-server... attempt $i"
+            sleep 2
+          done
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Run Maestro P0 flows (Android Emulator)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            cd apps/mobile
+            pnpm exec expo export --platform android || true
+            cd ../..
+            maestro test apps/mobile/e2e/maestro/flows/ \
+              --include-tags P0 \
+              --config apps/mobile/e2e/maestro/config.yaml \
+              --format junit \
+              --output maestro-results-android.xml
+        env:
+          EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:4010
+          NODE_ENV: test
+
+      - name: Upload Maestro test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-results-android
+          path: |
+            maestro-results-android.xml
+            ~/.maestro/tests/**/*.png
+          retention-days: 7
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-screenshots-android-failure
+          path: ~/.maestro/tests/**/*.png
+          retention-days: 7

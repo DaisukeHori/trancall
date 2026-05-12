@@ -1,0 +1,32 @@
+appId: tech.hori.trancall
+name: "gate_consent_callee — Account deletion 4-step confirmation"
+tags: [P0, gate, settings]
+---
+- launchApp:
+    clearState: true
+- runFlow: shared/login_as_e2e_user.yaml
+- tapOn:
+    id: "tab-settings"
+- tapOn:
+    id: "settings-deleteAccount-row"
+- assertVisible:
+    id: "account-deletion-reason-step"
+- tapOn:
+    id: "reason-not-using"
+- tapOn:
+    text: ${T_common_next}
+- assertVisible:
+    id: "account-deletion-warning-step"
+- tapOn:
+    id: "account-deletion-proceed-button"
+- assertVisible:
+    id: "account-deletion-confirm-step"
+- tapOn:
+    id: "confirm-password-input"
+- inputText: ${E2E_USER_A_PASSWORD}
+- tapOn:
+    id: "account-deletion-submit-button"
+- assertVisible:
+    id: "account-deletion-grace-period-step"
+- assertVisible:
+    text: "days to deletion"

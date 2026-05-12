@@ -1,0 +1,57 @@
+[
+  {
+    "id": "contact-001",
+    "userId": "user-b-uuid-0000-0000-000000000002",
+    "trancallId": "@e2e_user_b",
+    "displayName": "E2E User B",
+    "nativeLanguage": "en",
+    "avatarUrl": null,
+    "isFavorite": true,
+    "isBlocked": false,
+    "createdAt": "2026-05-01T00:00:00.000Z"
+  },
+  {
+    "id": "contact-002",
+    "userId": "user-c-uuid-0000-0000-000000000003",
+    "trancallId": "@e2e_user_c",
+    "displayName": "E2E User C",
+    "nativeLanguage": "zh",
+    "avatarUrl": null,
+    "isFavorite": false,
+    "isBlocked": false,
+    "createdAt": "2026-05-02T00:00:00.000Z"
+  },
+  {
+    "id": "contact-003",
+    "userId": "user-d-uuid-0000-0000-000000000004",
+    "trancallId": "@e2e_user_d",
+    "displayName": "E2E User D",
+    "nativeLanguage": "ja",
+    "avatarUrl": null,
+    "isFavorite": false,
+    "isBlocked": true,
+    "createdAt": "2026-05-03T00:00:00.000Z"
+  },
+  {
+    "id": "contact-004",
+    "userId": "user-e-uuid-0000-0000-000000000005",
+    "trancallId": "@e2e_user_e",
+    "displayName": "E2E User E",
+    "nativeLanguage": "en",
+    "avatarUrl": null,
+    "isFavorite": false,
+    "isBlocked": false,
+    "createdAt": "2026-05-04T00:00:00.000Z"
+  },
+  {
+    "id": "contact-005",
+    "userId": "user-f-uuid-0000-0000-000000000006",
+    "trancallId": "@e2e_user_f",
+    "displayName": "E2E User F",
+    "nativeLanguage": "fr",
+    "avatarUrl": null,
+    "isFavorite": false,
+    "isBlocked": false,
+    "createdAt": "2026-05-05T00:00:00.000Z"
+  }
+]

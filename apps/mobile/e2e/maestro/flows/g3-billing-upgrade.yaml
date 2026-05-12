@@ -1,0 +1,36 @@
+appId: tech.hori.trancall
+name: "billing_low_balance — BILLING_INSUFFICIENT_BALANCE → upgrade CTA"
+tags: [P0, gate, billing]
+---
+- launchApp:
+    clearState: true
+- runScript:
+    file: ../../scripts/set-billing-zero.js
+- tapOn:
+    text: ${T_auth_signIn}
+- tapOn:
+    text: ${T_auth_email}
+- inputText: "e2e_user_c@trancall.dev"
+- tapOn:
+    id: "password-input"
+- inputText: ${E2E_USER_A_PASSWORD}
+- tapOn:
+    text: ${T_auth_signIn}
+- assertVisible:
+    text: ${T_home_recentCalls}
+- tapOn:
+    id: "tab-contacts"
+- tapOn:
+    id: "contact-row-${E2E_PEER_TRANCALL_ID}"
+- tapOn:
+    text: ${T_contactProfile_call}
+- assertVisible:
+    text: ${T_precall_title}
+- tapOn:
+    accessibilityLabel: ${T_call_startCall}
+- assertVisible:
+    text: ${T_billing_upgradeToContinue}
+- tapOn:
+    text: "Upgrade"
+- assertVisible:
+    id: "billing-upgrade-screen"

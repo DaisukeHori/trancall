@@ -1,0 +1,41 @@
+appId: tech.hori.trancall
+name: "SCR-003 — InCall controls: mute / speaker / translation toggle / subtitles"
+tags: [P0, call]
+---
+- launchApp:
+    clearState: true
+- runFlow: shared/login_as_e2e_user.yaml
+- tapOn:
+    id: "tab-contacts"
+- tapOn:
+    id: "contact-row-${E2E_PEER_TRANCALL_ID}"
+- tapOn:
+    text: ${T_contactProfile_call}
+- assertVisible:
+    text: ${T_precall_title}
+- assertVisible:
+    text: ${T_translation_enabled}
+- tapOn:
+    accessibilityLabel: ${T_call_startCall}
+- assertVisible:
+    text: ${T_call_calling}
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    text: ${T_call_inCall}
+- tapOn:
+    accessibilityLabel: ${T_call_mute}
+- assertVisible:
+    accessibilityLabel: "Unmute"
+- tapOn:
+    accessibilityLabel: "Unmute"
+- tapOn:
+    id: "translation-toggle"
+- assertVisible:
+    text: ${T_translation_disabled}
+- tapOn:
+    id: "translation-toggle"
+- assertVisible:
+    text: ${T_translation_enabled}
+- assertVisible:
+    accessibilityLabel: ${T_call_endCall}

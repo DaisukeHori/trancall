@@ -1,0 +1,22 @@
+{
+  "users": {
+    "e2e_user_a@trancall.dev": {
+      "tier": "free",
+      "remainingMinutes": 100,
+      "nextBillingAt": null,
+      "overageRatePerMinute": 10
+    },
+    "e2e_user_b@trancall.dev": {
+      "tier": "standard",
+      "remainingMinutes": 300,
+      "nextBillingAt": "2026-06-01T00:00:00.000Z",
+      "overageRatePerMinute": 10
+    },
+    "e2e_user_c@trancall.dev": {
+      "tier": "free",
+      "remainingMinutes": 0,
+      "nextBillingAt": null,
+      "overageRatePerMinute": 10
+    }
+  }
+}

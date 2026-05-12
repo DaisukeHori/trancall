@@ -1,0 +1,33 @@
+appId: tech.hori.trancall
+name: "auth_signup — Sign up → consent gate → onboarding → Home"
+tags: [P0, auth]
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    text: ${T_onboarding_poweredBy}
+- tapOn:
+    text: ${T_common_next}
+- tapOn:
+    text: ${T_auth_signUp}
+- tapOn:
+    id: "displayName-input"
+- inputText: "E2E User A"
+- tapOn:
+    text: ${T_auth_email}
+- inputText: ${E2E_USER_A_EMAIL}
+- tapOn:
+    id: "password-input"
+- inputText: ${E2E_USER_A_PASSWORD}
+- tapOn:
+    id: "consent-checkbox"
+- assertVisible:
+    text: ${T_auth_consent_checkboxLabel}
+- tapOn:
+    text: ${T_auth_signUp}
+- assertVisible:
+    text: ${T_consent_agree}
+- tapOn:
+    text: ${T_consent_agree}
+- assertVisible:
+    text: ${T_home_recentCalls}
