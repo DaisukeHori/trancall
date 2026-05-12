@@ -26,6 +26,7 @@
     "@trancall/translation": "workspace:*",
     "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
+    "serverless-http": "^3.2.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
