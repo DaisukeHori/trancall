@@ -238,6 +238,9 @@ export function createTranscriptFacade(
         };
       }
 
+      // TODO(Sprint 3 T-6 後): T-2 で追加された trancall_auth.consent_versions テーブルから現行バージョンを取得し置き換える
+      // 現状 hardcode は Phase 1a のドラフト法務文書 (legal-and-consent.md §5.3 v2026-05-12) に対応していない
+      // AuthFacade.getRequiredConsents() 等経由で DB から取得すること
       const exportInput: ExportInput = {
         roomMeta,
         segments,

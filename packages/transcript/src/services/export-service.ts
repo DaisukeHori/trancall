@@ -145,6 +145,8 @@ function getFontPath(name: string): string {
 const FONT_REGULAR = getFontPath("SourceHanSans-Regular.otf");
 const FONT_BOLD = getFontPath("SourceHanSans-Bold.otf");
 const FONT_DEVANAGARI = getFontPath("NotoSansDevanagari-Regular.ttf");
+// NotoSansArabic: Arabic script フォールバック (U+0600–U+06FF 等)
+const FONT_ARABIC = getFontPath("NotoSansArabic-Regular.ttf");
 
 // ---------------------------------------------------------------------------
 // PDF 生成
@@ -186,6 +188,8 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
   doc.registerFont("Regular", FONT_REGULAR);
   doc.registerFont("Bold", FONT_BOLD);
   doc.registerFont("Devanagari", FONT_DEVANAGARI);
+  // NotoSansArabic: アラビア文字フォールバック (transcript-export-spec.md §5.2 準拠)
+  doc.registerFont("NotoSansArabic", FONT_ARABIC);
 
   // 通話時間計算
   const durationMs =
@@ -277,8 +281,16 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
   // ヒンディー語チェック (Devanagari Unicode range: U+0900-U+097F)
   const hasDevanagari = (text: string) => /[ऀ-ॿ]/.test(text);
 
+  // アラビア文字チェック (transcript-export-spec.md §5.2 準拠)
+  // Covers: Arabic (U+0600–U+06FF), Arabic Supplement (U+0750–U+077F),
+  //         Arabic Presentation Forms-A (U+FB50–U+FDFF),
+  //         Arabic Presentation Forms-B (U+FE70–U+FEFF)
+  const hasArabic = (text: string) =>
+    /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/.test(text);
+
   const chooseFont = (text: string, bold: boolean): string => {
     if (hasDevanagari(text)) return "Devanagari";
+    if (hasArabic(text)) return "NotoSansArabic";
     return bold ? "Bold" : "Regular";
   };
 

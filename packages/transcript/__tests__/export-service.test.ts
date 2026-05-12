@@ -384,4 +384,64 @@ describe("ExportService", () => {
       }
     });
   });
+
+  // ---------- Arabic 文字混在テスト ----------
+
+  describe("Arabic 文字混在", () => {
+    function makeArabicSegments(): TranscriptSegment[] {
+      return [
+        makeSegment({
+          participantId: PARTICIPANT_A,
+          speakerName: "Ahmed Hassan",
+          originalText: "مرحبا، كيف حالك؟",
+          translatedText: "Hello, how are you?",
+          languagePair: "ar → en",
+          startTimeMs: 3000,
+          endTimeMs: 6000,
+          sequenceNo: 0,
+          segmentId: "f47ac10b-58cc-4372-a567-0e02b2c3d500",
+          sourceEventId: "f47ac10b-58cc-4372-a567-0e02b2c3d501",
+        }),
+        makeSegment({
+          participantId: PARTICIPANT_B,
+          speakerName: "山田太郎",
+          originalText: "元気です、ありがとう。",
+          translatedText: "أنا بخير، شكراً لك.",
+          languagePair: "ja → ar",
+          startTimeMs: 8000,
+          endTimeMs: 11000,
+          sequenceNo: 0,
+          segmentId: "f47ac10b-58cc-4372-a567-0e02b2c3d502",
+          sourceEventId: "f47ac10b-58cc-4372-a567-0e02b2c3d503",
+        }),
+      ];
+    }
+
+    it("test-17: アラビア文字混在 transcript で PDF magic bytes (%PDF) が得られる", async () => {
+      const result = await service.exportTranscript(
+        makeInput({ segments: makeArabicSegments() }),
+        "pdf",
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const buf = Buffer.from(result.data.contentBase64, "base64");
+        expect(buf.slice(0, 4).toString("ascii")).toBe("%PDF");
+      }
+    });
+
+    it("test-18: アラビア文字混在 PDF に NotoSansArabic フォント名が埋め込まれている", async () => {
+      const result = await service.exportTranscript(
+        makeInput({ segments: makeArabicSegments() }),
+        "pdf",
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const buf = Buffer.from(result.data.contentBase64, "base64");
+        // pdfkit は登録フォント名を PDF ストリーム内に埋め込む
+        // バイナリ PDF を文字列として走査し、フォント名の存在を検証する
+        const pdfStr = buf.toString("latin1");
+        expect(pdfStr).toContain("NotoSansArabic");
+      }
+    });
+  });
 });
