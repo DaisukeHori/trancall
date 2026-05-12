@@ -1,0 +1,65 @@
+scenario_id: TC-S4-ja-zh
+scenario: S4
+name: 数値・通貨 / Numbers & Currency (中文 → 日本語)
+source_lang: zh
+target_lang: ja
+context: "10-turn conversation in Chinese with numbers, prices, dates, and currency. Validates exact numeric translation."
+audio_url: null
+expected_keywords:
+  - "1500円"
+  - "8000円"
+  - "5%"
+  - "午後3時半"
+  - "155円"
+  - "3月15日"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "午餐套餐是1500日元，含饮料是1800日元。"
+    expected_translation: "ランチのセットは1500円です。飲み物込みで1800円になります。"
+    eval_point: "3・4桁の数値と通貨単位の翻訳"
+  - turn: 2
+    speaker: B
+    script_text: "5人分注文すると割引はありますか？"
+    expected_translation: "如果点5人份的话，有折扣吗？"
+    eval_point: "人数の数値の翻訳"
+  - turn: 3
+    speaker: A
+    script_text: "5人或以上可享受每人200日元的折扣，总计8000日元。"
+    expected_translation: "5名様以上のご利用でお一人様200円引きになります。合計で8000円になります。"
+    eval_point: "条件付き割引と合計額の翻訳"
+  - turn: 4
+    speaker: B
+    script_text: "午後3時半まで会場を使う必要があります。それは可能ですか？"
+    expected_translation: "需要使用场地到下午3点半。可以吗？"
+    eval_point: "時刻の自然な翻訳"
+  - turn: 5
+    speaker: A
+    script_text: "如果要用到下午3点30分，额外费用是每小时3500日元。"
+    expected_translation: "午後3時30分まででしたら、追加料金は1時間あたり3500円になります。"
+    eval_point: "時刻と時間単位の料金の翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "為替レートはどのくらいですか？ドルで支払う予定です。"
+    expected_translation: "汇率是多少？我打算用美元支付。"
+    eval_point: "通貨変換への言及の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "今天的换算率是1美元约155日元。8000日元约合51美元65美分。"
+    expected_translation: "本日の換算ですと、1ドル約155円です。8000円は約51ドル65セントです。"
+    eval_point: "為替レート・小数点込みドル表記の翻訳"
+  - turn: 8
+    speaker: B
+    script_text: "なるほど。では一人あたり約50ドル20セントになりますね。"
+    expected_translation: "原来如此。那么每人大约是50美元20美分。"
+    eval_point: "小数点2桁の通貨の翻訳"
+  - turn: 9
+    speaker: A
+    script_text: "好的，收到。预订是3月15日中午12点开始，共10位客人，对吗？"
+    expected_translation: "承りました。ご予約は3月15日午後12時から、10名様でよろしいでしょうか。"
+    eval_point: "日付・時刻・人数の複合の翻訳"
+  - turn: 10
+    speaker: B
+    script_text: "そうです。3月10日までに確認します。"
+    expected_translation: "是的。我们会在3月10日之前确认。"
+    eval_point: "別の日付 (デッドライン) の翻訳"

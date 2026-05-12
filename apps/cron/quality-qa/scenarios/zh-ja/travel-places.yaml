@@ -1,0 +1,65 @@
+scenario_id: TC-S3-ja-zh
+scenario: S3
+name: 旅行・地名 / Travel & Place Names (中文 → 日本語)
+source_lang: zh
+target_lang: ja
+context: "10-turn travel conversation in Chinese with proper nouns. Expects proper nouns to be preserved or correctly localized."
+audio_url: null
+expected_keywords:
+  - "東京タワー"
+  - "新宿駅"
+  - "自由の女神"
+  - "タイムズスクエア"
+  - "凱旋門"
+  - "バリ"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "我这个周末打算去东京塔。期待从观光台看夜景。"
+    expected_translation: "今週末、東京タワーに行く予定です。展望台からの夜景が楽しみです。"
+    eval_point: "「东京塔」→「東京タワー」の固有名詞翻訳"
+  - turn: 2
+    speaker: B
+    script_text: "楽しそうですね！どうやって行くんですか？地下鉄で？"
+    expected_translation: "听起来很有趣！您打算怎么去？坐地铁吗？"
+    eval_point: "交通手段の語彙の翻訳"
+  - turn: 3
+    speaker: A
+    script_text: "从新宿站乘坐都营大江户线，在赤羽桥站下车。走路大约10分钟。"
+    expected_translation: "新宿駅から都営大江戸線に乗って、赤羽橋駅で降ります。徒歩10分くらいです。"
+    eval_point: "駅名・路線名の固有名詞保持"
+  - turn: 4
+    speaker: B
+    script_text: "私はニューヨークにいたとき自由の女神を訪れました。圧倒されました。"
+    expected_translation: "我在纽约的时候参观了自由女神像。太震撼了。"
+    eval_point: "「自由の女神」→「自由女神像」の翻訳"
+  - turn: 5
+    speaker: A
+    script_text: "自由女神像真的很壮观。我也想去纽约看看。时代广场我也想看。"
+    expected_translation: "自由の女神は迫力がありますよね。私もいつかニューヨークに行ってみたいです。タイムズスクエアも見たい。"
+    eval_point: "「时代广场」→「タイムズスクエア」の翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "タイムズスクエアは夜すごいですよ。パリには行ったことがありますか？凱旋門が素晴らしい。"
+    expected_translation: "时代广场的夜晚非常壮观。您去过巴黎吗？凯旋门很壮美。"
+    eval_point: "「凱旋門」→「凯旋门」の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "还没去过巴黎。不过我去过德国的新天鹅堡。"
+    expected_translation: "パリはまだです。でもドイツのノイシュヴァンシュタイン城には行ったことがあります。"
+    eval_point: "「新天鹅堡」→「ノイシュヴァンシュタイン城」の翻訳"
+  - turn: 8
+    speaker: B
+    script_text: "それはバケットリストに入っています！旅で一番よかった部分は何ですか？"
+    expected_translation: "那在我的愿望清单上！旅行中您最喜欢的部分是什么？"
+    eval_point: "「バケットリスト」→「愿望清单」の文化的翻訳"
+  - turn: 9
+    speaker: A
+    script_text: "从湖边看城堡的景色太美了。特别是黄昏时分，就像一幅画。"
+    expected_translation: "湖から見るお城の景色が最高でした。特に夕暮れ時は絵のようでした。"
+    eval_point: "情景描写の自然な翻訳"
+  - turn: 10
+    speaker: A
+    script_text: "下次旅行我在考虑去巴厘岛。有什么推荐的景点吗？"
+    expected_translation: "次の旅行はバリ島を考えています。おすすめのスポットはありますか？"
+    eval_point: "「巴厘岛」→「バリ島」の翻訳"
