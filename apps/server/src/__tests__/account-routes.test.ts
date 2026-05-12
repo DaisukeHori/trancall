@@ -50,7 +50,7 @@ describe("POST /api/account/delete", () => {
     mockSchema = vi.fn().mockReturnValue({ from: mockFrom });
 
     // supabase を上書き
-    const anyContainer = container as Record<string, unknown>;
+    const anyContainer = container as unknown as Record<string, unknown>;
     const supabase = anyContainer["supabase"] as Record<string, unknown>;
     supabase["schema"] = mockSchema;
 
@@ -142,7 +142,7 @@ describe("POST /api/account/restore (grace period 内)", () => {
     }
     const mockFrom = vi.fn().mockReturnValue(mockQueryChain);
     const mockSchema = vi.fn().mockReturnValue({ from: mockFrom });
-    const anyContainer = container as Record<string, unknown>;
+    const anyContainer = container as unknown as Record<string, unknown>;
     const supabase = anyContainer["supabase"] as Record<string, unknown>;
     supabase["schema"] = mockSchema;
 
@@ -200,7 +200,7 @@ describe("POST /api/account/restore (grace period 超過)", () => {
     }
     const mockFrom = vi.fn().mockReturnValue(mockQueryChain);
     const mockSchema = vi.fn().mockReturnValue({ from: mockFrom });
-    const anyContainer = container as Record<string, unknown>;
+    const anyContainer = container as unknown as Record<string, unknown>;
     const supabase = anyContainer["supabase"] as Record<string, unknown>;
     supabase["schema"] = mockSchema;
 
@@ -254,7 +254,7 @@ describe("POST /api/account/restore (退会リクエストなし)", () => {
     }
     const mockFrom = vi.fn().mockReturnValue(mockQueryChain);
     const mockSchema = vi.fn().mockReturnValue({ from: mockFrom });
-    const anyContainer = container as Record<string, unknown>;
+    const anyContainer = container as unknown as Record<string, unknown>;
     const supabase = anyContainer["supabase"] as Record<string, unknown>;
     supabase["schema"] = mockSchema;
 
