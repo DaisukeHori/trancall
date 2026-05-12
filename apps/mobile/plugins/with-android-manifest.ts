@@ -56,8 +56,8 @@ const withAndroidManifestPlugin: ConfigPlugin = (config) => {
       });
     }
 
-    // --- TranCallFirebaseMessagingService ---
-    const fcmServiceName = ".TranCallFirebaseMessagingService";
+    // --- FcmService (Kotlin class: tech.hori.trancall.FcmService) ---
+    const fcmServiceName = ".FcmService";
     const hasFcmService = app.service.some(
       (s) => s.$["android:name"] === fcmServiceName
     );

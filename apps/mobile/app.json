@@ -32,6 +32,7 @@
       "package": "tech.hori.trancall",
       "permissions": [
         "android.permission.MANAGE_OWN_CALLS",
+        "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
         "android.permission.FOREGROUND_SERVICE_MICROPHONE",
         "android.permission.POST_NOTIFICATIONS",
