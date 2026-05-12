@@ -16,8 +16,12 @@
       "supportsTablet": false,
       "bundleIdentifier": "tech.hori.trancall",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "TranCallは通話の翻訳にマイクを使用します",
-        "NSCameraUsageDescription": "TranCallはQRコードのスキャンにカメラを使用します"
+        "NSMicrophoneUsageDescription": "TranCall は翻訳通話のためマイク音声を OpenAI に送信します。通話設定でいつでもオフにできます。",
+        "NSCameraUsageDescription": "連絡先追加の QR コードスキャンにカメラを使用します。",
+        "UIBackgroundModes": ["voip", "audio"]
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
