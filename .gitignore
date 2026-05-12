@@ -8,3 +8,4 @@ dist/
 coverage/
 .expo/
 *.log
+.claude/
