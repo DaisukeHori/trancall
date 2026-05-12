@@ -61,7 +61,7 @@ export function buildFcmAdapter(config: Config): FcmAdapter {
   }
 
   return createFcmAdapter({
-    projectId: "trancall",
+    projectId: config.FCM_PROJECT_ID ?? "trancall",
     serviceAccountJsonPath: config.FCM_SERVICE_ACCOUNT_JSON,
   });
 }
