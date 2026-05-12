@@ -17,6 +17,7 @@ import { registerBillingRoutes } from "./routes/billing-routes.js";
 import { registerTranscriptRoutes } from "./routes/transcript-routes.js";
 import { registerNotificationRoutes } from "./routes/notification-routes.js";
 import { registerAgentRoutes } from "./routes/agent-routes.js";
+import { registerSupportRoutes } from "./routes/support-routes.js";
 import type { Config } from "./config.js";
 import { logger } from "./logger.js";
 
@@ -68,6 +69,7 @@ export async function buildApp(
   registerBillingRoutes(fastify, { billing: container.billing });
   registerTranscriptRoutes(fastify, { transcript: container.transcript });
   registerNotificationRoutes(fastify, { notification: container.notification });
+  registerSupportRoutes(fastify, {} as Record<string, never>);
 
   // Agent 内部 API
   registerAgentRoutes(fastify, {

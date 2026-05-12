@@ -66,6 +66,50 @@ export interface BillingFacadeDeps {
 // BillingFacade インターフェース
 // =============================================================================
 
+// =============================================================================
+// Sprint 3 拡張スキーマ型 (facade.ts ローカル定義)
+// billing-ui-flow.md §4 に基づく
+// =============================================================================
+
+export interface IapTransactionResult {
+  originalTransactionId: string;
+  productId: string;
+  purchaseDate: string;
+  expirationDate: string | null;
+  signedJws: string;
+  isUpgrade: boolean;
+}
+
+export interface StoreKitExternalRedirectResult {
+  redirectToken: string;
+  stripeSubscriptionId: string;
+  completedAt: string;
+}
+
+export interface PlanComparisonView {
+  currentTier: PlanTier;
+  plans: Array<{
+    tier: PlanTier;
+    name: string;
+    monthlyPriceYen: number;
+    includedMinutes: number;
+    overageRateYen: number;
+    transcriptRetentionDays: number;
+    features: string[];
+    isRecommended: boolean;
+    isCurrent: boolean;
+  }>;
+}
+
+export interface UpgradePreview {
+  currentTier: PlanTier;
+  targetTier: PlanTier;
+  proratedAmountYen: number;
+  nextBillingDate: string;
+  effectiveImmediately: boolean;
+  confirmationRequired: boolean;
+}
+
 export interface BillingFacade {
   getSubscription(userId: UserId): Promise<Result<SubscriptionState>>;
   recordUsage(
@@ -93,6 +137,31 @@ export interface BillingFacade {
   handleGoogleIapWebhook(
     payload: unknown,
   ): Promise<Result<true>>;
+
+  // =========================================================================
+  // Sprint 3 拡張メソッド (billing-ui-flow.md §5.1 / docs/api-spec.md)
+  // =========================================================================
+
+  /** プラン比較ビューを取得する (副作用なし) */
+  getPlanComparison(userId: UserId): Promise<Result<PlanComparisonView>>;
+
+  /** アップグレードの日割り計算プレビューを取得する (副作用なし) */
+  previewUpgrade(userId: UserId, targetTier: PlanTier): Promise<Result<UpgradePreview>>;
+
+  /** StoreKit 2 トランザクションを記録してサブスクリプションを更新する */
+  recordIapTransaction(userId: UserId, transaction: IapTransactionResult): Promise<Result<SubscriptionState>>;
+
+  /** StoreKit External Purchase を開始し、リダイレクト URL を返す */
+  startExternalPurchase(userId: UserId, targetTier: PlanTier): Promise<Result<{ redirectUrl: string }>>;
+
+  /** StoreKit External Purchase 完了: redirectToken を検証してサブスクリプションを更新する */
+  completeExternalPurchase(userId: UserId, redirect: StoreKitExternalRedirectResult): Promise<Result<SubscriptionState>>;
+
+  /** 購入を復元する (iOS App Store ガイドライン必須) */
+  restorePurchases(userId: UserId, transactions: IapTransactionResult[]): Promise<Result<{ restoredCount: number; subscription: SubscriptionState | null }>>;
+
+  /** サブスクリプションをキャンセルする */
+  cancelSubscription(userId: UserId, atPeriodEnd: boolean): Promise<Result<SubscriptionState>>;
 }
 
 // =============================================================================
@@ -383,6 +452,83 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
           retryable: true,
         });
       }
+    },
+
+    // =========================================================================
+    // Sprint 3 拡張メソッド — スタブ実装 (Phase 1a P1)
+    // billing-ui-flow.md §5.1 に定義されたインターフェース
+    // 本実装は Sprint 3 後半で service 層と連携
+    // =========================================================================
+
+    async getPlanComparison(_userId: UserId): Promise<Result<PlanComparisonView>> {
+      return err({
+        code: "BILLING_NOT_IMPLEMENTED",
+        message: "getPlanComparison は Sprint 3 後半で実装予定",
+        retryable: false,
+      });
+    },
+
+    async previewUpgrade(_userId: UserId, _targetTier: PlanTier): Promise<Result<UpgradePreview>> {
+      return err({
+        code: "BILLING_NOT_IMPLEMENTED",
+        message: "previewUpgrade は Sprint 3 後半で実装予定",
+        retryable: false,
+      });
+    },
+
+    async recordIapTransaction(
+      _userId: UserId,
+      _transaction: IapTransactionResult,
+    ): Promise<Result<SubscriptionState>> {
+      return err({
+        code: "BILLING_NOT_IMPLEMENTED",
+        message: "recordIapTransaction は Sprint 3 後半で実装予定",
+        retryable: false,
+      });
+    },
+
+    async startExternalPurchase(
+      _userId: UserId,
+      _targetTier: PlanTier,
+    ): Promise<Result<{ redirectUrl: string }>> {
+      return err({
+        code: "BILLING_NOT_IMPLEMENTED",
+        message: "startExternalPurchase は Sprint 3 後半で実装予定",
+        retryable: false,
+      });
+    },
+
+    async completeExternalPurchase(
+      _userId: UserId,
+      _redirect: StoreKitExternalRedirectResult,
+    ): Promise<Result<SubscriptionState>> {
+      return err({
+        code: "BILLING_NOT_IMPLEMENTED",
+        message: "completeExternalPurchase は Sprint 3 後半で実装予定",
+        retryable: false,
+      });
+    },
+
+    async restorePurchases(
+      _userId: UserId,
+      _transactions: IapTransactionResult[],
+    ): Promise<Result<{ restoredCount: number; subscription: SubscriptionState | null }>> {
+      return err({
+        code: "BILLING_NOT_IMPLEMENTED",
+        message: "restorePurchases は Sprint 3 後半で実装予定",
+        retryable: false,
+      });
+    },
+
+    async cancelSubscription(
+      _userId: UserId,
+      _atPeriodEnd: boolean,
+    ): Promise<Result<SubscriptionState>> {
+      return err({
+        code: "BILLING_NOT_IMPLEMENTED",
+        message: "cancelSubscription は Sprint 3 後半で実装予定",
+        retryable: false,
+      });
     },
   };
 }

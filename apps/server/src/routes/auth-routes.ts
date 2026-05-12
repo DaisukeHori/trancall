@@ -6,6 +6,9 @@
  * GET  /api/auth/profile
  * PATCH /api/auth/profile
  * POST /api/auth/consent
+ * POST /api/auth/consents      — 同意記録 (Sprint 3, T-10)
+ * GET  /api/auth/consents      — 同意状態取得 (Sprint 3, T-10)
+ * DELETE /api/auth/consents/:scope — 同意取消 (Sprint 3, T-10)
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
@@ -34,6 +37,34 @@ const UpdateProfileSchema = z.object({
 
 const ConsentSchema = z.object({
   consentVersion: z.string().min(1),
+});
+
+// Sprint 3 T-10: 同意管理スキーマ (legal-and-consent.md §3)
+const ConsentScopeSchema = z.enum([
+  "legal_terms",
+  "privacy_policy",
+  "voice_to_openai",
+  "transcript_retention",
+  "data_deletion_request",
+  "push_notification",
+  "marketing_email",
+]);
+
+const ConsentSourceSchema = z.enum([
+  "onboarding",
+  "incoming_call_first_time",
+  "settings_screen",
+  "terms_revision_prompt",
+]);
+
+const RecordConsentSchema = z.object({
+  scope: ConsentScopeSchema,
+  version: z.string().regex(/^\d{4}-\d{2}-\d{2}(-r\d+)?$/, "YYYY-MM-DD または YYYY-MM-DD-rN 形式"),
+  source: ConsentSourceSchema,
+});
+
+const ConsentScopeParamsSchema = z.object({
+  scope: ConsentScopeSchema,
 });
 
 export function registerAuthRoutes(
@@ -224,5 +255,56 @@ export function registerAuthRoutes(
     }
 
     return reply.send({ ok: true, data: true });
+  });
+
+  // POST /api/auth/consents — 同意記録 (Sprint 3 T-10)
+  fastify.post("/api/auth/consents", async (request: FastifyRequest, reply: FastifyReply) => {
+    const parsed = RecordConsentSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+          retryable: false,
+        },
+      });
+    }
+
+    const result = await auth.recordConsent(request.userId, parsed.data);
+    if (!result.ok) {
+      return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
+    }
+    return reply.status(200).send({ ok: true, data: true });
+  });
+
+  // GET /api/auth/consents — 同意状態取得 (Sprint 3 T-10)
+  fastify.get("/api/auth/consents", async (request: FastifyRequest, reply: FastifyReply) => {
+    const result = await auth.getRequiredConsents(request.userId);
+    if (!result.ok) {
+      return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
+    }
+    return reply.send({ ok: true, data: result.data });
+  });
+
+  // DELETE /api/auth/consents/:scope — 同意取消 (Sprint 3 T-10)
+  fastify.delete("/api/auth/consents/:scope", async (request: FastifyRequest, reply: FastifyReply) => {
+    const parsedParams = ConsentScopeParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `scope が無効です。有効値: ${ConsentScopeSchema.options.join(", ")}`,
+          retryable: false,
+        },
+      });
+    }
+
+    const result = await auth.revokeConsent(request.userId, parsedParams.data.scope);
+    if (!result.ok) {
+      return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
+    }
+    return reply.status(200).send({ ok: true, data: true });
   });
 }

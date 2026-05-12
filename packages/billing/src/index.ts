@@ -7,7 +7,14 @@
 
 // Facade（唯一の外部エントリポイント）
 export { createBillingFacade } from "./facade.js";
-export type { BillingFacade, BillingFacadeDeps } from "./facade.js";
+export type {
+  BillingFacade,
+  BillingFacadeDeps,
+  IapTransactionResult,
+  StoreKitExternalRedirectResult,
+  PlanComparisonView,
+  UpgradePreview,
+} from "./facade.js";
 
 // Schemas（モジュール境界の契約）
 export {
