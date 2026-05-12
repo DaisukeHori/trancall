@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.3 (2026-05-12) |
+| Status | Draft v1.4 (2026-05-12) |
 | Owner | Mobile (Layer 4) + QA |
 | 上位文書 | `docs/test-strategy.md` (テストピラミッド本体) |
 | 補助 | `docs/requirements.md` (PERF/AVAIL 数値目標), `docs/module-contracts.md` (facade 契約), `apps/mobile/CLAUDE.md` (screens 一覧) |
@@ -46,7 +46,7 @@
         │   journeys / 端末1台 │
         ├────────────────────────┤
         │ API handler (Fastify   │
-        │ inject) 11 ファイル   │     既存 (apps/server)
+        │ inject) 10 ファイル   │     既存 (apps/server)
         ├────────────────────────┤
         │ Integration (Vitest    │
         │ + in-memory mock) 15  │     既存 (packages/integration-tests)
@@ -369,3 +369,4 @@ Phase 1a で **本書作成のみ**、コードは 0 行追加。Sprint 1 のス
 - v1.1 (2026-05-12) PR #27 Round 1 レビュー反映 (commit `1db39c6`): §5 ヘッダー flows 数訂正、CallKeepNativeModule→RNCallKeepNativeModule、YAML サンプルの `${T_*}` プレースホルダ化と timeout 2000ms 統一、4 gates 完備、SCR-010 帰属注記、mock-server gating 候補追記、test-strategy 注記。
 - v1.2 (2026-05-12) PR #27 Round 2 レビュー反映: P0 12→14 flows の波及更新、e2eCallKeepStub に answerIncomingCall 追加、§1 冒頭の test-strategy 参照を過去形に。
 - v1.3 (2026-05-12) PR #27 Round 3 レビュー反映: ヘッダー Status を v1.3 に更新 (v1.1 / v1.2 で更新漏れのまま `Draft v1` が残存していたため一括是正)、§5.1 P0 内訳式を「基本 10 + gates 4 = 14」に修正 (実テーブルと一致)。
+- v1.4 (2026-05-12) PR #27 Round 6 レビュー反映: §2 ピラミッド内「API handler 11 ファイル」を実態 (apps/server 10 ファイル) と review-responses-v12.md §4 表 (10) に同期するため「10 ファイル」に修正。
