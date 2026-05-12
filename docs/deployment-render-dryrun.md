@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.4 (2026-05-12) |
+| Status | Draft v1.5 (2026-05-12) |
 | Owner | DevOps / バックエンド |
 | 目的 | Sprint 2 P0 (Gate Check 実走) の前提として、translation-agent / apps/server / Supabase を Render + Vercel + Supabase Cloud にスムーズに上げる |
 | 上位文書 | `docs/deploy.md` (インフラ全体設計、canonical)、`docs/translation-pipeline-design.md` (D1) |
@@ -348,6 +348,8 @@ supabase db diff --linked --schema public,trancall_auth,trancall_room,trancall_c
 
 # 5. staging で push して動作確認 (step 1 で staging に link 済のため env var 不要)
 supabase db push --linked
+# ※ staging を本手順で初めてセットアップする (初回 seed 未適用) 場合は `--include-all` を付与すること: supabase db push --linked --include-all
+# 2 回目以降の migration 適用 (本ライン) は seed 既適用前提のため `--include-all` 不要。
 
 # 6. staging で RLS テスト + アプリ疎通確認 (§9.2 参照)
 
@@ -685,7 +687,8 @@ Phase 1b で Sentry または Datadog Logs に集約予定。
    Mitigation: Phase 1a dry-run 期間中はステータスを「使い捨て staging」と位置づけ、マイグレーション前に SQL ダンプを手動バックアップする。
 10. **NODE_ENV と ENVIRONMENT の役割分離**: Render/Vercel に投入する `NODE_ENV` は config.ts Zod enum (development/test/production) 制約のため `production` 固定。staging/prod の論理的環境識別は別途 `ENVIRONMENT` 環境変数で行う。
     Mitigation: `NODE_ENV` は Zod enum 制約により誤設定が起動時に検出される。`ENVIRONMENT` の Zod validation 追加は §13 #11 の Sprint 2 別タスクで対応する。
-11. **`ENVIRONMENT` / `correlation_id` 未実装 (Sprint 2 内タスク)**: `ENVIRONMENT` 環境変数は `apps/translation-agent/src/config.ts` および `apps/server/src/config.ts` のいずれにも未定義 (2026-05-12 時点)。`correlation_id` も両サービスの logger で未実装。§11.4 の横断調査フローは実装完了後に有効化される。本 PR では実装変更を行わず、Sprint 2 内の別タスク (config.ts + logger 修正) として管理する。
+11. **`ENVIRONMENT` / `correlation_id` 未実装 (Sprint 2 内タスク)**: `ENVIRONMENT` 環境変数は `apps/translation-agent/src/config.ts` および `apps/server/src/config.ts` のいずれにも未定義 (2026-05-12 時点)。`correlation_id` も両サービスの logger で未実装。§11.4 の横断調査フローは実装完了後に有効化される。
+   Mitigation: 本 PR では実装変更を行わず、Sprint 2 内の別タスク (config.ts + logger 修正) として管理し、チケットで追跡する。
 
 ---
 
@@ -696,3 +699,4 @@ Phase 1b で Sentry または Datadog Logs に集約予定。
 - v1.2 (2026-05-12): Round 2 レビュー指摘 Critical 3 + Major 7 + Minor 3 を反映。§10.0 RLS テストコマンドを実在しない packages/db から supabase/tests/rls + Dashboard 目視に差し替え (Fix-1)。§5.2 schema 一覧を実 7 schema (trancall_event 等) に修正、translation 関連テーブルは trancall_event 配下と注記 (Fix-2)。§10.0 Worker ヘルス判定を /health 失敗から Crashed/Logs 無出力に修正 (Fix-3)。§11.4 冒頭に correlation_id / ENVIRONMENT 未実装の代替相関注記を追加、§13 #11 に Sprint 2 内タスクとして追記 (Fix-4)。§4.2 vercel.json コミット時 build 失敗の警告強化、§13 #2 更新 (Fix-5)。§10.5 インシデント記録テンプレ追加 (Fix-6)。§13 risks #1/#3/#4/#6 に mitigation/containment 追記 (Fix-7)。目次 6 項目を実節タイトルと完全一致に修正 (Fix-8)。§14 v1.1 改訂履歴を補完し v1.2 行を追加 (Fix-9)。§2.3 1Password CLI 前提追記 (Fix-10)。§9.4 WS 切断ログ例 + agent_metrics Dashboard 確認手順追記 (Fix-11)。
 - v1.3 (2026-05-12): Round 3 指摘 Major 5 + Minor 4 反映 — §5.2 supabase db push --linked が env var 上書き不可な動作不整合を解消し link 切替手順 (step 1 staging 明示 / step 6.5 re-link / step 7 env var 削除 / 末尾注記) に書換、§14 v1.1 改訂履歴の §1.3→§2.3 番号誤記修正、§9.4 agent_metrics の実在しないカラム名 (partial/final_latency_ms_p95) を実 schema (latency_ms JSONB / totalEndToEnd) に対応、§6.2 に Phase 1a 単一キー配布の明示注記追加、§11.4 を Phase 1a (暫定運用) と Phase 1b 以降 (correlation_id 実装後) の 2 サブ節に再構成し冒頭注記との矛盾解消。Minor: §5.2 architecture.md 参照を §2 から §6 (データベース設計) に修正、§13 #2/#5/#7/#8 に mitigation 補完、§13 #6 typo (「で 同時」→「で同時」) 修正、§9.4 gate-check コマンドに staging 向け env var (TRANCALL_SERVER_URL) 付与例を追記、§12 に LiveKit 2 キー分離 (Phase 1b 以降) を追加。
 - v1.4 (2026-05-12): Round 4 残存 Minor 4 件反映 — §13 #5 mitigation 数値を 5,000 participant-min/月の 50% (= 2,500) に修正、§13 #10 mitigation 追加で全 11 リスク mitigation 完備、§5.2 step 7 `--include-all` フラグ意図のインラインコメント、§9.4 agent_metrics JSONB 構造例追加
+- v1.5 (2026-05-12): Round 5 残存 Minor 2 件反映 — §13 #11 に Mitigation: ラベル付与で全 11 リスクの形式統一達成、§5.2 step 5 に staging 初回セットアップ時の `--include-all` 付与条件をインラインコメントで補足
