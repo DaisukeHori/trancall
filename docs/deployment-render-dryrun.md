@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.7 (2026-05-12) |
+| Status | Draft v1.8 (2026-05-12) |
 | Owner | DevOps / バックエンド |
 | 目的 | Sprint 2 P0 (Gate Check 実走) の前提として、translation-agent / apps/server / Supabase を Render + Vercel + Supabase Cloud にスムーズに上げる |
 | 上位文書 | `docs/deploy.md` (インフラ全体設計、canonical)、`docs/translation-pipeline-design.md` (D1) |
@@ -346,13 +346,36 @@ supabase db diff --linked --schema public,trancall_auth,trancall_room,trancall_c
 
 # 4. 差分を目視確認 (想定外の DROP/ALTER がないか)
 
-# 5a. staging で migration を適用 — 初回 seed 未適用の場合 (staging を本手順で初めてセットアップするケース)
+# 5a. staging で migration を適用 — 初回 (remote history table が空) のケース
 supabase db push --linked --include-all
 
-# 5b. staging で migration を適用 — 2 回目以降 (seed 既適用前提)
+# 5b. staging で migration を適用 — 2 回目以降 (remote history table に適用済み記録が存在する)
 supabase db push --linked
 
-# 上記 5a / 5b はどちらか一方のみ実行する。staging 初回かどうかは `supabase migration list --linked` でリモート側 Applied 件数を確認して判別する (Applied = 0 件 → 5a を実行、Applied >= 1 件 → 5b を実行)。
+# 上記 5a / 5b はどちらか一方のみ実行する。
+# 判別: `supabase migration list --linked` を実行し REMOTE 列で判定する。
+#   - REMOTE 列がすべて空 (✔ が 0 件) → staging 初回 (remote history table 未登録) → 5a を実行
+#   - REMOTE 列に 1 件以上 ✔ が付いている → 2 回目以降 → 5b を実行
+#
+# 出力例 (初回 = 5a を選ぶケース):
+#         LOCAL                                                   │ REMOTE │ TIME (UTC)
+#   ──────────────────────────────────────────────────────────────┼────────┼──────────
+#         00001_initial_schema                                    │        │
+#         00002_add_translation_sessions_table                    │        │
+#         00003_add_agent_metrics_table                           │        │
+#         00004_strengthen_rls_policies                           │        │
+#         00005_add_indexes                                       │        │
+#         00006_add_translation_sessions_agent_job_unique         │        │
+#
+# 出力例 (2 回目以降 = 5b を選ぶケース):
+#         LOCAL                                                   │ REMOTE │ TIME (UTC)
+#   ──────────────────────────────────────────────────────────────┼────────┼──────────
+#         00001_initial_schema                                    │   ✔    │ 2024-01-01 00:00:00+00
+#         00002_add_translation_sessions_table                    │   ✔    │ 2024-01-02 00:00:00+00
+#         00003_add_agent_metrics_table                           │   ✔    │ 2024-01-03 00:00:00+00
+#         00004_strengthen_rls_policies                           │   ✔    │ 2024-01-04 00:00:00+00
+#         00005_add_indexes                                       │   ✔    │ 2024-01-05 00:00:00+00
+#         00006_add_translation_sessions_agent_job_unique         │   ✔    │ 2024-01-06 00:00:00+00
 
 # 6. staging で RLS テスト + アプリ疎通確認 (§9.2 参照)
 
@@ -364,9 +387,13 @@ cat .supabase/config.toml | grep project_id
 
 # 7. production push (確認プロンプトに y で応答)
 supabase db push --linked --include-all
-# `--include-all`: staging push (step 5b) では CI/手動で seed ファイルが既に適用済を前提とするため不要。
-# production 初回投入時は seed ファイルが未適用のため --include-all で seed も含めて適用する。
-# 補足: staging 初回 (5a) は --include-all 付き、2 回目以降 (5b) は不要。production 初回 (本ステップ) のみ本フラグが必須。
+# `--include-all`: remote history table に存在しない migration をすべて強制適用するフラグ。
+# 通常の `db push` は history table の記録に基づき差分のみ適用するが、`--include-all` でローカルの全 migration を強制適用する
+# (history table が空またはスキップされた migration がある場合の救済用)。
+# production 初回投入時は remote history table が空のため `--include-all` でローカル全 migration を強制適用する。
+# 補足: staging 初回 (5a) も同様に --include-all 付き、2 回目以降 (5b) は不要。production 初回 (本ステップ) のみ本フラグが必須。
+# ※ seed.sql について: 本プロジェクトには supabase/seed.sql は存在しないため seed 適用は不要。
+#    将来 seed.sql を追加した場合は `supabase db push --include-seed` または `supabase db reset` で別途適用すること。
 
 # 8. push 後の確認
 supabase migration list --linked
@@ -705,3 +732,4 @@ Phase 1b で Sentry または Datadog Logs に集約予定。
 - v1.5 (2026-05-12): Round 5 残存 Minor 2 件反映 — §13 #11 に Mitigation: ラベル付与で全 11 リスクの形式統一達成、§5.2 step 5 に staging 初回セットアップ時の `--include-all` 付与条件をインラインコメントで補足
 - v1.6 (2026-05-12): Round 6 残存 Minor 1 件反映 — §5.2 step 5 を 5a (staging 初回 seed 未適用、`--include-all`) / 5b (2 回目以降) の条件分岐構造に再構成し operator のコピーペースト誤操作リスクを排除
 - v1.7 (2026-05-12): Round 8 残存 Minor 3 件反映 — ヘッダー Status を v1.5 から v1.7 に同期、§5.2 step 5a/5b 判別方法を `supabase migration list --linked` の Applied 件数判定に置換し機械判別可能化、§5.2 step 7 注記の疑問文形式を補足言い切りに整理
+- v1.8 (2026-05-12): Round 10 残存 Warning + Suggestion 反映 — §5.2 5a/5b 判別注記に `supabase migration list --linked` 出力例 (初回 / 2 回目以降の 2 ケース、実 migration ファイル名ベース) を追記し初見者の判別を容易化、`--include-all` の説明を「seed 適用」誤解から「remote history 未登録 migration の強制適用」に事実訂正、seed.sql 不在の現状と将来 seed 追加時の対処も明記
