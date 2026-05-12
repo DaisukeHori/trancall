@@ -346,7 +346,64 @@
     }
   },
   "consent": {
-    "title": "About Translation Calls",
+    "title": "Your Consent is Required",
+    "subtitle": "Please review the following items. You can use the service after agreeing to all required items.",
+    "required": "Required",
+    "readFullText": "Read full text",
+    "accept_button": "Agree and Continue",
+    "skip_button": "Call without translation",
+    "scope": {
+      "legal_terms": {
+        "label": "Terms of Service",
+        "description": "I agree to TranCall's Terms of Service."
+      },
+      "privacy_policy": {
+        "label": "Privacy Policy",
+        "description": "I agree to TranCall's Privacy Policy regarding the handling of personal information."
+      },
+      "voice_to_openai": {
+        "label": "Voice Data Transmission to OpenAI",
+        "description": "Translation calls send your call audio to OpenAI's translation API. Audio is not retained by OpenAI after translation (Zero Data Retention)."
+      },
+      "transcript_retention": {
+        "label": "Transcript Retention",
+        "description": "Call transcripts are stored on TranCall servers. You can disable this at any time in Settings."
+      },
+      "data_deletion_request": {
+        "label": "Account Deletion Confirmation",
+        "description": "I agree to delete my account and all associated data."
+      },
+      "push_notification": {
+        "label": "Push Notifications",
+        "description": "Receive push notifications for incoming calls and other alerts."
+      },
+      "marketing_email": {
+        "label": "Marketing Emails",
+        "description": "Receive news and updates from TranCall by email."
+      }
+    },
+    "error": {
+      "AUTH_CONSENT_REQUIRED": {
+        "title": "Consent Required",
+        "message": "Your consent is required to use this feature."
+      },
+      "AUTH_CONSENT_REVOKED": {
+        "title": "Consent Revoked",
+        "message": "This feature is currently unavailable."
+      },
+      "AUTH_LEGAL_DOC_UNAVAILABLE": {
+        "title": "Connection Failed",
+        "message": "The server is busy. Please try again later."
+      },
+      "AUTH_CONSENT_VERSION_MISMATCH": {
+        "title": "Terms Updated",
+        "message": "Please review and accept the updated terms."
+      },
+      "AUTH_CONSENT_IRREVOCABLE": {
+        "title": "This consent cannot be revoked",
+        "message": "To discontinue use, please consider deleting your account."
+      }
+    },
     "description": "To use TranCall's translation feature, your call audio will be sent to OpenAI's servers.",
     "details": "Audio is used only for translation and is not stored by OpenAI. Transcripts are stored on TranCall servers (can be disabled in settings).",
     "agree": "Agree and Continue",

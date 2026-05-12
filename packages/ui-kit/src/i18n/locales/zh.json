@@ -346,7 +346,64 @@
     }
   },
   "consent": {
-    "title": "关于翻译通话",
+    "title": "需要您的同意",
+    "subtitle": "请查看以下同意事项。同意所有必要事项后即可使用服务。",
+    "required": "必填",
+    "readFullText": "阅读全文",
+    "accept_button": "同意并继续",
+    "skip_button": "不使用翻译通话",
+    "scope": {
+      "legal_terms": {
+        "label": "服务条款",
+        "description": "我同意TranCall的服务条款。"
+      },
+      "privacy_policy": {
+        "label": "隐私政策",
+        "description": "我同意TranCall关于个人信息处理的隐私政策。"
+      },
+      "voice_to_openai": {
+        "label": "向OpenAI发送语音数据",
+        "description": "翻译通话将通话音频发送至OpenAI的翻译API。翻译完成后OpenAI不会保留音频（零数据保留）。"
+      },
+      "transcript_retention": {
+        "label": "保存通话记录",
+        "description": "通话文字记录将保存在TranCall服务器上。您可以随时在设置中禁用此功能。"
+      },
+      "data_deletion_request": {
+        "label": "账号删除确认",
+        "description": "我同意删除账号及所有相关数据。"
+      },
+      "push_notification": {
+        "label": "推送通知",
+        "description": "接收来电提醒等推送通知。"
+      },
+      "marketing_email": {
+        "label": "营销邮件",
+        "description": "通过邮件接收TranCall的最新资讯和通知。"
+      }
+    },
+    "error": {
+      "AUTH_CONSENT_REQUIRED": {
+        "title": "需要同意",
+        "message": "使用此功能需要您的同意。"
+      },
+      "AUTH_CONSENT_REVOKED": {
+        "title": "同意已撤销",
+        "message": "此功能当前不可用。"
+      },
+      "AUTH_LEGAL_DOC_UNAVAILABLE": {
+        "title": "连接失败",
+        "message": "服务器繁忙，请稍后重试。"
+      },
+      "AUTH_CONSENT_VERSION_MISMATCH": {
+        "title": "条款已更新",
+        "message": "请查看并同意更新后的条款。"
+      },
+      "AUTH_CONSENT_IRREVOCABLE": {
+        "title": "此同意不可撤销",
+        "message": "如需停止使用，请考虑删除您的账号。"
+      }
+    },
     "description": "使用TranCall的翻译功能，通话音频将被发送到OpenAI的服务器。",
     "details": "音频仅用于翻译处理，OpenAI不会存储。文字记录保存在TranCall服务器上（可在设置中禁用）。",
     "agree": "同意并继续",
