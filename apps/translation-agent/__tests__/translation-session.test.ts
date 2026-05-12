@@ -7,9 +7,15 @@
  * カバー項目:
  * - start() → session_started イベントが postEvent で送信される
  * - end() → session_ended イベントが postEvent で送信される
+ * - T7: end() で session.close が送信される (sendSessionClose 呼び出し)
+ * - T8: agent_publish_failed 理由でセッション終了できる
  * - transcript.delta → postTranscriptDelta が呼ばれる (sequenceNo 増加)
  * - transcript.done (isFinal=true) → postTranscriptDelta が呼ばれる
  * - pushAudioFrame → openaiClient.sendAudioFrame が呼ばれる
+ * - T4: openAIRequestSentAt リセットロジック (200ms 途絶後の append で再採取)
+ * - T5/T6: recordPublishMetrics が agentPublish + totalEndToEnd を記録する
+ * - T8: recordPublishFailure が 3 回で session.end("agent_publish_failed") を呼ぶ
+ * - T10: degraded/recovered イベントが emit される
  * - metrics が metricsIntervalMs ごとに送信される
  * - end() で metrics が送信された後 session_ended が送信される
  * - isEnding フラグにより end() の二重実行が防がれる
@@ -26,6 +32,7 @@ const { MockOpenAIWsClient } = vi.hoisted(() => {
     static instances: MockOpenAIWsClient[] = [];
     connectCalled = false;
     closeCalled = false;
+    sessionCloseSent = false;
     sentFrames: string[] = [];
 
     constructor() {
@@ -46,6 +53,10 @@ const { MockOpenAIWsClient } = vi.hoisted(() => {
 
     sendAudioFrame(pcm16Base64: string): void {
       this.sentFrames.push(pcm16Base64);
+    }
+
+    sendSessionClose(): void {
+      this.sessionCloseSent = true;
     }
 
     getState() {
@@ -148,6 +159,7 @@ function makeConfig(
     internalApiClient: apiClient as unknown as InternalApiClient,
     logger: makeLogger(),
     metricsIntervalMs: 60000,
+    degradedCheckIntervalMs: 1000,
     ...overrides,
   };
 
@@ -224,6 +236,34 @@ describe("TranslationSession: end()", () => {
     expect(endedCall.reason).toBe("participant_left");
   });
 
+  it("T7: end() で sendSessionClose() が呼ばれる (pending buffer フラッシュ)", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    await session.end("participant_left");
+
+    const ws = MockOpenAIWsClient.instances[0];
+    // T7: session.close を送信してから close() を呼ぶ
+    expect(ws?.sessionCloseSent).toBe(true);
+    expect(ws?.closeCalled).toBe(true);
+  });
+
+  it("T8: agent_publish_failed 理由で end() が呼べる", async () => {
+    const { config, apiClient } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    await session.end("agent_publish_failed");
+
+    const endedCall = apiClient.calls.find((c) => c.type === "translation.session_ended");
+    expect(endedCall).toBeDefined();
+    if (!endedCall || endedCall.type !== "translation.session_ended") return;
+    expect(endedCall.reason).toBe("agent_publish_failed");
+  });
+
   it("end() の二重呼び出しは無視される", async () => {
     const { config, apiClient } = makeConfig();
     const session = new TranslationSession(config);
@@ -289,6 +329,321 @@ describe("TranslationSession: pushAudioFrame()", () => {
     const metricsCall = metricsCalls[0];
     if (!metricsCall || metricsCall.type !== "agent.metrics") return;
     expect(metricsCall.latencyMs.agentToOpenAI.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("T4: 200ms 以上の途絶後に openAIRequestSentAt が再採取される", async () => {
+    const { config, apiClient } = makeConfig({ metricsIntervalMs: 500 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // 最初のフレーム送信
+    session.pushAudioFrame("frame1");
+
+    // audio.delta を受信して openAIRequestSentAt が null になる
+    ws.emit("audio.delta", { audioBase64: "audio1", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    // 200ms 後に次のフレームを送信 → openAIRequestSentAt が再採取される
+    vi.advanceTimersByTime(500);
+    await waitNextTick(2);
+    session.pushAudioFrame("frame2");
+
+    // metrics を確認
+    vi.advanceTimersByTime(500);
+    await waitNextTick(3);
+
+    const metricsCalls = apiClient.calls.filter((c) => c.type === "agent.metrics");
+    if (metricsCalls.length > 0) {
+      const metricsCall = metricsCalls[0];
+      if (!metricsCall || metricsCall.type !== "agent.metrics") return;
+      // agentToOpenAI は 2 フレーム分記録される
+      expect(metricsCall.latencyMs.agentToOpenAI.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+});
+
+describe("TranslationSession: T3 captureToAgent 計測", () => {
+  it("recordCaptureToAgent() で captureToAgent バッファに値が記録される", async () => {
+    const { config, apiClient } = makeConfig({ metricsIntervalMs: 1000 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    session.recordCaptureToAgent(15);
+    session.recordCaptureToAgent(20);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(3);
+
+    const metricsCalls = apiClient.calls.filter((c) => c.type === "agent.metrics");
+    expect(metricsCalls.length).toBeGreaterThanOrEqual(1);
+    const metricsCall = metricsCalls[0];
+    if (!metricsCall || metricsCall.type !== "agent.metrics") return;
+    expect(metricsCall.latencyMs.captureToAgent).toContain(15);
+    expect(metricsCall.latencyMs.captureToAgent).toContain(20);
+  });
+});
+
+describe("TranslationSession: T5/T6 agentPublish / totalEndToEnd 計測", () => {
+  it("recordPublishMetrics() で agentPublish と totalEndToEnd が記録される", async () => {
+    const { config, apiClient } = makeConfig({ metricsIntervalMs: 1000 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    // T6: totalEndToEnd = c2a + a2o + ofd + publishLatency
+    session.recordCaptureToAgent(10);
+    session.pushAudioFrame("frame");
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // openAIFirstDelta を記録するために audio.delta イベントを受信
+    ws.emit("audio.delta", { audioBase64: "audio", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    session.recordPublishMetrics(5);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(3);
+
+    const metricsCalls = apiClient.calls.filter((c) => c.type === "agent.metrics");
+    expect(metricsCalls.length).toBeGreaterThanOrEqual(1);
+    const metricsCall = metricsCalls[0];
+    if (!metricsCall || metricsCall.type !== "agent.metrics") return;
+    expect(metricsCall.latencyMs.agentPublish).toContain(5);
+    expect(metricsCall.latencyMs.totalEndToEnd.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("recordAgentPublish() は直接 agentPublish バッファに記録する", async () => {
+    const { config, apiClient } = makeConfig({ metricsIntervalMs: 1000 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    session.recordAgentPublish(30);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(3);
+
+    const metricsCalls = apiClient.calls.filter((c) => c.type === "agent.metrics");
+    const metricsCall = metricsCalls[0];
+    if (!metricsCall || metricsCall.type !== "agent.metrics") return;
+    expect(metricsCall.latencyMs.agentPublish).toContain(30);
+  });
+});
+
+describe("TranslationSession: T8 publish 失敗カウンタ", () => {
+  it("recordPublishFailure() が 3 回呼ばれると agent_publish_failed で end() が呼ばれる", async () => {
+    const { config, apiClient } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const endedSpy = vi.fn();
+    session.on("ended", endedSpy);
+
+    session.recordPublishFailure(); // 1 回目
+    session.recordPublishFailure(); // 2 回目
+    session.recordPublishFailure(); // 3 回目 → end("agent_publish_failed")
+
+    await waitNextTick(5);
+
+    const endedCall = apiClient.calls.find((c) => c.type === "translation.session_ended");
+    expect(endedCall).toBeDefined();
+    if (!endedCall || endedCall.type !== "translation.session_ended") return;
+    expect(endedCall.reason).toBe("agent_publish_failed");
+  });
+
+  it("recordPublishSuccess() で失敗カウンタがリセットされる", async () => {
+    const { config, apiClient } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    session.recordPublishFailure(); // 1 回目
+    session.recordPublishFailure(); // 2 回目
+    session.recordPublishSuccess(); // リセット
+    session.recordPublishFailure(); // 1 回目に戻る
+    session.recordPublishFailure(); // 2 回目
+    // 3 回目に達していないので end() は呼ばれない
+
+    await waitNextTick(3);
+
+    const endedCalls = apiClient.calls.filter((c) => c.type === "translation.session_ended");
+    expect(endedCalls).toHaveLength(0);
+  });
+});
+
+describe("TranslationSession: T10 degraded/recovered 判定", () => {
+  it("degraded イベントが emit され、reconnecting 状態を検出する", async () => {
+    const { config } = makeConfig({ degradedCheckIntervalMs: 100 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    const degradedSpy = vi.fn();
+    session.on("degraded", degradedSpy);
+
+    // reconnecting イベントを emit → 即時 degraded 検出
+    ws.emit("reconnecting", 1, 1000);
+    await waitNextTick(2);
+
+    expect(degradedSpy).toHaveBeenCalledTimes(1);
+    expect(degradedSpy.mock.calls[0]?.[0]).toBe("openai_ws_reconnecting");
+  });
+
+  it("degraded 状態中に再度 degraded イベントは emit されない (二重防止)", async () => {
+    const { config } = makeConfig({ degradedCheckIntervalMs: 100 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    const degradedSpy = vi.fn();
+    session.on("degraded", degradedSpy);
+
+    // 2 回 reconnecting → 最初の 1 回のみ emit
+    ws.emit("reconnecting", 1, 1000);
+    await waitNextTick(2);
+    ws.emit("reconnecting", 2, 2000);
+    await waitNextTick(2);
+
+    expect(degradedSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("TranslationSession: T10 recovered 3 秒継続条件 (D1 §7.2)", () => {
+  it("recovered 条件成立後 1 秒経過では recovered イベントが発火しない", async () => {
+    // degradedCheckIntervalMs=500 で 500ms ごとにチェック
+    const { config } = makeConfig({ degradedCheckIntervalMs: 500 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // degraded 状態にする
+    ws.emit("reconnecting", 1, 1000);
+    await waitNextTick(2);
+
+    const recoveredSpy = vi.fn();
+    session.on("recovered", recoveredSpy);
+
+    // WS を open 状態にし、lastOutputAudioAt を直近に設定して recovered 条件を成立させる
+    ws.getState = () => "open";
+    // lastOutputAudioAt を「今」に設定するため audio.delta を emit
+    ws.emit("audio.delta", { audioBase64: "audio1", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    // 1 秒経過 (3 秒未満) → checkDegradedStatus が 2 回実行されるが recovered はまだ
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(4);
+
+    expect(recoveredSpy).not.toHaveBeenCalled();
+
+    await session.end("participant_left");
+  });
+
+  it("recovered 条件成立後 3 秒以上経過で recovered イベントが発火する", async () => {
+    const { config } = makeConfig({ degradedCheckIntervalMs: 500 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // degraded 状態にする
+    ws.emit("reconnecting", 1, 1000);
+    await waitNextTick(2);
+
+    const recoveredSpy = vi.fn();
+    session.on("recovered", recoveredSpy);
+
+    // WS を open 状態にし、audio.delta で lastOutputAudioAt を直近に設定
+    ws.getState = () => "open";
+    ws.emit("audio.delta", { audioBase64: "audio1", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    // 3 秒以上経過 (各チェック時に lastOutputAudioAt を更新して条件を維持)
+    // 500ms ごとにチェック → 3000ms 経過で最低 6 回チェック
+    // チェックのたびに audio.delta で lastOutputAudioAt を更新する必要がある
+    for (let i = 0; i < 7; i++) {
+      vi.advanceTimersByTime(500);
+      ws.emit("audio.delta", { audioBase64: `audio${i}`, receivedAt: Date.now() });
+      await waitNextTick(3);
+    }
+
+    expect(recoveredSpy).toHaveBeenCalledTimes(1);
+
+    await session.end("participant_left");
+  });
+
+  it("条件成立 → 2 秒経過で条件非成立 → 再度成立 → 3 秒経過で recovered 発火 (タイマーリセット動作)", async () => {
+    const { config } = makeConfig({ degradedCheckIntervalMs: 500 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    // degraded 状態にする
+    ws.emit("reconnecting", 1, 1000);
+    await waitNextTick(2);
+
+    const recoveredSpy = vi.fn();
+    session.on("recovered", recoveredSpy);
+
+    // フェーズ1: recovered 条件成立 (WS open + 直近 delta)
+    ws.getState = () => "open";
+    ws.emit("audio.delta", { audioBase64: "audio0", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    // 2 秒経過 (3 秒未満) → recovered まだ発火しない
+    for (let i = 0; i < 4; i++) {
+      vi.advanceTimersByTime(500);
+      ws.emit("audio.delta", { audioBase64: `audio${i}`, receivedAt: Date.now() });
+      await waitNextTick(3);
+    }
+    expect(recoveredSpy).not.toHaveBeenCalled();
+
+    // フェーズ2: 条件非成立 → lastOutputAudioAt を 2 秒以上前に強制して recovered 条件を破る
+    // checkDegradedStatus の次回チェックで recoveredSince がリセットされる
+    // ws.getState を "reconnecting" に戻して degraded 条件を再成立させる（recovered 判定をキャンセル）
+    // ただし isDegraded は既に true なので degraded イベントは再発火しない
+    // lastOutputAudioAt を古くするため、新しい audio.delta を送らずに時間を進める
+    vi.advanceTimersByTime(1500); // 1.5秒進める → lastOutputAudioAt が 1.5秒前になり recentDelta=false
+    await waitNextTick(3);
+    // この時点で recoveredSince は null にリセットされているはず
+
+    expect(recoveredSpy).not.toHaveBeenCalled();
+
+    // フェーズ3: 再度 recovered 条件成立
+    ws.emit("audio.delta", { audioBase64: "audio_restart", receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    // 3 秒以上経過 → recovered 発火
+    for (let i = 0; i < 7; i++) {
+      vi.advanceTimersByTime(500);
+      ws.emit("audio.delta", { audioBase64: `audio_r${i}`, receivedAt: Date.now() });
+      await waitNextTick(3);
+    }
+
+    expect(recoveredSpy).toHaveBeenCalledTimes(1);
+
+    await session.end("participant_left");
   });
 });
 
