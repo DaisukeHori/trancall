@@ -4,7 +4,8 @@
  * Shown immediately after a call ends. Displays:
  *   - Large call duration in mm:ss (heading1, success color, tabular-nums)
  *   - Translation info card (badge + language pair + session count)
- *   - Billing card (cost + remaining minutes)
+ *   - CostSummary card (docs/billing-ui-flow.md §10.3)
+ *   - Billing card (remaining minutes)
  *   - 3 action buttons: View Transcript / Call Again / Back to Home
  */
 
@@ -20,6 +21,7 @@ import {
 import { Badge, Button, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { StatsCard, StatsRow } from "../components/stats-card.js";
+import { CostSummary } from "../components/CostSummary.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 // ---------------------------------------------------------------------------
@@ -42,8 +44,12 @@ export interface CallSummaryParams {
   translationSessions: number;
   /** Whether translation was enabled */
   translationEnabled: boolean;
-  /** Estimated cost in yen */
+  /** Estimated total cost in yen (legacy field, kept for compatibility) */
   costYen: number;
+  /** Base cost in yen (cost covered within included minutes; 0 if within plan) */
+  baseCostYen?: number;
+  /** Overage cost in yen (only set when call exceeded plan minutes) */
+  overageCostYen?: number;
   /** Remaining minutes after this call */
   remainingMinutes: number;
   /** Current plan name */
@@ -82,12 +88,24 @@ export function CallSummaryScreen({ navigation, route }: Props) {
     translationSessions,
     translationEnabled,
     costYen,
+    baseCostYen,
+    overageCostYen,
     remainingMinutes,
     planName,
   } = route.params;
 
   const durationFormatted = formatDuration(callDurationMs);
   const isLowBalance = remainingMinutes <= 5;
+
+  // CostSummary 用: baseCostYen が未設定の場合は超過なしとして扱う
+  const resolvedBaseCostYen = baseCostYen ?? 0;
+  const resolvedOverageCostYen = overageCostYen ?? 0;
+  const hasOverage = resolvedOverageCostYen > 0;
+
+  const handleUpgradeSuggestion = () => {
+    // TODO: Settings → Subscription 画面へのナビゲーション (Sprint 3 settings-subscription-screen)
+    navigation.popToTop();
+  };
 
   const handleViewTranscript = () => {
     navigation.push("FullTranscript", {
@@ -163,13 +181,22 @@ export function CallSummaryScreen({ navigation, route }: Props) {
           </StatsCard>
         </View>
 
-        {/* Billing card */}
+        {/* CostSummary card (docs/billing-ui-flow.md §10.3) */}
+        <View style={{ marginBottom: s[16] }}>
+          <CostSummary
+            durationSeconds={Math.floor(callDurationMs / 1000)}
+            baseCostYen={resolvedBaseCostYen}
+            overageCostYen={resolvedOverageCostYen > 0 ? resolvedOverageCostYen : undefined}
+            totalCostYen={costYen}
+            plan={planName}
+            showUpgradeSuggestion={hasOverage}
+            onUpgradeSuggestionPress={handleUpgradeSuggestion}
+          />
+        </View>
+
+        {/* Remaining balance card */}
         <View style={{ marginBottom: s[32] }}>
           <StatsCard title={t("callSummary.billingCard")}>
-            <StatsRow
-              label={t("callSummary.cost", { cost: costYen })}
-              value=""
-            />
             <View style={styles.remainingRow}>
               <Text
                 style={[styles.remainingText, { color: isLowBalance ? c.warning : c.textPrimary }]}

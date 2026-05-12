@@ -176,7 +176,17 @@
     "lowBalance": "余量不足",
     "viewTranscript": "查看文字记录",
     "callAgain": "再次通话",
-    "backToHome": "返回首页"
+    "backToHome": "返回首页",
+    "costSummary": {
+      "title": "费用摘要",
+      "callDuration": "通话时长",
+      "baseCost": "基本费用",
+      "overageCost": "超额费用",
+      "totalCost": "合计",
+      "includedInPlan": "套餐内含",
+      "upgradeSuggestion": "查看套餐方案",
+      "yenFormat": "¥{{amount}}"
+    }
   },
   "transcript": {
     "title": "文字记录",
