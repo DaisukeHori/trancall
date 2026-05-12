@@ -14,7 +14,8 @@ import { z } from "zod";
 import type { Result, AppError } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { PlanTier } from "../schemas.js";
+import type { PlanTier, UpgradePreview } from "../schemas.js";
+import type { UserId } from "@trancall/shared-kernel";
 
 // Stripe の Price ID マッピング（環境変数から取得）
 export interface StripePriceIds {
@@ -208,6 +209,47 @@ export function createStripeAdapter(config: StripeAdapterConfig) {
         currentPeriodStart: now.toISOString(),
         currentPeriodEnd: periodEnd.toISOString(),
       });
+    },
+
+    /**
+     * [Sprint 2 D5] アップグレードの日割りプレビューを取得する (Stripe proration preview)。
+     * 未実装時は簡易計算で返す。
+     */
+    async previewUpgrade(
+      _userId: UserId,
+      targetTier: PlanTier,
+    ): Promise<Result<UpgradePreview>> {
+      // Stripe Subscription proration preview (Sprint 3 で本実装)
+      // 現時点では簡易実装: 日割り計算なし
+      const now = new Date();
+      const nextBilling = new Date(now);
+      nextBilling.setDate(nextBilling.getDate() + 30);
+
+      return ok({
+        currentTier: "free",  // 呼び出し元が現在プランを知っている
+        targetTier,
+        proratedAmountYen: 0,
+        nextBillingDate: nextBilling.toISOString(),
+        effectiveImmediately: true,
+        confirmationRequired: true,
+      });
+    },
+
+    /**
+     * [Sprint 2 D5] Stripe サブスクリプションをキャンセルする。
+     */
+    async cancelSubscription(
+      stripeSubscriptionId: string,
+      atPeriodEnd: boolean,
+    ): Promise<Result<void>> {
+      try {
+        await stripe.subscriptions.update(stripeSubscriptionId, {
+          cancel_at_period_end: atPeriodEnd,
+        });
+        return ok(undefined);
+      } catch (e: unknown) {
+        return mapStripeError(e);
+      }
     },
 
     /**

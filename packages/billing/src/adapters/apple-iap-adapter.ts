@@ -155,6 +155,23 @@ export function createAppleIapAdapter() {
     isActive(notificationType: string): boolean {
       return notificationType === "SUBSCRIBED" || notificationType === "DID_RENEW";
     },
+
+    /**
+     * [Sprint 2 D5] productId を PlanTier にマッピングする。
+     * 未知の productId は BILLING_IAP_RECEIPT_INVALID を返す。
+     */
+    mapProductIdToTier(productId: string): Result<PlanTier> {
+      const tier = APPLE_PRODUCT_ID_MAP[productId];
+      if (!tier) {
+        return err({
+          code: "BILLING_IAP_RECEIPT_INVALID",
+          message: `未知の Apple 製品 ID: ${productId}`,
+          retryable: false,
+          provider: "apple_iap",
+        });
+      }
+      return ok(tier);
+    },
   };
 }
 

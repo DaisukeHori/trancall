@@ -174,6 +174,83 @@ export const WebhookEvent = z.object({
 export type WebhookEvent = z.infer<typeof WebhookEvent>;
 
 // =============================================================================
+// [Sprint 2 D5 拡張] PlanComparisonView — プラン一覧表示用ビューモデル
+// =============================================================================
+
+export const PlanComparisonViewSchema = z.object({
+  currentTier: PlanTier,
+  plans: z.array(
+    z.object({
+      tier: PlanTier,
+      name: z.string(),
+      monthlyPriceYen: z.number().int().nonnegative(),
+      includedMinutes: z.number().int().nonnegative(),
+      overageRateYen: z.number().int().nonnegative(),
+      transcriptRetentionDays: z.number().int().positive(),
+      features: z.array(z.string()),
+      isRecommended: z.boolean(),
+      isCurrent: z.boolean(),
+    })
+  ).length(4),
+});
+export type PlanComparisonView = z.infer<typeof PlanComparisonViewSchema>;
+
+// =============================================================================
+// [Sprint 2 D5 拡張] UpgradePreview — アップグレード日割りプレビュー
+// =============================================================================
+
+export const UpgradePreviewSchema = z.object({
+  currentTier: PlanTier,
+  targetTier: PlanTier,
+  proratedAmountYen: z.number().int().nonnegative(),
+  nextBillingDate: z.iso.datetime(),
+  effectiveImmediately: z.boolean(),
+  confirmationRequired: z.boolean(),
+});
+export type UpgradePreview = z.infer<typeof UpgradePreviewSchema>;
+
+// =============================================================================
+// [Sprint 2 D5 拡張] IapTransactionResult — StoreKit 2 トランザクション
+// =============================================================================
+
+export const IapTransactionResultSchema = z.object({
+  originalTransactionId: z.string(),
+  productId: z.string(),
+  purchaseDate: z.iso.datetime(),
+  expirationDate: z.iso.datetime().nullable(),
+  signedJws: z.string(),
+  isUpgrade: z.boolean(),
+});
+export type IapTransactionResult = z.infer<typeof IapTransactionResultSchema>;
+
+// =============================================================================
+// [Sprint 2 D5 拡張] StoreKitExternalRedirectResult — External Purchase コールバック
+// =============================================================================
+
+export const StoreKitExternalRedirectResultSchema = z.object({
+  redirectToken: z.string(),
+  stripeSubscriptionId: z.string(),
+  completedAt: z.iso.datetime(),
+});
+export type StoreKitExternalRedirectResult = z.infer<typeof StoreKitExternalRedirectResultSchema>;
+
+// =============================================================================
+// [Sprint 2 D5 拡張] ExternalPurchaseToken — redirectToken 管理 DB 行型
+// =============================================================================
+
+export const ExternalPurchaseTokenRow = z.object({
+  id: z.uuid(),
+  user_id: z.uuid(),
+  token: z.string(),
+  target_tier: PlanTier,
+  stripe_session_id: z.string(),
+  expires_at: z.string(),
+  used: z.boolean(),
+  created_at: z.string(),
+});
+export type ExternalPurchaseTokenRow = z.infer<typeof ExternalPurchaseTokenRow>;
+
+// =============================================================================
 // チェックアウトセッション作成コマンド
 // =============================================================================
 

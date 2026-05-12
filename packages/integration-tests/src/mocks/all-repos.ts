@@ -31,8 +31,17 @@ import type {
 import { PLAN_CONFIGS } from "@trancall/billing";
 
 // ---- auth ----
-import type { ProfileRepository } from "@trancall/auth";
+import type {
+  ProfileRepository,
+  ConsentRepository,
+  LegalDocumentVersionRepository,
+} from "@trancall/auth";
 import type { Profile } from "@trancall/auth";
+import type { ConsentRecord, ConsentScope, LegalDocumentVersion } from "@trancall/shared-kernel";
+
+// ---- billing (extended) ----
+import type { ExternalPurchaseTokenRepository } from "@trancall/billing";
+import type { ExternalPurchaseTokenRow, PlanTier as BillingPlanTier } from "@trancall/billing";
 
 // ---- contact ----
 import type {
@@ -103,6 +112,99 @@ export function makeProfileRepository(
         return err({ code: "auth.profile.not_found", message: "Profile not found", retryable: false });
       }
       return ok(p);
+    },
+  };
+}
+
+// =============================================================================
+// Auth — ConsentRepository (mock)
+// =============================================================================
+
+export function makeConsentRepository(): ConsentRepository {
+  const records = new Map<string, ConsentRecord>();
+
+  return {
+    async upsert(record: Omit<ConsentRecord, "id">): Promise<Result<ConsentRecord>> {
+      const id = crypto.randomUUID();
+      const full: ConsentRecord = { ...record, id };
+      records.set(`${record.userId}:${record.scope}:${record.version}`, full);
+      return ok(full);
+    },
+    async findActive(userId: UserId, scope: ConsentScope): Promise<Result<ConsentRecord | null>> {
+      for (const rec of records.values()) {
+        if (rec.userId === userId && rec.scope === scope && rec.revokedAt === null) {
+          return ok(rec);
+        }
+      }
+      return ok(null);
+    },
+    async revoke(userId: UserId, scope: ConsentScope): Promise<Result<true>> {
+      const revokedAt = new Date().toISOString();
+      for (const [key, rec] of records.entries()) {
+        if (rec.userId === userId && rec.scope === scope) {
+          records.set(key, { ...rec, revokedAt });
+        }
+      }
+      return ok(true);
+    },
+  };
+}
+
+// =============================================================================
+// Auth — LegalDocumentVersionRepository (mock)
+// =============================================================================
+
+export function makeLegalDocVersionRepository(): LegalDocumentVersionRepository {
+  return {
+    async findLatest(_scope: ConsentScope): Promise<Result<LegalDocumentVersion>> {
+      return err({ code: "AUTH_LEGAL_DOC_UNAVAILABLE", message: "mock: not implemented", retryable: false });
+    },
+    async findAllLatest(): Promise<Result<LegalDocumentVersion[]>> {
+      return ok([]);
+    },
+  };
+}
+
+// =============================================================================
+// Billing — ExternalPurchaseTokenRepository (mock)
+// =============================================================================
+
+export function makeExternalPurchaseTokenRepository(): ExternalPurchaseTokenRepository {
+  const tokens = new Map<string, ExternalPurchaseTokenRow>();
+
+  return {
+    async create(params: {
+      userId: UserId;
+      targetTier: BillingPlanTier;
+      stripeSessionId: string;
+    }): Promise<Result<ExternalPurchaseTokenRow>> {
+      const token = `mock-token-${crypto.randomUUID()}`;
+      const row: ExternalPurchaseTokenRow = {
+        id: crypto.randomUUID(),
+        user_id: params.userId,
+        token,
+        target_tier: params.targetTier,
+        stripe_session_id: params.stripeSessionId,
+        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        used: false,
+        created_at: new Date().toISOString(),
+      };
+      tokens.set(token, row);
+      return ok(row);
+    },
+    async findValidByToken(token: string): Promise<Result<ExternalPurchaseTokenRow | null>> {
+      const row = tokens.get(token);
+      if (!row || row.used || new Date(row.expires_at) < new Date()) return ok(null);
+      return ok(row);
+    },
+    async markUsed(id: string): Promise<Result<void>> {
+      for (const [token, row] of tokens.entries()) {
+        if (row.id === id) {
+          tokens.set(token, { ...row, used: true });
+          break;
+        }
+      }
+      return ok(undefined);
     },
   };
 }

@@ -14,7 +14,13 @@ import {
   type UserId,
 } from "@trancall/shared-kernel";
 
-import { createAuthFacade, type ProfileRepository } from "../src/facade.js";
+import {
+  createAuthFacade,
+  type ProfileRepository,
+  type ConsentRepository,
+  type LegalDocumentVersionRepository,
+  type AuthEventBus,
+} from "../src/facade.js";
 import { type Profile } from "../src/schemas.js";
 
 function makeUserId() {
@@ -32,6 +38,30 @@ const validProfile: Profile = {
   updatedAt: "2026-05-12T00:00:00.000Z",
 };
 
+/** テスト用の mock ConsentRepository */
+function makeConsentRepo(): ConsentRepository {
+  return {
+    upsert: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+    findActive: vi.fn().mockResolvedValue({ ok: true, data: null }),
+    revoke: vi.fn().mockResolvedValue({ ok: true, data: true }),
+  };
+}
+
+/** テスト用の mock LegalDocumentVersionRepository */
+function makeLegalDocRepo(): LegalDocumentVersionRepository {
+  return {
+    findLatest: vi.fn().mockResolvedValue({ ok: false, error: { code: "NOT_FOUND", message: "", retryable: false } }),
+    findAllLatest: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  };
+}
+
+/** テスト用の mock AuthEventBus */
+function makeEventBus(): AuthEventBus {
+  return {
+    publish: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe("createAuthFacade.getProfile", () => {
   it("リポジトリの戻り値をそのまま返す（正常系）", async () => {
     const repo: ProfileRepository = {
@@ -39,7 +69,12 @@ describe("createAuthFacade.getProfile", () => {
         .fn<(userId: UserId) => Promise<Result<Profile>>>()
         .mockResolvedValue({ ok: true, data: validProfile }),
     };
-    const facade = createAuthFacade(repo);
+    const facade = createAuthFacade({
+      profileRepo: repo,
+      consentRepo: makeConsentRepo(),
+      legalDocRepo: makeLegalDocRepo(),
+      eventBus: makeEventBus(),
+    });
 
     const result = await facade.getProfile(makeUserId());
     expect(result.ok).toBe(true);
@@ -58,7 +93,12 @@ describe("createAuthFacade.getProfile", () => {
         .fn<(userId: UserId) => Promise<Result<Profile>>>()
         .mockResolvedValue({ ok: false, error: upstreamError }),
     };
-    const facade = createAuthFacade(repo);
+    const facade = createAuthFacade({
+      profileRepo: repo,
+      consentRepo: makeConsentRepo(),
+      legalDocRepo: makeLegalDocRepo(),
+      eventBus: makeEventBus(),
+    });
 
     const result = await facade.getProfile(makeUserId());
     expect(result.ok).toBe(false);
@@ -78,7 +118,12 @@ describe("createAuthFacade.getProfile", () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .mockResolvedValue({ ok: true, data: invalidProfile as any }),
     };
-    const facade = createAuthFacade(repo);
+    const facade = createAuthFacade({
+      profileRepo: repo,
+      consentRepo: makeConsentRepo(),
+      legalDocRepo: makeLegalDocRepo(),
+      eventBus: makeEventBus(),
+    });
 
     const result = await facade.getProfile(makeUserId());
     expect(result.ok).toBe(false);

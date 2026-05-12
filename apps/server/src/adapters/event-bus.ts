@@ -8,8 +8,34 @@
  * Phase 2 で Redis/Kafka 等の外部 MQ に移行する際はここを差し替える。
  */
 
+import type { ConsentScope } from "@trancall/shared-kernel";
 import type { RoomDomainEvent } from "@trancall/room";
 import type { TranslationStartedEvent, TranslationEndedEvent } from "@trancall/translation";
+
+// ---------------------------------------------------------------------------
+// Auth ドメインイベント (docs/module-contracts.md v1.3 §3.1)
+// ---------------------------------------------------------------------------
+
+export interface AuthConsentRecordedEvent {
+  type: "auth.consent_recorded";
+  payload: {
+    userId: string;
+    scope: ConsentScope;
+    version?: string;
+    recordedAt?: string;
+  };
+}
+
+export interface AuthConsentRevokedEvent {
+  type: "auth.consent_revoked";
+  payload: {
+    userId: string;
+    scope: ConsentScope;
+    revokedAt?: string;
+  };
+}
+
+export type AuthDomainEvent = AuthConsentRecordedEvent | AuthConsentRevokedEvent;
 
 // ---------------------------------------------------------------------------
 // DomainEvent 統合 union
@@ -18,7 +44,8 @@ import type { TranslationStartedEvent, TranslationEndedEvent } from "@trancall/t
 export type DomainEvent =
   | RoomDomainEvent
   | TranslationStartedEvent
-  | TranslationEndedEvent;
+  | TranslationEndedEvent
+  | AuthDomainEvent;
 
 // ---------------------------------------------------------------------------
 // EventBus インターフェース (モジュール contracts Section 3.2)

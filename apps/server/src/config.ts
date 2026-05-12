@@ -50,6 +50,17 @@ const ConfigSchema = z.object({
 
   // Invite link base URL
   INVITE_BASE_URL: z.url().default("https://trancall.app/invite"),
+
+  // Stripe Web Checkout (T-7 BillingFacade 拡張用)
+  STRIPE_CHECKOUT_SUCCESS_URL: z.string().optional(),
+  STRIPE_CHECKOUT_CANCEL_URL: z.string().optional(),
+
+  // StoreKit External Purchase (T-7 BillingFacade 拡張用、Apple JWS は Phase 1b)
+  STOREKIT_EXTERNAL_REPORT_URL: z.string().optional(),
+  STOREKIT_EXTERNAL_APPLE_BUNDLE_ID: z.string().optional(),
+  STOREKIT_EXTERNAL_ISSUER_ID: z.string().optional(),
+  STOREKIT_EXTERNAL_KEY_ID: z.string().optional(),
+  STOREKIT_EXTERNAL_PRIVATE_KEY: z.string().optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

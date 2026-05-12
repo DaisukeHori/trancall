@@ -7,6 +7,7 @@
 import { createAuthFacade } from "@trancall/auth";
 import type { AuthFacade } from "@trancall/auth";
 import type { Profile } from "@trancall/auth";
+import type { AuthEventBus } from "@trancall/auth";
 
 import { createMediaFacade, createLiveKitAdapter } from "@trancall/media";
 import type { MediaFacade } from "@trancall/media";
@@ -41,6 +42,9 @@ import type { TranslationFacade } from "@trancall/translation";
 
 import {
   makeProfileRepository,
+  makeConsentRepository,
+  makeLegalDocVersionRepository,
+  makeExternalPurchaseTokenRepository,
   makeSubscriptionRepository,
   makeUsageRepository,
   makeReservationRepository,
@@ -104,10 +108,13 @@ export function buildFacades(opts: BuildFacadesOptions = {}): {
 } {
   // --- repositories ---
   const profileRepo = makeProfileRepository(opts.profiles ?? []);
+  const consentRepo = makeConsentRepository();
+  const legalDocRepo = makeLegalDocVersionRepository();
   const subscriptionRepo = makeSubscriptionRepository(opts.subscriptions ?? []);
   const usageRepo = makeUsageRepository();
   const reservationRepo = makeReservationRepository();
   const webhookEventRepo = makeWebhookEventRepository();
+  const externalPurchaseTokenRepo = makeExternalPurchaseTokenRepository();
 
   const contactRepo = makeContactRepository();
   const blockRepo = makeBlockRepository();
@@ -132,7 +139,15 @@ export function buildFacades(opts: BuildFacadesOptions = {}): {
   const googlePlayAdapter = makeGooglePlayAdapter();
 
   // --- auth ---
-  const auth = createAuthFacade(profileRepo);
+  const authEventBus: AuthEventBus = {
+    publish: async () => { /* no-op in tests */ },
+  };
+  const auth = createAuthFacade({
+    profileRepo,
+    consentRepo,
+    legalDocRepo,
+    eventBus: authEventBus,
+  });
 
   // --- media (LiveKit adapter wraps AuthFacade for profile lookup) ---
   const liveKitAdapter = createLiveKitAdapter({
@@ -150,6 +165,7 @@ export function buildFacades(opts: BuildFacadesOptions = {}): {
     usageRepo,
     reservationRepo,
     webhookEventRepo,
+    externalPurchaseTokenRepo,
     stripeAdapter,
     appleIapAdapter,
     googlePlayAdapter,
@@ -176,6 +192,7 @@ export function buildFacades(opts: BuildFacadesOptions = {}): {
     fcmAdapter,
     tokenRepo: deviceTokenRepo,
     logRepo: pushLogRepo,
+    hmacSecret: "0".repeat(64), // テスト用 HMAC secret (64 hex chars)
     delayFn: async () => { /* no delay in tests */ },
   });
   const notification = createNotificationFacade({ tokenService, dispatcher });
