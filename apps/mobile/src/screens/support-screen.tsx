@@ -339,13 +339,13 @@ export function SupportScreen(_props: SupportScreenProps) {
             placeholderTextColor={c.textTertiary}
             value={body}
             onChangeText={setBody}
-            maxLength={1000}
+            maxLength={5000}
             multiline
             style={[styles.textArea, { color: c.textPrimary, borderColor: c.border }]}
             textAlignVertical="top"
           />
           <Text style={[styles.charCount, { color: c.textTertiary }]}>
-            {bodyCharCount} / 1000
+            {bodyCharCount} / 5000
           </Text>
         </View>
 

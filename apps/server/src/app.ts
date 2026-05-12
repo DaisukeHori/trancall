@@ -18,6 +18,7 @@ import { registerTranscriptRoutes } from "./routes/transcript-routes.js";
 import { registerNotificationRoutes } from "./routes/notification-routes.js";
 import { registerAgentRoutes } from "./routes/agent-routes.js";
 import { registerSupportRoutes } from "./routes/support-routes.js";
+import { registerAccountRoutes } from "./routes/account-routes.js";
 import type { Config } from "./config.js";
 import { logger } from "./logger.js";
 
@@ -70,6 +71,11 @@ export async function buildApp(
   registerTranscriptRoutes(fastify, { transcript: container.transcript });
   registerNotificationRoutes(fastify, { notification: container.notification });
   registerSupportRoutes(fastify, {} as Record<string, never>);
+  registerAccountRoutes(fastify, {
+    supabase: container.supabase,
+    billing: container.billing,
+    eventBus: container.eventBus,
+  });
 
   // Agent 内部 API
   registerAgentRoutes(fastify, {

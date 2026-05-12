@@ -587,7 +587,7 @@
       "label": "本文",
       "hint": "お問い合わせ内容を入力してください（必須）"
     },
-    "message_placeholder": "お問い合わせ内容を入力してください（最大1000文字）",
+    "message_placeholder": "お問い合わせ内容を入力してください（最大5000文字）",
     "submit": "送信する",
     "diagnosticInfo": {
       "title": "以下の情報が自動添付されます",

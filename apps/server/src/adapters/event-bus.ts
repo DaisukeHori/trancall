@@ -40,7 +40,19 @@ export interface AuthConsentRevokedEvent {
   };
 }
 
-export type AuthDomainEvent = AuthConsentRecordedEvent | AuthConsentRevokedEvent;
+export interface AuthAccountDeletionRequestedEvent {
+  type: "auth.account_deletion_requested";
+  payload: {
+    userId: string;
+    requestedAt: string;
+    gracePeriodEndsAt: string;
+  };
+}
+
+export type AuthDomainEvent =
+  | AuthConsentRecordedEvent
+  | AuthConsentRevokedEvent
+  | AuthAccountDeletionRequestedEvent;
 
 // ---------------------------------------------------------------------------
 // DomainEvent 統合 union
