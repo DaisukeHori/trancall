@@ -54,3 +54,25 @@ Copyright 2015-2021 Google LLC. All Rights Reserved.
 - `docs/module-contracts.md §2.6` の `exportTranscript` 戻り型は `{ contentBase64, mime }` だが、`docs/transcript-export-spec.md §2.1` (canonical) は `{ contentBase64, mime, filename }`。
 - 本 package は spec 優先で `filename` を含めて実装。
 - `docs/module-contracts.md` v1.4.0 (Sprint 3 完了同期、T-29) で修正予定。
+
+## デプロイ時要件 (T-10 で対処)
+
+### Vercel Serverless deploy
+本 package の `fonts/` ディレクトリは PDF 生成の実行時に絶対パス (`__dirname` 基準) で参照される。Vercel Serverless Function のバンドルに含まれないと `INTERNAL_ERROR` (フォント未検出) が発生する。
+
+**必須設定** (T-10 で `apps/server/vercel.json` に追加):
+
+```json
+{
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "../../packages/transcript/fonts/**"
+    }
+  }
+}
+```
+
+合計サイズ: 約 32.5 MB (Source Han Sans Regular/Bold 各 16 MB + NotoSansDevanagari 275 KB + NotoSansArabic 235 KB)。Vercel Function 50 MB 制限内に収まる。
+
+### Render / 他環境
+Render は monorepo 全体を deploy するため `packages/transcript/fonts/` は自動的に含まれる。追加設定不要。
