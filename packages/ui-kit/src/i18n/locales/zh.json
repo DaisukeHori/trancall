@@ -187,7 +187,108 @@
     "remaining": "剩余 {{minutes}} 分钟",
     "insufficientBalance": "翻译分钟数不足",
     "upgradeToContinue": "是否升级套餐以继续翻译？",
-    "continueWithoutTranslation": "不使用翻译继续通话"
+    "continueWithoutTranslation": "不使用翻译继续通话",
+    "balance": {
+      "remaining": "剩余 {{minutes}} 分钟（{{plan}}套餐）",
+      "nextBilling": "下次计费: {{date}}",
+      "managePlan": "管理套餐",
+      "depleted": "剩余 0 分钟（超出 ¥{{overageRate}}/分钟）",
+      "expired": "已过期，需要升级",
+      "free": "免费套餐",
+      "light": "Light套餐（¥980/月）",
+      "standard": "Standard套餐（¥2,980/月）",
+      "business": "Business套餐（¥9,800/月）"
+    },
+    "plans": {
+      "free": {
+        "label": "免费",
+        "name": "免费套餐"
+      },
+      "light": {
+        "label": "Light",
+        "name": "Light套餐"
+      },
+      "standard": {
+        "label": "Standard",
+        "name": "Standard套餐"
+      },
+      "business": {
+        "label": "Business",
+        "name": "Business套餐"
+      }
+    },
+    "subscription": {
+      "title": "管理套餐",
+      "currentPlan": "当前套餐",
+      "upgrade": "升级",
+      "downgrade": "降级",
+      "cancel": "取消订阅",
+      "restore": "恢复购买",
+      "recommended": "推荐",
+      "perMonth": "每月",
+      "includedMinutes": "{{minutes}}分钟/月",
+      "overageRate": "超出¥{{rate}}/分钟",
+      "transcriptRetention": "通话记录保存{{days}}天",
+      "upgradeButton": "升级到此套餐",
+      "currentPlanBadge": "当前套餐",
+      "confirmUpgrade": "确认升级",
+      "confirmCancel": "确认取消",
+      "cancelAtPeriodEnd": "订阅将在下次续费时取消",
+      "restoring": "正在恢复购买...",
+      "restoredCount": "已恢复 {{count}} 项购买"
+    },
+    "error": {
+      "BILLING_INSUFFICIENT_BALANCE": {
+        "title": "翻译时长不足",
+        "message": "您已超出套餐限额，请升级以继续使用。",
+        "action": "升级"
+      },
+      "BILLING_PAYMENT_FAILED": {
+        "title": "支付失败",
+        "message": "请检查您的支付信息。",
+        "action": "重试"
+      },
+      "BILLING_INVALID_RECEIPT": {
+        "title": "购买验证失败",
+        "message": "请恢复您的购买记录。",
+        "action": "恢复"
+      },
+      "BILLING_IAP_RECEIPT_INVALID": {
+        "title": "收据验证错误",
+        "message": "App Store 的购买可能未完成。",
+        "action": "恢复"
+      },
+      "BILLING_INVALID_PLAN_CHANGE": {
+        "title": "无法更改套餐",
+        "message": "选择的套餐相同或无法切换。",
+        "action": "关闭"
+      },
+      "BILLING_UPGRADE_PREVIEW_FAILED": {
+        "title": "获取估算失败",
+        "message": "请检查网络连接后重试。",
+        "action": "重试"
+      },
+      "BILLING_RESTORE_NO_PURCHASE": {
+        "title": "无可恢复的购买",
+        "message": "该账户没有有效的购买记录。",
+        "action": "关闭"
+      },
+      "BILLING_CHANNEL_NOT_AVAILABLE": {
+        "title": "此地区不可用",
+        "message": "所选支付方式在您所在的地区不可用。",
+        "action": "选择其他方式"
+      },
+      "NETWORK_ERROR": {
+        "title": "无法连接",
+        "message": "请检查您的网络连接。",
+        "action": "重试"
+      },
+      "INTERNAL_ERROR": {
+        "title": "发生错误",
+        "message": "请稍后重试。",
+        "action": "重试"
+      }
+    }
   },
   "settings": {
     "title": "设置",

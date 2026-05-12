@@ -187,7 +187,108 @@
     "remaining": "{{minutes}} min remaining",
     "insufficientBalance": "Insufficient translation minutes",
     "upgradeToContinue": "Upgrade your plan to continue translation?",
-    "continueWithoutTranslation": "Continue without translation"
+    "continueWithoutTranslation": "Continue without translation",
+    "balance": {
+      "remaining": "{{minutes}} min remaining ({{plan}})",
+      "nextBilling": "Next billing: {{date}}",
+      "managePlan": "Manage Plan",
+      "depleted": "0 min remaining (overage ¥{{overageRate}}/min)",
+      "expired": "Expired, upgrade required",
+      "free": "Free plan",
+      "light": "Light plan (¥980/mo)",
+      "standard": "Standard plan (¥2,980/mo)",
+      "business": "Business plan (¥9,800/mo)"
+    },
+    "plans": {
+      "free": {
+        "label": "Free",
+        "name": "Free Plan"
+      },
+      "light": {
+        "label": "Light",
+        "name": "Light Plan"
+      },
+      "standard": {
+        "label": "Standard",
+        "name": "Standard Plan"
+      },
+      "business": {
+        "label": "Business",
+        "name": "Business Plan"
+      }
+    },
+    "subscription": {
+      "title": "Manage Plan",
+      "currentPlan": "Current Plan",
+      "upgrade": "Upgrade",
+      "downgrade": "Downgrade",
+      "cancel": "Cancel Subscription",
+      "restore": "Restore Purchases",
+      "recommended": "Recommended",
+      "perMonth": "per month",
+      "includedMinutes": "{{minutes}} min/month",
+      "overageRate": "¥{{rate}}/min overage",
+      "transcriptRetention": "{{days}}-day transcript retention",
+      "upgradeButton": "Upgrade to This Plan",
+      "currentPlanBadge": "Current Plan",
+      "confirmUpgrade": "Confirm Upgrade",
+      "confirmCancel": "Confirm Cancellation",
+      "cancelAtPeriodEnd": "Subscription will cancel at next renewal",
+      "restoring": "Restoring purchases...",
+      "restoredCount": "{{count}} purchase(s) restored"
+    },
+    "error": {
+      "BILLING_INSUFFICIENT_BALANCE": {
+        "title": "Insufficient minutes",
+        "message": "You've reached your plan limit. Upgrade to continue.",
+        "action": "Upgrade"
+      },
+      "BILLING_PAYMENT_FAILED": {
+        "title": "Payment failed",
+        "message": "Please check your payment details.",
+        "action": "Try again"
+      },
+      "BILLING_INVALID_RECEIPT": {
+        "title": "Purchase verification failed",
+        "message": "Please restore your purchases.",
+        "action": "Restore"
+      },
+      "BILLING_IAP_RECEIPT_INVALID": {
+        "title": "Receipt verification error",
+        "message": "Your App Store purchase may not have completed.",
+        "action": "Restore"
+      },
+      "BILLING_INVALID_PLAN_CHANGE": {
+        "title": "Plan change not allowed",
+        "message": "The selected plan is the same or cannot be changed to.",
+        "action": "Close"
+      },
+      "BILLING_UPGRADE_PREVIEW_FAILED": {
+        "title": "Failed to load estimate",
+        "message": "Check your connection and try again.",
+        "action": "Try again"
+      },
+      "BILLING_RESTORE_NO_PURCHASE": {
+        "title": "No purchases to restore",
+        "message": "No active purchases found for this account.",
+        "action": "Close"
+      },
+      "BILLING_CHANNEL_NOT_AVAILABLE": {
+        "title": "Not available in your region",
+        "message": "The selected payment method is not available in your region.",
+        "action": "Choose another"
+      },
+      "NETWORK_ERROR": {
+        "title": "Can't connect",
+        "message": "Check your network connection.",
+        "action": "Try again"
+      },
+      "INTERNAL_ERROR": {
+        "title": "Something went wrong",
+        "message": "Please try again later.",
+        "action": "Try again"
+      }
+    }
   },
   "settings": {
     "title": "Settings",
