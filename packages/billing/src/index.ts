@@ -44,6 +44,37 @@ export type { UsageRepository } from "./repositories/usage-repository.js";
 export type { ReservationRepository } from "./repositories/reservation-repository.js";
 export type { WebhookEventRepository } from "./repositories/webhook-event-repository.js";
 
+// View Models（BillingFacade 拡張メソッドの入出力型 / UI 状態型）
+export {
+  PlanComparisonViewSchema,
+  UpgradePreviewSchema,
+  CheckoutSessionViewModelSchema,
+  IapTransactionResultSchema,
+  StoreKitExternalRedirectResultSchema,
+  BillingScreenStateSchema,
+  BillingErrorViewModelSchema,
+  PreCallCostEstimateSchema,
+  BillingSubscriptionUpgradedEventSchema,
+  BillingSubscriptionCanceledEventSchema,
+  BillingDomainEventSchema,
+  initialBillingScreenState,
+} from "./view-models/index.js";
+export type {
+  PlanComparisonView,
+  UpgradePreview,
+  CheckoutSessionViewModel,
+  IapTransactionResult,
+  StoreKitExternalRedirectResult,
+  BillingScreenState,
+  BillingErrorViewModel,
+  AppErrorCode,
+  BillingErrorMap,
+  PreCallCostEstimate,
+  BillingSubscriptionUpgradedEvent,
+  BillingSubscriptionCanceledEvent,
+  BillingDomainEvent,
+} from "./view-models/index.js";
+
 // Adapter factories（apps/server 側での注入用）
 export {
   createStripeAdapter,
