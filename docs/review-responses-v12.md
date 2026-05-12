@@ -27,9 +27,9 @@ v7/v8 と同様に v12 もスキップせず発行。本書は「review への�
 | 1-A | (#1〜#10 系) | shared-kernel / auth / media (C-005 含む) / DB migrations 6 本 | 2026-05-12 朝 |
 | 1-B | (#11〜#17 系) | billing / contact / notification / transcript / translation / ui-kit / integration-tests | 2026-05-12 午前 |
 | 2 | #18 | room facade (DomainEvent 構造を `payload: {}` nested に統一) | 2026-05-12 |
-| 3-A | #19 | translation-agent 実装 (agents-js 1.0 / OpenAI WS / 内部 API) | 2026-05-12 |
-| 3-B | #20 | apps/server (Fastify + DI + Supabase Repository 13 ファイル + 11 routes) | 2026-05-12 |
-| Lint | #23 | Zod v4 統一 + warning 158→97 | 2026-05-12 |
+| 3-A | #20 | apps/server (Fastify + DI + Supabase Repository 19 ファイル + 8 route groups / 27 endpoints) | 2026-05-12 |
+| 3-B | #19 | translation-agent 実装 (agents-js 1.0 / OpenAI WS / 内部 API) | 2026-05-12 |
+| Lint | #23 | Zod v4 統一 + ESLint warnings 158 件解消 | 2026-05-12 |
 | Design | #21 | TranCall Design System (canonical UI 仕様) 配置 | 2026-05-12 |
 | 4-A | #22 | Expo skeleton + Auth/Onboarding (SCR-001/Login/SignUp) | 2026-05-12 |
 | 4-B | #25 | 一般画面 5 screens (Home/Contacts/Settings/AddContact/ContactProfile) | 2026-05-12 00:24 |
@@ -62,28 +62,28 @@ main HEAD: `49822a0` (Layer 4-C マージ)
 - DomainEvent 構造を `payload: {}` nested に統一 (auth/translation と同形)
 - `billing.reserveMinutes / reconcile` は Layer 3-B server 責務に隔離
 
-### Layer 3-A: translation-agent (別プロセス)
+### Layer 3-A: apps/server
+- Fastify + DI container (`container.ts`) で 10 facade + Supabase Repository 具象 19 ファイル (billing 4 / contact 5 / room 2 / auth 1 / notification 2 / transcript 2 / translation 3) を組み立て
+- 8 route groups / 27 endpoints: auth / room / billing / contact / notification / transcript / agent (HMAC) / health
+- `EventBus` (in-process pub/sub、Phase 2 で Redis/Kafka)
+- middleware: auth, hmac, error-handler
+- 10 テストファイル + `app.inject()` パターン
+
+### Layer 3-B: translation-agent (別プロセス)
 - agents-js 1.0 の `defineAgent({ entry })` パターン
 - OpenAI Realtime WS: 自動再接続 (exponential backoff 最大 60s)、30s heartbeat
 - internal-api-client: HMAC-SHA256 で `/internal/agent/events` を叩く
 - 5 テストファイル
 - **未完了**: AudioFrame → OpenAI → LiveKit publish の実接続パイプライン (Sprint 2 P0)
 
-### Layer 3-B: apps/server
-- Fastify + DI container (`container.ts`) で 10 facade + Repository 具象 13 ファイルを組み立て
-- 11 routes: auth / room / billing / contact / notification / transcript / agent (HMAC) / health
-- `EventBus` (in-process pub/sub、Phase 2 で Redis/Kafka)
-- middleware: auth, hmac, error-handler
-- 10 テストファイル + `app.inject()` パターン
-
 ### Layer 4: mobile (Sprint 1 のメイン成果)
 - **15 screens** 実装済み (SCR-001 〜 SCR-012 + Login/SignUp + placeholder tab)
 - **6 stores** (Zustand v5 curried): auth, call, contacts, recent-calls, subtitle, transcript
 - **5 API clients** (Result<T> + Zod safeParse)
-- **6 navigation** (auth-stack / root / main-tabs / contacts / recent / settings / call-overlay)
+- **7 navigation** (auth-stack / root-navigator / main-tabs / contacts-stack / recent-stack / settings-stack / call-overlay)
 - **lib/callkit** (3 ファイル、Phase 1b 用 scaffold + DI 差し替え可能設計)
 - **lib/livekit** (3 ファイル: connect 鴨型 / audio-routing / subtitles DataChannel)
-- **6 components** (call-controls, subtitle-overlay-live, stats-card, transcript-search-bar/-segment-row, empty-state, recent-call-row)
+- **7 components** (call-controls, subtitle-overlay-live, stats-card, transcript-search-bar, transcript-segment-row, empty-state, recent-call-row)
 - **12 テストファイル** (Vitest + fetch stub)
 
 ### ui-kit
@@ -134,7 +134,7 @@ main HEAD: `49822a0` (Layer 4-C マージ)
 | `docs/architecture.md` | 安定 | Section 10 CI/CD のみ、observability 章は Sprint 2 で追加 |
 | `docs/module-contracts.md` | 安定 (v1.0.0) | Layer 1 完了時点抽出、Layer 3 で `translation.degraded/recovered` 追記予定 |
 | `docs/design/design-system.md` | 安定 | UI 仕様 canonical、L151 で通話画面 dark surface 固定明記 |
-| `docs/test-strategy.md` | **要更新** | "Detox or Maestro" 表記が残る。v12 で Maestro 確定したため別 PR で反映 |
+| `docs/test-strategy.md` | **更新済み (本 PR)** | 「Detox or Maestro」を「Maestro」に確定 (1 行修正) |
 | `docs/e2e-test-design.md` | **新規 (本日)** | Maestro 採用確定、Phase 1a でコード 0 行 |
 
 ---
@@ -161,7 +161,7 @@ main HEAD: `49822a0` (Layer 4-C マージ)
 - contact-profile → pre-call 発信導線
 - `X-Agent-Timestamp` リプレイ攻撃防止 (5 分以内チェック)
 - recent-calls-store の server 履歴取得実装
-- E2E (Maestro) の P0 12 flows + CI 統合 — `docs/e2e-test-design.md` §8 参照
+- E2E (Maestro) の P0 12 flows + CI 統合 — `docs/e2e-test-design.md` §7 (CI) と §8 (Phase 分担) 参照
 
 ### 既知の小ズレ (実害なし、次回 docs sweep)
 - `packages/media/CLAUDE.md` に「auth を直接 import しない」記述残存 (C-005 対応後は import OK)
@@ -176,7 +176,7 @@ main HEAD: `49822a0` (Layer 4-C マージ)
 3. **Expo SDK 54 + Legacy Architecture opt-out**: New Arch 移行は Phase 1b 以降
 4. **OpenAI 接続は WebSocket 先行**: WebRTC は Sprint 2 比較計測
 5. **StoreKit External Purchase 採用**: `storekit_external` チャネル (日本市場対応)
-6. **purchase_channel 列・iap_platform 廃止**: v10 migration 修正済み
+6. **purchase_channel 列に統合**: v10 で旧 `iap_platform` 列名を廃止し `purchase_channel` enum (`stripe` / `iap_apple` / `iap_google` / `storekit_external`) に統一 (IAP チャネル自体は残存)
 7. **全マネージドクラウド**: Proxmox LXC 廃止、LiveKit Cloud + Supabase Cloud + Render
 8. **`exportTranscript` 501 stub で Sprint 1 完了**: 実装は Sprint 2
 9. **i18n zh 全 289 キー翻訳完了**: v9 で全面書き直し
@@ -194,6 +194,7 @@ main HEAD: `49822a0` (Layer 4-C マージ)
 | A4 | Render dry-run 環境準備 (env vars / Supabase 接続) | DevOps | Sprint 2 Day 3 まで |
 | A5 | callkeep 代替の調査 → `docs/native-call-bridge.md` 起票 | モバイル | Sprint 2 Day 1-3 |
 | A6 | `docs/module-contracts.md` v1.1.0 起票 (translation.degraded/recovered 追加) | バックエンド | Layer 5 着手時 |
+| A7 | `apps/mock-server/` 初期構築 + Maestro P0 12 flows 実装 + `e2e.yml` CI workflow 追加 (`docs/e2e-test-design.md` §6 §7 §8 準拠) | モバイル / QA | Sprint 2 Phase 1b Day 1-3 |
 
 ---
 
@@ -203,6 +204,7 @@ main HEAD: `49822a0` (Layer 4-C マージ)
 - **テスト数の偏り**: contact (1 ファイル) と auth (1 ファイル) はテスト追加が薄い。Sprint 2 で reservation/heartbeat 系結合テストを伸ばすか、E2E 側でカバーするか方針確定が必要。
 - **Worktree が 3 つ残存**: `/Users/horidaisuke/trancall-mobile-b/c/d` がローカルに残る。次の作業に入る前に整理推奨 (`git worktree remove`)。
 - **E2E (Maestro) は Phase 1b スコープ**: Sprint 1 では設計書のみ確定、Sprint 2 で mock-server + P0 12 flows 実装。詳細は `docs/e2e-test-design.md`。
+- **CI リソース制約**: GitHub Actions ubuntu-latest で `supabase start` (Docker 必要) と `reactivecircus/android-emulator-runner` を同時実行するとリソースを圧迫する可能性。Phase 1b の `e2e.yml` 設計時に分割 (Supabase = 別 job、Emulator は Android 専用 job) を検討。
 
 ---
 

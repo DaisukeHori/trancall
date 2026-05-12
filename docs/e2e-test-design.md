@@ -57,12 +57,14 @@
 
 E2E は **下位 3 層でカバー不能な統合パスのみ** を対象とする (Provider 階層、navigation、a11y、視覚レイアウト、permission gates、画面間 store 共有)。下位層で十分検証できる Zod schema / Result 分岐 / Repository CRUD などは E2E に含めない。
 
+なお `docs/test-strategy.md` のピラミッドは「ユニット / 統合 / E2E」の 3 層で描画している。本書の 4 層は「統合」を `Integration (Vitest in-memory mock)` と `API handler (Fastify inject)` に細分化したもの (両方とも `test-strategy.md` の "統合" に含まれる)。論理矛盾はなく粒度差のみ。
+
 ---
 
 ## 3. スコープと非スコープ
 
 ### 3.1 E2E が **検証する** こと
-- 12 screens のレンダリング・要素存在・accessibilityLabel 一致
+- 12 screens (SCR-001〜SCR-012、Login/SignUp/placeholder tab を除く) のレンダリング・要素存在・accessibilityLabel 一致 — SCR-010 (Calling) は `SCR-009_precall_to_call.yaml` 内で通過確認
 - 主要 user journey の遷移 (Onboarding→Home, Contacts→AddContact→ContactProfile→PreCall→Calling→InCall→CallSummary→FullTranscript)
 - 4 permission/consent gates のフロー (mic / notification / caller / callee)
 - light / dark theme 両方でのレンダリング (通話画面が dark 固定の検証含む)
@@ -79,6 +81,9 @@ E2E は **下位 3 層でカバー不能な統合パスのみ** を対象とす�
 - Stripe / IAP 決済 → sandbox 半手動、本番直前にスモーク
 - RLS (Row Level Security) → pgTAP / Supabase local
 - 通話の **両端末同時** 実態 → 1 端末 + Mock peer で代替
+- WCAG 2.1 AA コントラスト比の自動検証 → 専用ツール (axe-core 等) で別途、または手動チェック
+- CONTACT-002 (QR コード追加) → 実装が Sprint 2/Phase 2 のため当面手動
+- ROOM-009/010 (通話履歴一覧 / 履歴から再発信) → `GET /api/rooms/history` が Sprint 2 実装のため未対応
 
 ---
 
@@ -108,7 +113,7 @@ E2E ビルドは **専用バリアント (`expo-env: e2e`)** を作る。差分�
 - `/api/__e2e__/trigger-incoming-call` — テスト操作用フック (incoming-call deep link を Maestro が叩く)
 - `/api/__e2e__/inject-subtitle-delta` — テスト操作用フック (DataChannel injection を模擬)
 
-Mock Server は **production ビルドには含めない** (workspace の `e2e` フラグで gating)。
+Mock Server は **production ビルドには含めない**。具体的 gating 手段は Phase 1b Day 1 に確定する (候補: `apps/mock-server/package.json` を `private: true` + EAS build profile (`eas.json`) の include/exclude で除外、Turborepo の filter で `--filter=!@trancall/mock-server` を production task に適用)。本書 §11 未解決事項参照。
 
 ### 4.3 ネイティブモジュールのスタブ
 
@@ -116,14 +121,16 @@ Mock Server は **production ビルドには含めない** (workspace の `e2e` 
 
 ```ts
 // apps/mobile/src/lib/callkit/index.ts (既存設計)
-let nativeModule: CallKeepNativeModule | null = null;
-export function setCallKeepNativeModule(mod: CallKeepNativeModule) { nativeModule = mod; }
+let _nativeModuleOverride: RNCallKeepNativeModule | null = null;
+export function setCallKeepNativeModule(mod: RNCallKeepNativeModule | null): void {
+  _nativeModuleOverride = mod;
+}
 
 // apps/mobile/src/lib/callkit/e2e-stub.ts (新規)
-export const e2eCallKeepStub: CallKeepNativeModule = {
-  setup: () => {},
-  displayIncomingCall: (...) => {},
-  endCall: () => {},
+export const e2eCallKeepStub: RNCallKeepNativeModule = {
+  setup: (_config: unknown) => {},
+  displayIncomingCall: (..._args: unknown[]) => {},
+  endCall: (..._args: unknown[]) => {},
 };
 ```
 
@@ -143,12 +150,12 @@ LiveKit の `RoomHandle` は既に `duck-typed` (`apps/mobile/src/lib/livekit/co
 
 ---
 
-## 5. シナリオ一覧 (12 + 4 = 16 flows)
+## 5. シナリオ一覧 (P0=14 / P1=7 / P2=4 = 25 flows)
 
 ディレクトリ: `apps/mobile/e2e/maestro/flows/`
 命名: `SCR-XXX_*.yaml` (画面 ID prefix)
 
-### 5.1 P0 — Critical (Phase 1b 必須)
+### 5.1 P0 — Critical (Phase 1b 必須、12 + 4 gates = 14)
 
 | Flow | 内容 | 検証セレクタ例 |
 |---|---|---|
@@ -163,6 +170,8 @@ LiveKit の `RoomHandle` は既に `duck-typed` (`apps/mobile/src/lib/livekit/co
 | `SCR-004_incoming_call.yaml` | `trigger-incoming-call` → 着信画面 → 応答 → InCall | `t("call.incomingCall")`, `t("call.accept")` |
 | `SCR-011_summary_and_transcript.yaml` | 終話後 Summary → FullTranscript → export | `t("callSummary.viewTranscript")`, `t("transcript.exportPdf")` |
 | `gate_mic_permission.yaml` | 初回発信時の Mic permission gate | `t("permissions.microphoneTitle")` |
+| `gate_notification_permission.yaml` | 初回起動時の Notification permission gate | `t("permissions.notificationTitle")` |
+| `gate_consent_caller.yaml` | 翻訳同意 (caller side) | `t("consent.agree")` |
 | `gate_consent_callee.yaml` | 翻訳同意 (callee side) | `t("consent.agree")` |
 
 ### 5.2 P1 — Important (Phase 1c 推奨)
@@ -188,8 +197,9 @@ LiveKit の `RoomHandle` は既に `duck-typed` (`apps/mobile/src/lib/livekit/co
 
 ### 5.4 シナリオ雛形 (Maestro YAML)
 
+本サンプルは **Phase 1b Day 1 の i18n 環境変数置換実装後** の最終形 (`${T_*}` プレースホルダで i18n キーを Maestro 起動時に解決した値に展開する想定)。`${T_call_startCall}` 等は `apps/mobile/e2e/maestro/scripts/inject-i18n-env.ts` (Phase 1b Day 1) が `packages/ui-kit/src/i18n/locales/{ja,en,zh}.json` を読んで生成する。コメントは規約により書かない。
+
 ```yaml
-# apps/mobile/e2e/maestro/flows/SCR-009_precall_to_call.yaml
 appId: app.trancall.dev
 name: "SCR-009 — Pre-call → InCall (translation ON)"
 tags: [P0, call]
@@ -198,28 +208,26 @@ tags: [P0, call]
 - tapOn:
     id: "contact-row-${E2E_PEER_TRANCALL_ID}"
 - tapOn:
-    text: "contactProfile.call"            # i18n key resolved by interpolation
+    text: ${T_contactProfile_call}
 - assertVisible:
-    text: "precall.title"
+    text: ${T_precall_title}
 - assertVisible:
-    text: "translation.enabled"
+    text: ${T_translation_enabled}
 - assertVisible:
-    text: "precall.remainingMinutes"        # 残量 = 必須表示
+    text: ${T_precall_remainingMinutes}
 - tapOn:
     id: "translation-toggle"
 - tapOn:
-    accessibilityLabel: "call.startCall"
+    accessibilityLabel: ${T_call_startCall}
 - assertVisible:
-    text: "call.calling"
+    text: ${T_call_calling}
 - waitForAnimationToEnd:
-    timeout: 5000
+    timeout: 2000
 - assertVisible:
-    text: "call.inCall"
+    text: ${T_call_inCall}
 - assertVisible:
-    accessibilityLabel: "call.endCall"
+    accessibilityLabel: ${T_call_endCall}
 ```
-
-i18n キー文字列を直接 selector に使うため、テスト中に Maestro 側で `${T_call_startCall}` のような環境変数置換を実装する (Phase 1b の Day 1 タスク)。
 
 ---
 
@@ -350,7 +358,7 @@ Phase 1a で **本書作成のみ**、コードは 0 行追加。Sprint 1 のス
 2. **Maestro 実機 flaky 計測**: 採用判断は Sprint 2 Day 3 までに smoke 5 flow を回し、retry なしで 95%+ green が出るか確認。落ちる場合は Detox を再評価。
 3. **eas build E2E profile**: `eas.json` の `e2e` profile (環境変数、native module 差し替え) は Layer 4 完了後に作成。Phase 1a では雛形のみ docs に残す。
 4. **mock-server の TS 共有**: `apps/server` と shape を完全同期する仕組み。当面手動同期、Phase 1c で共通 schema パッケージ化を検討。
-5. **`docs/test-strategy.md` との整合**: 本書を canonical 化した時点で `test-strategy.md` の "Detox or Maestro" 表記を "Maestro" に更新する PR を Sprint 1 終盤に発行。
+5. **`docs/test-strategy.md` との整合**: 本 PR (Sprint 1 v12) で「Detox or Maestro」→「Maestro」更新済み。
 
 ---
 
