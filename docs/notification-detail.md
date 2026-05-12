@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | NOTIFICATION-DETAIL-001 |
-| Status | v1.1 (2026-05-12) |
+| Status | v1.2 (2026-05-12) |
 | Canonical | APNs / FCM の payload 構造、HMAC 署名仕様の正本 |
 | 関連 | `docs/native-call-bridge.md` (CallKit/Telecom bridge 側の canonical)、`docs/security-detail.md` (HMAC 全般)、`packages/notification/src/schemas.ts` (実装スキーマ) |
 
@@ -134,7 +134,7 @@ signature = HMAC-SHA256(key = TRANCALL_PUSH_HMAC_SECRET, message = canonical)
 | 実装 | API |
 |---|---|
 | Node.js (server) | `crypto.createHmac("sha256", secret).update(canonical, "utf8").digest("hex")` |
-| Swift (mobile) | `HMAC<SHA256>.authenticationCode(for: Data(canonical.utf8), using: SymmetricKey(data: secret.data(using: .utf8)!))` を `.map { String(format: "%02x", $0) }.joined()` |
+| Swift (mobile) | 計算: `HMAC<SHA256>.authenticationCode(for: Data(canonical.utf8), using: SymmetricKey(data: secret.data(using: .utf8)!))` を `.map { String(format: "%02x", $0) }.joined()` で hex 化。**検証**: `HMAC<SHA256>.isValidAuthenticationCode(receivedMacBytes, authenticating: Data(canonical.utf8), using: key)` を必ず使う (CryptoKit が constant-time 比較を内部実装、手動の `==` / byte ループは short-circuit リスクあり) |
 | Kotlin (mobile) | `Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(secret.toByteArray(), "HmacSHA256")) }.doFinal(canonical.toByteArray()).joinToString("") { "%02x".format(it) }` |
 
 ### 3.4 検証手順 (Mobile bridge)
@@ -142,7 +142,7 @@ signature = HMAC-SHA256(key = TRANCALL_PUSH_HMAC_SECRET, message = canonical)
 1. payload の `trancall` を取り出す
 2. canonical string を §3.2 順序で組み立て
 3. HMAC を再計算
-4. constant-time 比較 (Swift: `Data` の byte-by-byte 比較で short-circuit 回避、Kotlin: `MessageDigest.isEqual`) で `signature` と比較
+4. constant-time 比較: **Swift は `HMAC<SHA256>.isValidAuthenticationCode(_:authenticating:using:)` を使う** (CryptoKit が内部で constant-time 比較を保証、`Data` の `==` や手動ループは short-circuit のため不採用)。**Kotlin は `java.security.MessageDigest.isEqual(byte[], byte[])`** (Java 6 以降で constant-time 保証) を使う。`signature` の hex を `byte[]` にデコードしてから比較
 5. 不一致なら **CallKit / Telecom に何も投入せず**、log only で破棄
 
 ## 4. 不在着信通知 (missed_call)
@@ -177,4 +177,5 @@ signature = HMAC-SHA256(key = TRANCALL_PUSH_HMAC_SECRET, message = canonical)
 | Version | Date | Changes |
 |---------|------|---------|
 | v1.0 | 2026-05-11 | 初版。APNs VoIP / FCM data / 不在着信の payload 仕様 |
-| v1.1 | 2026-05-12 | D4 ネイティブ通話 Bridge 設計書 (PR #30) との整合で以下を追加: `uuid` (CallKit 用 UUID、roomId と分離) / `callerId` (内部 ID) / `issuedAt` / `expiresAt` (30s TTL、リプレイ攻撃対策) / `signature` (HMAC-SHA256、§3) フィールドを `trancall` キー配下に追加。FCM payload を v0 Legacy から v1 API (`message.token` + `message.data` + `message.android`) に明示。HMAC canonical string の field 順序 §3.2 を確定。実装 (`packages/notification/src/schemas.ts`) への適用は Sprint 3 で別 PR が実施予定。
+| v1.1 | 2026-05-12 | D4 ネイティブ通話 Bridge 設計書 (PR #30) との整合で以下を追加: `uuid` (CallKit 用 UUID、roomId と分離) / `callerId` (内部 ID) / `issuedAt` / `expiresAt` (30s TTL、リプレイ攻撃対策) / `signature` (HMAC-SHA256、§3) フィールドを `trancall` キー配下に追加。FCM payload を v0 Legacy から v1 API (`message.token` + `message.data` + `message.android`) に明示。HMAC canonical string の field 順序 §3.2 を確定。実装 (`packages/notification/src/schemas.ts`) への適用は Sprint 3 で別 PR が実施予定。 |
+| v1.2 | 2026-05-12 | D4 PR #30 Round 2 指摘 W-1 を反映: §3.3 §3.4 の Swift constant-time 比較を `HMAC<SHA256>.isValidAuthenticationCode(_:authenticating:using:)` 使用に修正 (CryptoKit が constant-time 比較を内部実装、`Data` の `==` や手動ループは short-circuit リスクあり)。Kotlin は `MessageDigest.isEqual` (Java 6 以降 constant-time 保証) を明示。

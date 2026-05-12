@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | NATIVE-CALL-001 |
-| Status | Draft v1.1 (2026-05-12) |
+| Status | Draft v1.2 (2026-05-12) |
 | Sprint | Sprint 2 D4 |
 | 上位文書 | `docs/architecture.md` (システム全体構成、canonical) / `docs/call-lifecycle.md` (シーケンス、canonical) / `docs/module-contracts.md` v1.1.0 (モジュール契約、canonical) / `docs/notification-detail.md` v1.1 (Push payload・HMAC、canonical) |
 | 関連文書 | `docs/security-detail.md` (HMAC / 署名、canonical) / `docs/deployment-render-dryrun.md` (デプロイ手順) |
@@ -349,9 +349,10 @@ class PushKitDelegate: NSObject, PKPushRegistryDelegate {
 }
 
 // 注: `PKPushRegistry(queue: nil)` は delegate コールバックを main queue で受ける指定。
-// Apple TN3052 で「重い処理は専用 serial queue を渡せ」と推奨されているが、
-// 本書の delegate 実装は同期処理のみ (即 reportNewIncomingCall) のため main queue で問題ない。
-// 検証ロジックを Swift Concurrency で重くするなら `PKPushRegistry(queue: DispatchQueue(label: "..."))` に変更を検討。
+// 本書の delegate 実装は HMAC 検証 (CryptoKit) + reportNewIncomingCall のみで同期処理が軽く main queue で問題ない。
+// ただし将来の拡張 (certificate pinning, network lookup, 重い検証など) を考慮し、
+// Sprint 3 実装時には専用 serial queue (`DispatchQueue(label: "tech.hori.trancall.pushkit", qos: .userInitiated)`)
+// を渡す形を強く推奨する。queue 変更しても 5 秒 rule 厳守は同様 (queue は serial であること必須、concurrent は不可)。
 ```
 
 ### 4.4 CXProviderDelegate ハンドラ
@@ -804,7 +805,7 @@ Server (notification module) と Mobile bridge は同じ canonical (`notificatio
 
 `packages/notification/src/schemas.ts` の `IncomingCallNotificationSchema` は server 内部の中間表現。adapter が `notification-detail.md` §1 / §2 の wire format に変換する。Sprint 3 拡張後の対応関係:
 
-| `IncomingCallNotification` フィールド | APNs `aps.trancall.*` | FCM `message.data.*` | 備考 |
+| `IncomingCallNotification` フィールド | APNs `trancall.*` (top-level `trancall` キー配下) | FCM `message.data.*` | 備考 |
 |---|---|---|---|
 | (server で生成) | `uuid` | `uuid` | CallKit 用 UUID、`crypto.randomUUID()` で発行 |
 | `roomId` | `roomId` | `roomId` | LiveKit room 識別子 |
@@ -816,7 +817,7 @@ Server (notification module) と Mobile bridge は同じ canonical (`notificatio
 | `translationEnabled` | `translationEnabled` (boolean) | `translationEnabled` (`"true"`/`"false"`) | FCM data は文字列のみ |
 | `languagePair` | `languagePair` | `languagePair` | `"ja-en"` 等 |
 | `callerLanguage` | `callerLanguage` | `callerLanguage` | OutputLanguage |
-| `timestamp` (deprecated) → `issuedAt` | `issuedAt` | `issuedAt` | v1.1 で renamed |
+| `issuedAt` (新規、Sprint 3 で追加) | `issuedAt` | `issuedAt` | schemas.ts v1.0 には未存在、Sprint 3 で v1.1 として追加。旧 `timestamp` (notification-detail.md v1.0) は v1.1 で廃止 |
 | (server で生成、issuedAt + 30s) | `expiresAt` | `expiresAt` | TTL |
 | (server で計算、§3 HMAC) | `signature` | `signature` | HMAC-SHA256 hex |
 
@@ -852,6 +853,9 @@ PushKit / FCM service → CallBridge → CallKit / Telecom
 // apps/mobile/src/native/CallBridge.ts (Sprint 3 で実装)
 import { z } from "zod";
 import { OutputLanguage } from "@trancall/shared-kernel/schemas/language";  // 実 export 名
+// IncomingCallPushPayload 型は Sprint 3 で packages/shared-kernel/src/schemas/native-call.ts に
+// 配置予定 (§7.5)。以下のコード片の参照箇所では当該型を import する想定:
+//   import type { IncomingCallPushPayload } from "@trancall/shared-kernel/schemas/native-call";
 
 export const CallStateSchema = z.enum([
   "idle",
@@ -1181,7 +1185,9 @@ Phase 1a を「完了」と宣言できる条件を以下に明示する。Sprin
 
 HMAC 署名仕様の **canonical は `docs/notification-detail.md` §3**。本書では bridge 側の検証順序を補強する。
 
-- 共有鍵 `TRANCALL_PUSH_HMAC_SECRET` (32 文字以上) は Server / Mobile bridge の両方に配布 (Mobile では `expo-secure-store` 経由で encrypted at rest)。
+- 共有鍵 `TRANCALL_PUSH_HMAC_SECRET` (32 文字以上) は Server / Mobile bridge の両方に配布:
+  - **Server**: Render Background Worker の env vars に直接設定 (`docs/deployment-render-dryrun.md` §3 secrets 配布手順)
+  - **Mobile**: EAS Build の `eas.json` `extra` で参照する **EAS Secrets** (`EXPO_PUBLIC_*` ではなく非公開 secret として登録) 経由でビルド時注入。アプリ起動時に `expo-secure-store` に書き込んで encrypted at rest 保管。EAS Secrets への登録は `eas secret:create --scope project --name TRANCALL_PUSH_HMAC_SECRET --value <secret>` で行う (Sprint 3 で運用 runbook を `docs/deployment-render-dryrun.md` 改訂時に追記予定)
 - canonical string: `type|uuid|roomId|callerId|callerTrancallId|issuedAt|expiresAt` (`notification-detail.md` §3.2)。**表示用フィールド (`callerName`, `callerAvatarUrl`, `languagePair`, `callerLanguage`, `roomType`, `translationEnabled`) は署名対象外**。
 - 計算式: `HMAC-SHA256(secret, canonical).hexdigest()` (64 文字 lowercase hex)。実装例 (Swift CryptoKit / Kotlin javax.crypto / Node.js crypto) は `notification-detail.md` §3.3。
 
@@ -1190,7 +1196,7 @@ HMAC 署名仕様の **canonical は `docs/notification-detail.md` §3**。本�
 2. Codable / kotlinx.serialization で構造体にデコード (schema 不一致は破棄)
 3. `expiresAt` を現在時刻と比較、超過なら破棄
 4. canonical string を §3.2 順序で組み立て
-5. HMAC 再計算 → `signature` と constant-time 比較 (Swift: `Data` の byte-by-byte 比較、Kotlin: `MessageDigest.isEqual`)
+5. constant-time 比較で `signature` と比較。**Swift は `HMAC<SHA256>.isValidAuthenticationCode(_:authenticating:using:)` を使う** (CryptoKit が constant-time 比較を内部実装、手動の `==` / byte ループは short-circuit リスクあり)。**Kotlin は `java.security.MessageDigest.isEqual(byte[], byte[])`** (Java 6 以降で constant-time 保証)
 6. 不一致なら **CallKit / Telecom に何も投入せず**、log only で破棄
 7. すべて OK なら `CXProvider.reportNewIncomingCall` / `TelecomManager.addNewIncomingCall` を呼ぶ
 
@@ -1320,3 +1326,4 @@ env-specific bundle ID を採用しない場合は Apple Developer Console / Fir
 |---------|------|---------|
 | v1.0 | 2026-05-12 | Sprint 2 D4 設計書 初版。Scope: iOS CallKit + PushKit / Android Telecom + ConnectionService / VoIP Push 設計 / RN Native Module 仕様 / 状態遷移 / OS 制約 / Phase 1a スコープ / テスト戦略 / セキュリティ / Sprint 3 移行手順 / リスク。canonical 階層: architecture.md (システム全体) → call-lifecycle.md (シーケンス) → 本書 (native bridge 詳細) → packages/shared-kernel schema (Sprint 3 で追加)。 |
 | v1.1 | 2026-05-12 | Round 1 レビュー指摘 Critical 4 + Major 4-5 + Minor 5-7 を反映。主な変更: (1) §6.1 / §6.2 APNs/FCM payload を `notification-detail.md` v1.1 の nested 構造 (`{aps:{}, trancall:{...}}`) に整合、独立した IncomingCallPushPayloadSchema 定義は削除し canonical を notification-detail.md に一本化、(2) §6.2 FCM payload を HTTP v1 API (`message.token`/`message.data`/`message.android`) に修正 (Legacy v0 は 2024-06 廃止済)、(3) §4.3 Swift コードを `payload.dictionaryPayload["trancall"]` から読み出す nested 対応に修正、(4) §6.3 schema 配置を `packages/notification/src/schemas.ts` への拡張に一元化、(5) §3.2.2 ステップ 6 の「didActivate で room.connect」を「Native は AudioSession 設定のみ、room.connect は JS」に修正、(6) §3.2.2 Android `ForegroundServiceDidNotStartInTimeException` を Android 12+ に訂正 (旧記述 Android 14+ は誤り)、(7) §4.4 / §4.7 AudioSession options に `allowBluetooth` (HFP マイク) を追加、(8) §4.1 entitlement から `com.apple.developer.usernotifications.communication` を削除 (App Review リジェクト誘発)、(9) §4.5 着信フロー図から `reportOutgoingCall` 行を削除 (発信側専用 API、着信応答で呼ぶと CallKit エラー)、(10) §4.2 `ringtoneSound = nil` に修正 (§14 #8 と整合)、(11) §11.6 Phase 1a 完了 Gate Check 節を新設 (実機 9 + 負テスト 5 + 実装品質 4)、(12) §12.1 HMAC 検証順序を 7 ステップに具体化、canonical string は `notification-detail.md` §3.2 参照、(13) §2.1 Telecom Framework 導入 API を 23 から 21 に訂正、(14) §2.2.1 VoIP Services Certificate と p8 の二重記述を整理 (p8 のみ採用)、(15) §5.1 MANAGE_OWN_CALLS の runtime request 記述を削除 (normal permission のため不可)、(16) §5.2 `CAPABILITY_VIDEO_CALLING` を Phase 1a から除去 (Phase 2 で追加)、(17) §7.1 `OutputLanguageSchema` を `OutputLanguage` に修正 (実 export 名)、(18) §7.1 callBridge 初期化を `requireNativeModule` に修正 (autolinking 失敗時の明示的エラー)、(19) §13.4 bundle ID 例示を `tech.hori.trancall` に修正 (app.json 現状)、(20) §5.2 クラスファイル名コメントを `TranCallApplication.kt` に修正、(21) §4.3 PKPushRegistry queue 解説を追加。同時に `docs/notification-detail.md` を v1.1 に更新し HMAC 仕様 §3 を新設、payload に `uuid` / `callerId` / `issuedAt` / `expiresAt` / `signature` フィールドを追加。 |
+| v1.2 | 2026-05-12 | Round 2 レビュー指摘 Warning 3 + Suggestion 2 を反映。(W-1, A+C 両方指摘) §12.1 / notification-detail.md §3.3 §3.4 の Swift constant-time 比較を `HMAC<SHA256>.isValidAuthenticationCode(_:authenticating:using:)` 使用に修正 (CryptoKit が内部 constant-time 保証、`Data` の `==` や手動ループは short-circuit リスクあり)。Kotlin は `MessageDigest.isEqual` (Java 6 以降 constant-time 保証) を明示。(W-2) §6.4 フィールド対応表のヘッダを `APNs "aps.trancall.*"` から `APNs "trancall.*" (top-level trancall キー配下)` に修正。(W-3) §7.1 コードブロック冒頭に `IncomingCallPushPayload` 型の import 想定コメントを追加 (Sprint 3 で `packages/shared-kernel/src/schemas/native-call.ts` に配置予定)。(B Suggestion) §6.4 の `timestamp (deprecated) → issuedAt` 表記を `issuedAt (新規、Sprint 3 で追加)` 単独行に整理。(C S-1) §12.1 に Mobile bridge への HMAC 鍵配布経路を明記 (EAS Secrets 経由でビルド時注入 → `expo-secure-store`)。(C S-2) §4.3 PKPushRegistry queue コメントを強化 (Sprint 3 では専用 serial queue を強く推奨)。 |
