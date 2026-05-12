@@ -3,11 +3,11 @@
 | 項目 | 内容 |
 |---|---|
 | ドキュメント ID | CONTRACT-001 |
-| バージョン | 1.1.0 |
+| バージョン | 1.3.0 |
 | 作成日 | 2026-05-12 |
-| ステータス | canonical (現実装に整合) |
-| 対象 | Sprint 0 + Layer 1 完了モジュール (auth / media / billing / contact / notification / transcript / translation / shared-kernel / translation-agent) |
-| 将来追加対象 | Layer 2 room / Layer 3 server / agent-audio / mobile (Layer 4) |
+| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、実装は Sprint 3 で追従予定) |
+| 対象 | Sprint 0 + Layer 1 完了モジュール + Sprint 2 D5/D7/D8 設計フェーズで拡張する billing / auth / shared-kernel 契約 |
+| 将来追加対象 | Sprint 3 で `packages/billing/src/facade.ts` (拡張 7 メソッド) / `packages/auth/src/facade.ts` (拡張 4 メソッド) / `packages/shared-kernel/src/schemas/native-call.ts` (新規) を実装、`module-contracts.md` v1.4.0 で実装完了状態に同期 |
 
 ---
 
@@ -47,9 +47,9 @@
 | モジュール | 責務 (1 行) | 所有 DB schema/table | 発行 DomainEvent | 購読 DomainEvent | 公開 Facade | 依存先 |
 |---|---|---|---|---|---|---|
 | `@trancall/shared-kernel` | Branded Type / Result / Zod ヘルパー / DomainEventBase | — | — | — | (個別関数 export) | (なし、依存される側) |
-| `@trancall/auth` | Supabase Auth ラップ・プロフィール管理 | `trancall_auth.profiles`, `trancall_auth.consent_versions` | `auth.user_registered` | — | `AuthFacade` | shared-kernel |
+| `@trancall/auth` | Supabase Auth ラップ・プロフィール管理・**[Sprint 2 D7]** 同意管理 | `trancall_auth.profiles`, `trancall_auth.consent_versions`, **[D7]** `trancall_auth.user_consents` | `auth.user_registered`, **[D7]** `auth.consent_recorded`, `auth.consent_revoked` | — | `AuthFacade` | shared-kernel |
 | `@trancall/media` | LiveKit Room CRUD / Token 発行 / Track 命名 (C-005) | (LiveKit Cloud 側) | — | — | `MediaFacade` | shared-kernel, **auth** (Profile lookup) |
-| `@trancall/billing` | サブスク / heartbeat 課金 / 3 チャネル決済 | `trancall_billing.subscriptions`, `trancall_billing.usage_windows`, `trancall_billing.usage_reservations`, `trancall_billing.webhook_events` | — (将来 `billing.balance_low`) | (将来 `translation.ended`) | `BillingFacade` | shared-kernel |
+| `@trancall/billing` | サブスク / heartbeat 課金 / 4 チャネル決済 (stripe_web / iap_apple / iap_google / **[D5]** storekit_external) | `trancall_billing.subscriptions`, `trancall_billing.usage_windows`, `trancall_billing.usage_reservations`, `trancall_billing.webhook_events`, **[D5]** `trancall_billing.external_purchase_tokens` | **[D5]** `billing.subscription_upgraded`, `billing.subscription_canceled` (将来 `billing.balance_low`) | (将来 `translation.ended`) | `BillingFacade` | shared-kernel |
 | `@trancall/contact` | 連絡先 / ブロック / 通報 / 招待 | `trancall_contact.contacts`, `trancall_contact.block_list`, `trancall_contact.report_events`, `trancall_contact.invite_links` | — | — | `ContactFacade` | shared-kernel |
 | `@trancall/notification` | APNs VoIP Push / FCM 配信 | `trancall_notification.device_tokens`, `trancall_notification.push_logs` | — | (将来 `room.created`) | `NotificationFacade` | shared-kernel |
 | `@trancall/transcript` | 字幕 final segment 永続化 / FTS / Export skeleton | `trancall_transcript.segments`, `trancall_transcript.transcript_access` | — | (将来 `translation.ended`) | `TranscriptFacade` | shared-kernel |
@@ -81,7 +81,32 @@
 
 ```ts
 export interface AuthFacade {
+  // Sprint 1 既存
   getProfile: (userId: UserId) => Promise<Result<Profile, AppError>>;
+
+  // [Sprint 2 D7 拡張] 同意管理 — `docs/legal-and-consent.md` v1.1 §4 が canonical 詳細
+  recordConsent(
+    userId: UserId,
+    scope: ConsentScope,
+    version: string,
+    source: ConsentRecord["source"],
+    metadata?: { ipAddress?: string; userAgent?: string },
+  ): Promise<Result<ConsentRecord, AppError>>;
+
+  hasConsent(
+    userId: UserId,
+    scope: ConsentScope,
+    requiredVersion: string,
+  ): Promise<Result<boolean, AppError>>;
+
+  revokeConsent(
+    userId: UserId,
+    scope: ConsentScope,
+  ): Promise<Result<true, AppError>>;
+
+  getRequiredConsents(
+    userId: UserId,
+  ): Promise<Result<RequiredConsentView[], AppError>>;
 }
 ```
 
@@ -90,9 +115,28 @@ export interface AuthFacade {
 export interface ProfileRepository {
   findByUserId: (userId: UserId) => Promise<Result<Profile, AppError>>;
 }
+
+// [Sprint 2 D7 拡張] — canonical 定義は docs/legal-and-consent.md v1.1 §4.2 / §4.3
+export interface ConsentRepository {
+  upsert(record: Omit<ConsentRecord, "id">): Promise<Result<ConsentRecord, AppError>>;
+  findActive(userId: UserId, scope: ConsentScope): Promise<Result<ConsentRecord | null, AppError>>;
+  revoke(userId: UserId, scope: ConsentScope): Promise<Result<true, AppError>>;
+}
+
+export interface LegalDocumentVersionRepository {
+  findLatest(scope: ConsentScope): Promise<Result<LegalDocumentVersion, AppError>>;
+  findAllLatest(): Promise<Result<LegalDocumentVersion[], AppError>>;  // 全 scope 一括取得
+}
 ```
 
 `Profile` schema: `packages/auth/src/schemas.ts` の `ProfileSchema` 参照。
+`ConsentScope` / `ConsentRecord` / `LegalDocumentVersion` / `RequiredConsentView` schema: 同上 (Sprint 3 で追加、canonical 定義は `docs/legal-and-consent.md` v1.1 §3)。
+
+**契約注釈** (D7 由来):
+- `recordConsent` は同一 `(userId, scope, version)` で冪等 (UNIQUE 制約)、副作用として `auth.consent_recorded` DomainEvent を EventBus に発行
+- `hasConsent` は `revokedAt IS NULL AND version == requiredVersion` を返す
+- `revokeConsent` は `legal_terms` / `privacy_policy` scope に対しては `AUTH_CONSENT_IRREVOCABLE` (422) を返す。`docs/account-deletion.md` のアカウント削除フロー経由が必須
+- `getRequiredConsents` はアプリ起動時 + 通話開始前にチェックして UI 表示
 
 ### 2.2 MediaFacade
 `packages/media/src/facade.ts`
@@ -117,6 +161,7 @@ export interface MediaFacade {
 
 ```ts
 export interface BillingFacade {
+  // Sprint 1 既存
   getSubscription(userId: UserId): Promise<Result<SubscriptionState, AppError>>;
   recordUsage(cmd: RecordUsageCommand): Promise<Result<SubscriptionState, AppError>>;
   canStartCall(userId: UserId): Promise<Result<true, AppError>>;
@@ -138,14 +183,33 @@ export interface BillingFacade {
   handleStripeWebhook(rawBody: string, signature: string): Promise<Result<true, AppError>>;
   handleAppleIapWebhook(payload: unknown): Promise<Result<true, AppError>>;
   handleGoogleIapWebhook(payload: unknown): Promise<Result<true, AppError>>;
+
+  // [Sprint 2 D5 拡張] UI フロー連携 — `docs/billing-ui-flow.md` v1.2 §5 が canonical 詳細
+  getPlanComparison(userId: UserId): Promise<Result<PlanComparisonView, AppError>>;
+  previewUpgrade(userId: UserId, targetTier: PlanTier): Promise<Result<UpgradePreview, AppError>>;
+  recordIapTransaction(userId: UserId, transaction: IapTransactionResult): Promise<Result<SubscriptionState, AppError>>;
+  startExternalPurchase(userId: UserId, targetTier: PlanTier): Promise<Result<{ redirectUrl: string }, AppError>>;
+  completeExternalPurchase(userId: UserId, redirect: StoreKitExternalRedirectResult): Promise<Result<SubscriptionState, AppError>>;
+  cancelSubscription(userId: UserId, atPeriodEnd: boolean): Promise<Result<SubscriptionState, AppError>>;
+  restorePurchases(
+    userId: UserId,
+    transactions: IapTransactionResult[],
+  ): Promise<Result<{ restoredCount: number; subscription: SubscriptionState | null }, AppError>>;
 }
 ```
 
 要求 Repository: `SubscriptionRepository` / `UsageRepository` / `ReservationRepository` / `WebhookEventRepository` + 3 アダプタ (`StripeAdapter` / `AppleIapAdapter` / `GooglePlayAdapter`)。
+**[Sprint 2 D5 拡張]** `ExternalPurchaseTokenRepository` (新規、`trancall_billing.external_purchase_tokens` テーブル所有、`docs/billing-ui-flow.md` v1.2 §15.3 が canonical)。
 
 **契約注釈**:
 - `createCheckoutSession` の `channel` 引数は `docs/schemas.ts` の元定義より拡張 (3 チャネル設計 v9 で必要)
 - `reserveMinutes` は呼び出し側 (room/server) が事前生成した `sessionId` を受け取り、reservation と usage を 1 通話単位で紐付ける。同一 `sessionId` で 2 回 reserve しても冪等 (PR #15 で実装側を `reserveMinutesWithSession` 経由に統一済み)
+- **[D5 拡張]** `previewUpgrade` は同一プラン指定で `BILLING_INVALID_PLAN_CHANGE` (400)、ネットワーク失敗で `BILLING_UPGRADE_PREVIEW_FAILED` (503, retryable)
+- **[D5 拡張]** `recordIapTransaction` は `originalTransactionId` UNIQUE で冪等。AppleIapAdapter で JWS 検証、検証失敗で `BILLING_IAP_RECEIPT_INVALID` (400)
+- **[D5 拡張]** `startExternalPurchase` / `completeExternalPurchase` は `redirectToken` 5 分 TTL + 1 回限り使い切り (`external_purchase_tokens` で管理)。TTL 切れ / 使用済みは `BILLING_PAYMENT_FAILED`
+- **[D5 拡張]** `cancelSubscription` は `atPeriodEnd=true` で期末キャンセル、`false` (即時) は IAP チャネルでは拒否される
+- **[D5 拡張]** `restorePurchases` は Apple `StoreKit.Transaction.currentEntitlements` を mobile が列挙して transactions 配列で渡す。restoredCount=0 + subscription=null は正常な空結果として返し、エラーにしない (`BILLING_RESTORE_NO_PURCHASE` は UI 文言テーブルでのみ参照、facade 戻り値ではない)
+- **[D5 拡張]** 副作用: `billing.subscription_upgraded` / `billing.subscription_canceled` DomainEvent を EventBus に発行
 
 ### 2.4 ContactFacade
 `packages/contact/src/facade.ts`
@@ -304,6 +368,14 @@ export interface RoomFacade {
 | `translation.ended` | translation | **billing**, transcript | `TranslationEndedEvent` | 非同期 | EventBus |
 | `translation.degraded` | translation | (a) server: billing(課金除外候補) / metrics、(b) client UI: 直接配信 | `TranslationDegradedEvent` (EventBus 経由) / `TranslationStatusChannelPayload` (Data Channel 経由) — §3.3 §3.4 参照 | 非同期 | **2 系統並列**: (a) EventBus (server 内)、(b) LiveKit Data Channel (Agent → mobile 直接) |
 | `translation.recovered` | translation | 同上 | `TranslationRecoveredEvent` / `TranslationStatusChannelPayload` | 非同期 | 同上 |
+| `billing.subscription_upgraded` | **[Sprint 2 D5]** billing | (将来) analytics / notification (案内 push) | `BillingSubscriptionUpgradedEvent` | 非同期 | EventBus |
+| `billing.subscription_canceled` | **[Sprint 2 D5]** billing | (将来) analytics | `BillingSubscriptionCanceledEvent` | 非同期 | EventBus |
+| `auth.consent_recorded` | **[Sprint 2 D7]** auth | (将来) analytics / audit log | `AuthConsentRecordedEvent` | 非同期 | EventBus |
+| `auth.consent_revoked` | **[Sprint 2 D7]** auth | (将来) analytics、billing (subscription への影響判定) | `AuthConsentRevokedEvent` | 非同期 | EventBus |
+
+各 event の payload schema canonical:
+- `Billing*Event` → `docs/billing-ui-flow.md` v1.2 §4.8
+- `Auth*Event` → `docs/legal-and-consent.md` v1.1 §3 (DomainEventBase 拡張型)
 
 ### 3.2 EventBus 契約
 
@@ -494,6 +566,10 @@ mobile 側 (`apps/mobile/src/lib/livekit/subtitles.ts`) は同 schema で **Zod 
 | `AUTH_EMAIL_NOT_VERIFIED` | auth | 403 | false | 「メール認証を完了してください」 |
 | `AUTH_TOKEN_EXPIRED` | auth | 401 | true | 自動リフレッシュ |
 | `AUTH_CONSENT_REQUIRED` | auth | 403 | false | 同意画面を表示 |
+| `AUTH_CONSENT_REVOKED` | **[Sprint 2 D7]** auth | 403 | false | 機能停止 + 再同意画面 |
+| `AUTH_LEGAL_DOC_UNAVAILABLE` | **[Sprint 2 D7]** auth | 503 | true | 「接続できません、後で再試行」 |
+| `AUTH_CONSENT_VERSION_MISMATCH` | **[Sprint 2 D7]** auth | 409 | false | 再同意フロー起動 |
+| `AUTH_CONSENT_IRREVOCABLE` | **[Sprint 2 D7]** auth | 422 | false | 「この同意は取り消せません、退会必要」 |
 | `ROOM_NOT_FOUND` | room (Layer 2) | 404 | false | 「通話が見つかりません」 |
 | `ROOM_ALREADY_ENDED` | room (Layer 2) | 410 | false | 「この通話は終了しました」 |
 | `ROOM_FULL` | room (Layer 2) | 409 | false | 「通話が満員です」 |
@@ -503,6 +579,10 @@ mobile 側 (`apps/mobile/src/lib/livekit/subtitles.ts`) は同 schema で **Zod 
 | `BILLING_PAYMENT_FAILED` | billing | 402 | true | 「決済に失敗しました」 |
 | `BILLING_INVALID_RECEIPT` | billing | 400 | false | 「購入情報の検証に失敗しました」 |
 | `BILLING_CHANNEL_NOT_AVAILABLE` | billing | 400 | false | 「この地域では選択された購入チャネルを利用できません」 |
+| `BILLING_IAP_RECEIPT_INVALID` | **[Sprint 2 D5]** billing | 400 | false | 「レシート検証エラー、購入を復元」 |
+| `BILLING_UPGRADE_PREVIEW_FAILED` | **[Sprint 2 D5]** billing | 503 | true | 「見積取得失敗、再試行」 |
+| `BILLING_RESTORE_NO_PURCHASE` | **[Sprint 2 D5]** billing | (UI 文言のみ、HTTP は 200 正常系で `restoredCount=0` を返す) | false | 「復元できる購入がありません」 |
+| `BILLING_INVALID_PLAN_CHANGE` | **[Sprint 2 D5]** billing | 400 | false | 「このプラン変更は実行できません」 |
 | `TRANSLATION_PROVIDER_ERROR` | translation | 502 | true | 「翻訳サービスに接続できません」 |
 | `TRANSLATION_RATE_LIMITED` | translation | 429 | true | 翻訳一時停止 |
 | `TRANSLATION_SAFETY_STOP` | translation | 451 | false | 「翻訳が停止しました」 |
@@ -726,6 +806,7 @@ Agent 側 (`apps/translation-agent/src/internal-api-client.ts`) の Zod schema �
 |---|---|---|
 | 2026-05-12 | 1.0.0 | 初版作成 (Layer 1 完了時点の canonical 抽出) |
 | 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、§3.1 表の当該行を 2 系統並列 (EventBus + LiveKit Data Channel) に更新、§7.4.2 session_ended の `reason` enum に `agent_publish_failed` を **契約上追加** (実装側 Zod 同期は T8 で実施)、§7.4.4 `openAIFirstDelta` のコメントを公式仕様 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正、ヘッダーのバージョン 1.0.0 → 1.1.0、`AgentJobId` を `z.uuid()` で当面運用 (Sprint 2 で brand 化予定)、EventBus / Data Channel 両系統で `timestamp` キー名を統一。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。`architecture.md` §5.3 の旧 Track 名 `mic-a` 表記は本 PR スコープ外、Sprint 2 別 PR で `raw-{participantId}` 形式に統一予定。|
+| 2026-05-12 | 1.3.0 | Sprint 2 D5/D7/D8 設計フェーズ統合: **§2.1 AuthFacade 拡張** (`recordConsent` / `hasConsent` / `revokeConsent` / `getRequiredConsents` 4 メソッド追加、`ConsentRepository` / `LegalDocumentVersionRepository` を要求、`docs/legal-and-consent.md` v1.1 §3 §4 が canonical)。**§2.3 BillingFacade 拡張** (`getPlanComparison` / `previewUpgrade` / `recordIapTransaction` / `startExternalPurchase` / `completeExternalPurchase` / `cancelSubscription` / `restorePurchases` 7 メソッド追加、`ExternalPurchaseTokenRepository` を要求、`docs/billing-ui-flow.md` v1.2 §5 が canonical)。**§3.1 DomainEvent 追加** (`billing.subscription_upgraded` / `billing.subscription_canceled` / `auth.consent_recorded` / `auth.consent_revoked` 4 種)。**§5 Error Code 追加** (`AUTH_CONSENT_REVOKED` / `AUTH_LEGAL_DOC_UNAVAILABLE` / `AUTH_CONSENT_VERSION_MISMATCH` / `AUTH_CONSENT_IRREVOCABLE` / `BILLING_IAP_RECEIPT_INVALID` / `BILLING_UPGRADE_PREVIEW_FAILED` / `BILLING_RESTORE_NO_PURCHASE` / `BILLING_INVALID_PLAN_CHANGE` 8 種)。新規 DB schema 所有 (billing が `trancall_billing.external_purchase_tokens`、auth が `trancall_auth.user_consents` を追加所有、Sprint 3 migration 00007/00008 で実装)。すべて設計書としての契約定義であり、実装側 (`packages/auth/src/facade.ts` / `packages/billing/src/facade.ts` / migrations) は Sprint 3 で順次実装、v1.4.0 で実装完了状態に同期する。v1.2.0 は欠番 (D5 単独 PR 時に未発行、D5+D7+D8 を本 v1.3.0 で統合)。|
 
 ---
 
