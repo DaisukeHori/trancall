@@ -23,17 +23,15 @@ import type { PlanTier } from "../schemas.js";
 import type { IapTransactionResult } from "../view-models/index.js";
 
 // =============================================================================
-// Apple productId → PlanTier マッピング
+// Apple productId → PlanTier マッピング (canonical 定義)
 // docs/billing-ui-flow.md §7.2
+// Webhook 処理 (apple-iap-adapter.ts) と Transaction 検証 (本 adapter) の両方がここを参照する。
 // =============================================================================
 
 /**
- * TODO(T-29): 既存 `apple-iap-adapter.ts` (Webhook 処理) の `APPLE_PRODUCT_ID_MAP` と統合
- *
- * - 本 adapter (T-7) は StoreKit 2 Transaction 検証用、canonical 形式 `com.trancall.subscription.light.monthly`
- * - 既存 `apple-iap-adapter.ts` は Webhook 受信用、旧形式 `trancall_light_monthly`
- * - Sprint 3 後半 (T-29) で両者を統合し、canonical 形式で単一の定義に集約する
- *
+ * Apple IAP productId → PlanTier の canonical マッピング。
+ * Webhook 受信 (apple-iap-adapter.ts) と StoreKit 2 Transaction 検証 (本 adapter) の
+ * 両方がこの定数を参照することで、全 IAP 経路で同一のマッピングを保証する。
  * 参照: docs/billing-ui-flow.md §7.2
  */
 export const APPLE_IAP_PRODUCT_ID_MAP: Record<string, PlanTier> = {

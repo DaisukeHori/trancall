@@ -6,6 +6,9 @@
  * - App Store Server Notifications V2 の signedTransactionInfo を解析
  * - 冪等性キー: signedTransactionInfo（JWT トークン文字列）
  * - JWS 署名検証は apps/server 側に委ねる（billing adapter はペイロード解析のみ）
+ *
+ * productId マッピング: iap-adapter.ts の APPLE_IAP_PRODUCT_ID_MAP (canonical) を参照。
+ * docs/billing-ui-flow.md §7.2
  */
 
 import { z } from "zod";
@@ -13,6 +16,7 @@ import type { Result, AppError } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
 import type { PlanTier } from "../schemas.js";
+import { APPLE_IAP_PRODUCT_ID_MAP } from "./iap-adapter.js";
 
 // Apple App Store Server Notifications V2 ペイロードスキーマ
 // https://developer.apple.com/documentation/appstoreservernotifications
@@ -44,24 +48,14 @@ const AppleTransactionInfoSchema = z.object({
   environment: z.string().optional(),
 });
 
-// Apple 製品 ID → PlanTier マッピング
 /**
- * TODO(T-29): productId 形式の統合
- *
- * - 現状: `trancall_light_monthly` 形式 (スネークケース、Webhook 受信向け既存実装)
- * - canonical: `com.trancall.subscription.light.monthly` 形式 (StoreKit 2 Transaction)
- * - T-7 で新規追加した `iap-adapter.ts` の `APPLE_IAP_PRODUCT_ID_MAP` は canonical 形式を採用
- *
- * Sprint 3 後半 (T-29 同期) で本 adapter (Webhook 処理) と `iap-adapter.ts` (Transaction 検証) を統合し、
- * 全 IAP 経路で同一の productId マッピングを使用する。
- *
- * 参照: docs/billing-ui-flow.md §7.2 canonical productId 定義
+ * Apple 製品 ID → PlanTier マッピング (後方互換 re-export)。
+ * canonical 定義は iap-adapter.ts の APPLE_IAP_PRODUCT_ID_MAP。
+ * Webhook 処理 (本 adapter) と Transaction 検証 (iap-adapter.ts) の両方で
+ * 同一の canonical productId 形式 `com.trancall.subscription.{light,standard,business}.monthly` を使用する。
+ * docs/billing-ui-flow.md §7.2
  */
-export const APPLE_PRODUCT_ID_MAP: Record<string, PlanTier> = {
-  trancall_light_monthly: "light",
-  trancall_standard_monthly: "standard",
-  trancall_business_monthly: "business",
-};
+export const APPLE_PRODUCT_ID_MAP: Record<string, PlanTier> = APPLE_IAP_PRODUCT_ID_MAP;
 
 export interface AppleIapWebhookResult {
   /** 冪等性キー（signedTransactionInfo） */
@@ -106,7 +100,7 @@ export function createAppleIapAdapter() {
       if (!transactionResult.ok) return transactionResult;
 
       const transaction = transactionResult.data;
-      const tier = APPLE_PRODUCT_ID_MAP[transaction.productId];
+      const tier = APPLE_IAP_PRODUCT_ID_MAP[transaction.productId];
       if (tier === undefined) {
         return err({
           code: "BILLING_INVALID_RECEIPT",
@@ -157,11 +151,11 @@ export function createAppleIapAdapter() {
     },
 
     /**
-     * [Sprint 2 D5] productId を PlanTier にマッピングする。
+     * productId を PlanTier にマッピングする。
      * 未知の productId は BILLING_IAP_RECEIPT_INVALID を返す。
      */
     mapProductIdToTier(productId: string): Result<PlanTier> {
-      const tier = APPLE_PRODUCT_ID_MAP[productId];
+      const tier = APPLE_IAP_PRODUCT_ID_MAP[productId];
       if (!tier) {
         return err({
           code: "BILLING_IAP_RECEIPT_INVALID",

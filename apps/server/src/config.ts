@@ -49,6 +49,10 @@ const ConfigSchema = z.object({
   // docs/notification-detail.md §3.1 参照
   TRANCALL_PUSH_HMAC_SECRET: z.string().min(32),
 
+  // Anonymize salt for per-user deterministic UUID derivation (account-deletion.md 案 1)
+  // docs/account-deletion.md §TODO (T-29) 対処案 1
+  ANONYMIZE_SALT: z.string().min(32),
+
   // Invite link base URL
   INVITE_BASE_URL: z.url().default("https://trancall.app/invite"),
 

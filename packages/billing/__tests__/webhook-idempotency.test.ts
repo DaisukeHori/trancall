@@ -183,7 +183,7 @@ describe("BillingFacade.handleAppleIapWebhook 冪等性", () => {
       transactionId: "tx_001",
       originalTransactionId: "orig_001",
       bundleId: "app.trancall",
-      productId: "trancall_light_monthly",
+      productId: "com.trancall.subscription.light.monthly",
       purchaseDate: Date.now(),
       originalPurchaseDate: Date.now(),
     });

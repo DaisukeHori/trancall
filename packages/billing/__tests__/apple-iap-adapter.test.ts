@@ -34,11 +34,12 @@ function buildNotificationPayload(
   };
 }
 
+// canonical productId 形式 (docs/billing-ui-flow.md §7.2)
 const validTransaction = {
   transactionId: "tx_001",
   originalTransactionId: "orig_001",
   bundleId: "app.trancall",
-  productId: "trancall_standard_monthly",
+  productId: "com.trancall.subscription.standard.monthly",
   purchaseDate: Date.now(),
   originalPurchaseDate: Date.now(),
   expiresDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
