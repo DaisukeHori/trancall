@@ -1,0 +1,290 @@
+{
+  "roomId": "room-e2e-fixture-00000000000001",
+  "participants": [
+    {
+      "userId": "user-a-uuid-0000-0000-000000000001",
+      "displayName": "E2E User A",
+      "trancallId": "@e2e_user_a",
+      "nativeLanguage": "ja"
+    },
+    {
+      "userId": "user-b-uuid-0000-0000-000000000002",
+      "displayName": "E2E User B",
+      "trancallId": "@e2e_user_b",
+      "nativeLanguage": "en"
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg-001",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "こんにちは、今日はよろしくお願いします。",
+      "translation": "Hello, nice to meet you today.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:00:01.000Z",
+      "endedAt": "2026-05-11T10:00:04.000Z"
+    },
+    {
+      "id": "seg-002",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "Hello! I'm happy to be here. Let's say hello to everyone.",
+      "translation": "こんにちは！ここにいられて嬉しいです。皆さんにhelloと言いましょう。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:00:06.000Z",
+      "endedAt": "2026-05-11T10:00:10.000Z"
+    },
+    {
+      "id": "seg-003",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "翻訳のテストをしています。",
+      "translation": "We are testing the translation feature.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:00:12.000Z",
+      "endedAt": "2026-05-11T10:00:15.000Z"
+    },
+    {
+      "id": "seg-004",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "The quality seems good so far.",
+      "translation": "今のところ品質は良さそうです。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:00:17.000Z",
+      "endedAt": "2026-05-11T10:00:20.000Z"
+    },
+    {
+      "id": "seg-005",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "はい、とても良いと思います。",
+      "translation": "Yes, I think it's very good.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:00:22.000Z",
+      "endedAt": "2026-05-11T10:00:25.000Z"
+    },
+    {
+      "id": "seg-006",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "Can we say hello one more time for the test?",
+      "translation": "テストのためにもう一度こんにちはと言えますか？",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:00:27.000Z",
+      "endedAt": "2026-05-11T10:00:31.000Z"
+    },
+    {
+      "id": "seg-007",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "もちろんです。",
+      "translation": "Of course.",
+      "isFinal": false,
+      "startedAt": "2026-05-11T10:00:33.000Z",
+      "endedAt": "2026-05-11T10:00:35.000Z"
+    },
+    {
+      "id": "seg-008",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "Great, let's wrap up.",
+      "translation": "では、まとめましょう。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:00:37.000Z",
+      "endedAt": "2026-05-11T10:00:40.000Z"
+    },
+    {
+      "id": "seg-009",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "ありがとうございました。",
+      "translation": "Thank you very much.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:00:42.000Z",
+      "endedAt": "2026-05-11T10:00:45.000Z"
+    },
+    {
+      "id": "seg-010",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "You're welcome! Say hello to the team.",
+      "translation": "どういたしまして！チームにhelloと伝えてください。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:00:47.000Z",
+      "endedAt": "2026-05-11T10:00:51.000Z"
+    },
+    {
+      "id": "seg-011",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "次のテストに進みましょう。",
+      "translation": "Let's move on to the next test.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:00.000Z",
+      "endedAt": "2026-05-11T10:01:03.000Z"
+    },
+    {
+      "id": "seg-012",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "Sounds good to me.",
+      "translation": "私には良さそうです。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:05.000Z",
+      "endedAt": "2026-05-11T10:01:07.000Z"
+    },
+    {
+      "id": "seg-013",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "検索機能もテストします。",
+      "translation": "We will also test the search function.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:09.000Z",
+      "endedAt": "2026-05-11T10:01:12.000Z"
+    },
+    {
+      "id": "seg-014",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "The search should find hello easily.",
+      "translation": "検索はhelloを簡単に見つけるはずです。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:14.000Z",
+      "endedAt": "2026-05-11T10:01:18.000Z"
+    },
+    {
+      "id": "seg-015",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "はい、そうですね。",
+      "translation": "Yes, that's right.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:20.000Z",
+      "endedAt": "2026-05-11T10:01:22.000Z"
+    },
+    {
+      "id": "seg-016",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "Perfect.",
+      "translation": "完璧です。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:24.000Z",
+      "endedAt": "2026-05-11T10:01:25.000Z"
+    },
+    {
+      "id": "seg-017",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "エクスポート機能も確認します。",
+      "translation": "We will also check the export feature.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:27.000Z",
+      "endedAt": "2026-05-11T10:01:30.000Z"
+    },
+    {
+      "id": "seg-018",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "PDF and TXT exports both.",
+      "translation": "PDFとTXTの両方のエクスポートです。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:32.000Z",
+      "endedAt": "2026-05-11T10:01:35.000Z"
+    },
+    {
+      "id": "seg-019",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "そうです。準備ができています。",
+      "translation": "That's right. We're ready.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:37.000Z",
+      "endedAt": "2026-05-11T10:01:40.000Z"
+    },
+    {
+      "id": "seg-020",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "Excellent work on this call.",
+      "translation": "この通話での素晴らしい仕事でした。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:42.000Z",
+      "endedAt": "2026-05-11T10:01:45.000Z"
+    },
+    {
+      "id": "seg-021",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "ありがとう。終わりにしましょう。",
+      "translation": "Thank you. Let's end it.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:47.000Z",
+      "endedAt": "2026-05-11T10:01:50.000Z"
+    },
+    {
+      "id": "seg-022",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "Goodbye everyone!",
+      "translation": "さようなら、皆さん！",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:52.000Z",
+      "endedAt": "2026-05-11T10:01:54.000Z"
+    },
+    {
+      "id": "seg-023",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "さようなら。",
+      "translation": "Goodbye.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:01:56.000Z",
+      "endedAt": "2026-05-11T10:01:58.000Z"
+    },
+    {
+      "id": "seg-024",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "This was a great hello to the E2E test suite.",
+      "translation": "これはE2Eテストスイートへの素晴らしいhelloでした。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:02:00.000Z",
+      "endedAt": "2026-05-11T10:02:04.000Z"
+    },
+    {
+      "id": "seg-025",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "テストは完了しました。",
+      "translation": "The test is complete.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:02:06.000Z",
+      "endedAt": "2026-05-11T10:02:08.000Z"
+    },
+    {
+      "id": "seg-026",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "All done here.",
+      "translation": "こちらは全て完了です。",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:02:10.000Z",
+      "endedAt": "2026-05-11T10:02:12.000Z"
+    },
+    {
+      "id": "seg-027",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "次回もよろしくお願いします。",
+      "translation": "Looking forward to next time.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:02:14.000Z",
+      "endedAt": "2026-05-11T10:02:17.000Z"
+    },
+    {
+      "id": "seg-028",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "Absolutely. Hello again next time!",
+      "translation": "もちろんです。次回もhello！",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:02:19.000Z",
+      "endedAt": "2026-05-11T10:02:22.000Z"
+    },
+    {
+      "id": "seg-029",
+      "speakerId": "user-a-uuid-0000-0000-000000000001",
+      "original": "お疲れ様でした。",
+      "translation": "Good work everyone.",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:02:24.000Z",
+      "endedAt": "2026-05-11T10:02:26.000Z"
+    },
+    {
+      "id": "seg-030",
+      "speakerId": "user-b-uuid-0000-0000-000000000002",
+      "original": "Thanks. See you next test!",
+      "translation": "ありがとう。次のテストで会いましょう！",
+      "isFinal": true,
+      "startedAt": "2026-05-11T10:02:28.000Z",
+      "endedAt": "2026-05-11T10:02:30.000Z"
+    }
+  ],
+  "hasMore": false
+}

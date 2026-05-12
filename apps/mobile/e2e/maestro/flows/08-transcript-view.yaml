@@ -1,0 +1,29 @@
+appId: tech.hori.trancall
+name: "SCR-011 + SCR-012 — Call summary → View Full Transcript"
+tags: [P0, transcript]
+---
+- launchApp:
+    clearState: true
+- runFlow: shared/login_as_e2e_user.yaml
+- tapOn:
+    id: "tab-contacts"
+- tapOn:
+    id: "contact-row-${E2E_PEER_TRANCALL_ID}"
+- tapOn:
+    text: ${T_contactProfile_call}
+- tapOn:
+    accessibilityLabel: ${T_call_startCall}
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    text: ${T_call_inCall}
+- tapOn:
+    accessibilityLabel: ${T_call_endCall}
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    text: ${T_callSummary_viewTranscript}
+- tapOn:
+    text: ${T_callSummary_viewTranscript}
+- assertVisible:
+    text: ${T_transcript_exportPdf}

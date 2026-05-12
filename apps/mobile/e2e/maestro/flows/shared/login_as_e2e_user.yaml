@@ -1,0 +1,12 @@
+appId: tech.hori.trancall
+---
+- tapOn:
+    text: ${T_auth_email}
+- inputText: ${E2E_USER_A_EMAIL}
+- tapOn:
+    id: "password-input"
+- inputText: ${E2E_USER_A_PASSWORD}
+- tapOn:
+    text: ${T_auth_signIn}
+- assertVisible:
+    text: ${T_home_recentCalls}

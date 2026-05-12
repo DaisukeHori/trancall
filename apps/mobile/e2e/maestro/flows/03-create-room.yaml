@@ -1,0 +1,24 @@
+appId: tech.hori.trancall
+name: "SCR-005 + SCR-007 — Contacts browse + Add contact"
+tags: [P0, contacts]
+---
+- launchApp:
+    clearState: true
+- runFlow: shared/login_as_e2e_user.yaml
+- tapOn:
+    id: "tab-contacts"
+- assertVisible:
+    text: ${T_contacts_allContacts}
+- tapOn:
+    id: "add-contact-button"
+- assertVisible:
+    text: ${T_addContact_search_placeholder}
+- tapOn:
+    id: "addContact-search-input"
+- inputText: ${E2E_PEER_TRANCALL_ID}
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    text: ${T_addContact_search_addButton}
+- assertVisible:
+    text: "Contact added"

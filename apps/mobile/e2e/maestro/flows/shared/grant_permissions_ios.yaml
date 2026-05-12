@@ -1,0 +1,8 @@
+appId: tech.hori.trancall
+---
+- tapOn:
+    text: "Allow"
+    optional: true
+- tapOn:
+    text: "OK"
+    optional: true

@@ -1,0 +1,4 @@
+appId: tech.hori.trancall
+---
+- runScript:
+    file: ../../scripts/reset-mock-server.js

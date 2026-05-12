@@ -1,0 +1,23 @@
+appId: tech.hori.trancall
+name: "gate_consent_caller — Translation consent (caller side)"
+tags: [P0, gate, consent]
+---
+- launchApp:
+    clearState: true
+- runFlow: shared/login_as_e2e_user.yaml
+- tapOn:
+    id: "tab-contacts"
+- tapOn:
+    id: "contact-row-${E2E_PEER_TRANCALL_ID}"
+- tapOn:
+    text: ${T_contactProfile_call}
+- assertVisible:
+    text: ${T_consent_agree}
+- tapOn:
+    id: "consent-voice-to-openai-checkbox"
+- tapOn:
+    id: "consent-transcript-retention-checkbox"
+- tapOn:
+    text: ${T_consent_agree}
+- assertVisible:
+    text: ${T_precall_title}
