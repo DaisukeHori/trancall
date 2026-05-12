@@ -185,3 +185,57 @@ export async function signOut(): Promise<void> {
   const supabase = getSupabaseClient();
   await supabase.auth.signOut();
 }
+
+// --- Extended auth/profile endpoints ---
+
+export interface UpdateProfilePatch {
+  display_name?: string;
+  native_language?: z.infer<typeof OutputLanguage>;
+  avatar_url?: string | null;
+}
+
+/**
+ * PATCH /api/auth/profile
+ * Update the current user's profile.
+ */
+export async function updateProfile(
+  patch: UpdateProfilePatch,
+  accessToken: string,
+): Promise<Result<UserProfile>> {
+  return apiFetch("/api/auth/profile", UserProfileSchema, {
+    method: "PATCH",
+    body: patch,
+    accessToken,
+  });
+}
+
+const DeleteSuccessSchema = z.object({
+  success: z.boolean(),
+});
+
+/**
+ * POST /api/account/delete
+ * Delete the current user's account.
+ */
+export async function deleteAccount(
+  accessToken: string,
+): Promise<Result<{ success: boolean }>> {
+  return apiFetch("/api/account/delete", DeleteSuccessSchema, {
+    method: "POST",
+    accessToken,
+  });
+}
+
+/**
+ * POST /api/auth/consent
+ * Revoke the user's AI translation consent.
+ */
+export async function revokeConsent(
+  accessToken: string,
+): Promise<Result<{ success: boolean }>> {
+  return apiFetch("/api/auth/consent", DeleteSuccessSchema, {
+    method: "POST",
+    body: { revoke: true },
+    accessToken,
+  });
+}
