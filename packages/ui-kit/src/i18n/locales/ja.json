@@ -465,6 +465,50 @@
       "privacy": "プライバシー"
     }
   },
+  "support": {
+    "title": "お問い合わせ",
+    "section": {
+      "email": "メールでのお問い合わせ"
+    },
+    "category": {
+      "label": "カテゴリ",
+      "placeholder": "カテゴリを選択してください",
+      "hint": "カテゴリを選択します",
+      "bug": "バグ報告",
+      "billing": "課金・お支払い",
+      "feature_request": "機能要望",
+      "privacy": "プライバシー",
+      "other": "その他"
+    },
+    "subject": {
+      "label": "件名（任意）",
+      "placeholder": "例: 翻訳が途中で止まる",
+      "hint": "件名を入力してください（任意）"
+    },
+    "body": {
+      "label": "本文",
+      "hint": "お問い合わせ内容を入力してください（必須）"
+    },
+    "message_placeholder": "お問い合わせ内容を入力してください（最大1000文字）",
+    "submit": "送信する",
+    "diagnosticInfo": {
+      "title": "以下の情報が自動添付されます",
+      "appVersion": "アプリバージョン",
+      "osDevice": "OS / 端末モデル",
+      "locale": "ロケール / タイムゾーン",
+      "recentCalls": "直近の通話履歴"
+    },
+    "success": {
+      "title": "送信完了",
+      "message": "お問い合わせを受け付けました。担当者からのご連絡をお待ちください。",
+      "ticketId": "チケット ID"
+    },
+    "error": {
+      "rateLimitExceeded": "送信上限に達しました。1時間後に再試行してください。",
+      "mailSendFailed": "メール送信に失敗しました。しばらくしてから再試行するか、support@trancall.app に直接メールをお送りください。",
+      "generic": "送信に失敗しました。ネットワークを確認して再試行してください。"
+    }
+  },
   "dev": {
     "notImplementedYet": "実装予定 (Layer 4-B)"
   },

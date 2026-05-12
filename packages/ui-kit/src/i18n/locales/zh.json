@@ -465,6 +465,50 @@
       "privacy": "隐私"
     }
   },
+  "support": {
+    "title": "联系我们",
+    "section": {
+      "email": "发送邮件"
+    },
+    "category": {
+      "label": "类别",
+      "placeholder": "请选择类别",
+      "hint": "选择类别",
+      "bug": "错误报告",
+      "billing": "计费与付款",
+      "feature_request": "功能请求",
+      "privacy": "隐私",
+      "other": "其他"
+    },
+    "subject": {
+      "label": "主题（可选）",
+      "placeholder": "例如：翻译中途停止",
+      "hint": "输入主题（可选）"
+    },
+    "body": {
+      "label": "内容",
+      "hint": "请输入您的问题（必填）"
+    },
+    "message_placeholder": "请描述您的问题（最多1000个字符）",
+    "submit": "提交",
+    "diagnosticInfo": {
+      "title": "以下信息将自动附加",
+      "appVersion": "应用版本",
+      "osDevice": "操作系统 / 设备型号",
+      "locale": "语言区域 / 时区",
+      "recentCalls": "最近通话记录"
+    },
+    "success": {
+      "title": "已发送",
+      "message": "您的问题已收到，我们会尽快与您联系。",
+      "ticketId": "工单编号"
+    },
+    "error": {
+      "rateLimitExceeded": "已达到提交上限，请1小时后再试。",
+      "mailSendFailed": "邮件发送失败，请稍后重试，或直接发送邮件至 support@trancall.app。",
+      "generic": "提交失败，请检查网络连接后重试。"
+    }
+  },
   "dev": {
     "notImplementedYet": "尚未实现 (Layer 4-B)"
   },

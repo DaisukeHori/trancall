@@ -4,12 +4,14 @@ import { useTheme } from "@trancall/ui-kit";
 import { SettingsScreen } from "../screens/settings-screen.js";
 import { FaqScreen } from "../screens/faq-screen.js";
 import { OssLicensesScreen } from "../screens/oss-licenses-screen.js";
+import { SupportScreen } from "../screens/support-screen.js";
 import { useTranslation } from "../i18n/index.js";
 
 export type SettingsStackParamList = {
   SettingsMain: undefined;
   Faq: undefined;
   OssLicenses: undefined;
+  Support: undefined;
 };
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
@@ -29,6 +31,17 @@ export function SettingsStack() {
         options={{
           headerShown: true,
           title: t("oss.title"),
+          headerStyle: { backgroundColor: c.bgSecondary },
+          headerTintColor: c.primary,
+          headerTitleStyle: { color: c.textPrimary },
+        }}
+      />
+      <Stack.Screen
+        name="Support"
+        component={SupportScreen}
+        options={{
+          headerShown: true,
+          title: t("support.title"),
           headerStyle: { backgroundColor: c.bgSecondary },
           headerTintColor: c.primary,
           headerTitleStyle: { color: c.textPrimary },

@@ -307,6 +307,8 @@ export function SettingsScreen(_props: Props) {
           <SettingsRow
             label={t("settings.aboutSection.contact")}
             chevron
+            onPress={() => { navigation.navigate("Support"); }}
+            accessibilityLabel={t("settings.aboutSection.contact")}
           />
           <SettingsRow
             label={t("faq.title")}
