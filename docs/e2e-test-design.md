@@ -8,7 +8,7 @@
 | 補助 | `docs/requirements.md` (PERF/AVAIL 数値目標), `docs/module-contracts.md` (facade 契約), `apps/mobile/CLAUDE.md` (screens 一覧) |
 | 改訂条件 | 採用ツール変更時 / シナリオ追加時 / Phase 移行時 |
 
-`test-strategy.md` は「E2E は Detox or Maestro、Phase 1b 以降」とだけ書かれている。本書はその空欄を **Maestro 採用前提で確定** し、シナリオ・モック戦略・CI 統合・Phase 分担を canonical 化する。
+本書作成時点 (PR #27) では `test-strategy.md` に「E2E は Detox or Maestro、Phase 1b 以降」とだけ記されていた。本書はその空欄を **Maestro 採用前提で確定** し、シナリオ・モック戦略・CI 統合・Phase 分担を canonical 化する (同 PR で `test-strategy.md` も「Maestro」確定に更新済み)。
 
 ---
 
@@ -130,6 +130,7 @@ export function setCallKeepNativeModule(mod: RNCallKeepNativeModule | null): voi
 export const e2eCallKeepStub: RNCallKeepNativeModule = {
   setup: (_config: unknown) => {},
   displayIncomingCall: (..._args: unknown[]) => {},
+  answerIncomingCall: (_uuid: string) => {},
   endCall: (..._args: unknown[]) => {},
 };
 ```
@@ -320,7 +321,7 @@ Pull Request に対しては **P0 タグのみ** を走らせ、main マージ�
 | Phase | 期間目安 | 内容 |
 |---|---|---|
 | **1a (現在)** | Sprint 1 残 | E2E 未着手で OK。本書を canonical 化、Sprint 1 完了基準には含めない |
-| **1b (Sprint 2)** | 2-3 週 | mock-server 構築、Maestro CLI 導入、P0 12 flows 実装、CI workflow 追加、Android emulator で nightly 稼働 |
+| **1b (Sprint 2)** | 2-3 週 | mock-server 構築、Maestro CLI 導入、P0 14 flows 実装、CI workflow 追加、Android emulator で nightly 稼働 |
 | **1c (Sprint 3)** | 2 週 | P1 7 flows 追加、iOS Simulator 対応 (macos-14 runner)、両端末リアル E2E は **手動チェックリスト**で運用、theme/i18n マトリクス |
 | **2.0 (post-MVP)** | — | P2 + Maestro Cloud (有料) で 並列実機テスト、両端末リアル E2E 自動化検討 |
 
@@ -365,3 +366,5 @@ Phase 1a で **本書作成のみ**、コードは 0 行追加。Sprint 1 のス
 ## 12. 改訂履歴
 
 - v1 (2026-05-12) 初版。Sprint 1 中に Layer 4 が一段落した時点で E2E 戦略を確定するために作成。
+- v1.1 (2026-05-12) PR #27 Round 1 レビュー反映 (commit `1db39c6`): §5 ヘッダー flows 数訂正、CallKeepNativeModule→RNCallKeepNativeModule、YAML サンプルの `${T_*}` プレースホルダ化と timeout 2000ms 統一、4 gates 完備、SCR-010 帰属注記、mock-server gating 候補追記、test-strategy 注記。
+- v1.2 (2026-05-12) PR #27 Round 2 レビュー反映: P0 12→14 flows の波及更新、e2eCallKeepStub に answerIncomingCall 追加、§1 冒頭の test-strategy 参照を過去形に。
