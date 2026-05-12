@@ -377,7 +377,64 @@
     }
   },
   "consent": {
-    "title": "翻訳通話について",
+    "title": "同意が必要です",
+    "subtitle": "以下の同意事項をご確認ください。必須項目に同意いただくことでサービスをご利用いただけます。",
+    "required": "必須",
+    "readFullText": "全文を読む",
+    "accept_button": "同意して続ける",
+    "skip_button": "翻訳なしで通話",
+    "scope": {
+      "legal_terms": {
+        "label": "利用規約",
+        "description": "TranCallのサービス利用条件に同意します。"
+      },
+      "privacy_policy": {
+        "label": "プライバシーポリシー",
+        "description": "TranCallの個人情報の取り扱いに関するポリシーに同意します。"
+      },
+      "voice_to_openai": {
+        "label": "OpenAIへの音声送信",
+        "description": "翻訳通話では通話音声をOpenAIの翻訳APIに送信します。音声は翻訳完了後にOpenAI側で保存されません（Zero Data Retention）。"
+      },
+      "transcript_retention": {
+        "label": "トランスクリプト保持",
+        "description": "通話の文字起こし（トランスクリプト）をTranCallサーバーに保存します。Settingsからいつでも無効化できます。"
+      },
+      "data_deletion_request": {
+        "label": "アカウント削除の確認",
+        "description": "アカウントおよびすべてのデータを削除することに同意します。"
+      },
+      "push_notification": {
+        "label": "プッシュ通知",
+        "description": "着信通知などのプッシュ通知を受け取ります。"
+      },
+      "marketing_email": {
+        "label": "マーケティングメール",
+        "description": "TranCallからの最新情報やお知らせをメールで受け取ります。"
+      }
+    },
+    "error": {
+      "AUTH_CONSENT_REQUIRED": {
+        "title": "同意が必要です",
+        "message": "この機能を使用するには、同意が必要です。"
+      },
+      "AUTH_CONSENT_REVOKED": {
+        "title": "同意が取り消されました",
+        "message": "この機能は現在ご利用いただけません。"
+      },
+      "AUTH_LEGAL_DOC_UNAVAILABLE": {
+        "title": "接続できません",
+        "message": "サーバーが混雑しています。しばらく後に再試行してください。"
+      },
+      "AUTH_CONSENT_VERSION_MISMATCH": {
+        "title": "規約が更新されました",
+        "message": "最新の規約にご同意いただく必要があります。"
+      },
+      "AUTH_CONSENT_IRREVOCABLE": {
+        "title": "この同意は取り消せません",
+        "message": "ご利用を中止する場合は、アカウント削除をご検討ください。"
+      }
+    },
     "description": "TranCallの翻訳機能を利用するには、通話音声がOpenAI社のサーバーに送信されます。",
     "details": "音声は翻訳処理のためにのみ使用され、OpenAI側では保存されません。トランスクリプト（文字起こし）はTranCallサーバーに保存されます（設定で無効化可能）。",
     "agree": "同意して続ける",
