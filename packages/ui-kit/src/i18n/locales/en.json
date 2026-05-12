@@ -87,7 +87,8 @@
     "blockConfirmTitle": "Block",
     "blockConfirmMessage": "Block {{name}}?",
     "reportConfirmTitle": "Report",
-    "reportConfirmMessage": "Report {{name}}?"
+    "reportConfirmMessage": "Report {{name}}?",
+    "swipeDelete": "Delete"
   },
   "call": {
     "startCall": "Start Call",

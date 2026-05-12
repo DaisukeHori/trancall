@@ -133,7 +133,7 @@ export function HomeScreen({ navigation }: Props) {
           },
         ]}
       >
-        <Text style={styles.fabIcon}>+</Text>
+        <Text style={[styles.fabIcon, { color: c.subtitleText }]}>+</Text>
       </Pressable>
     </SafeAreaView>
   );
@@ -178,7 +178,6 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabIcon: {
-    color: "#FFFFFF",
     fontSize: 28,
     fontWeight: "400",
     lineHeight: 32,

@@ -87,7 +87,8 @@
     "blockConfirmTitle": "拉黑",
     "blockConfirmMessage": "拉黑 {{name}}？",
     "reportConfirmTitle": "举报",
-    "reportConfirmMessage": "举报 {{name}}？"
+    "reportConfirmMessage": "举报 {{name}}？",
+    "swipeDelete": "删除"
   },
   "call": {
     "startCall": "开始通话",

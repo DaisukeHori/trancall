@@ -87,7 +87,8 @@
     "blockConfirmTitle": "ブロック",
     "blockConfirmMessage": "{{name}} をブロックしますか？",
     "reportConfirmTitle": "通報",
-    "reportConfirmMessage": "{{name}} を通報しますか？"
+    "reportConfirmMessage": "{{name}} を通報しますか？",
+    "swipeDelete": "削除"
   },
   "call": {
     "startCall": "通話を開始",
@@ -167,7 +168,6 @@
     "showSubtitles": "字幕表示",
     "notifications": "通知",
     "plan": "プラン",
-    "about": "TranCallについて",
     "privacy": "プライバシーポリシー",
     "terms": "利用規約",
     "deleteAccount": "アカウントを削除",
@@ -186,11 +186,12 @@
       "upgrade": "アップグレード",
       "upgradeNote": "プランのアップグレードはブラウザで行います"
     },
-    "notifications": {
+    "notificationsSection": {
       "sectionTitle": "通知",
       "push": "プッシュ通知"
     },
-    "about": {
+    "about": "TranCallについて",
+    "aboutSection": {
       "sectionTitle": "アプリ情報",
       "version": "バージョン",
       "terms": "利用規約",

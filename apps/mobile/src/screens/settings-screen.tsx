@@ -101,7 +101,7 @@ function SettingsRow({
           value={toggleValue}
           onValueChange={onToggleChange}
           trackColor={{ false: c.bgTertiary, true: c.success }}
-          thumbColor={Platform.OS === "ios" ? undefined : "#FFFFFF"}
+          thumbColor={Platform.OS === "ios" ? undefined : c.subtitleText}
           accessibilityLabel={label}
         />
       ) : (

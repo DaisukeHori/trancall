@@ -159,6 +159,17 @@ export function ContactProfileScreen({ navigation, route }: Props) {
           >
             {t("contactProfile.message")}
           </Button>
+          <Button
+            variant="secondary"
+            size="lg"
+            onPress={() => {
+              // TODO Phase 2: navigate to AddContact with edit mode
+              // navigation.navigate("AddContact", { contactId: liveContact.id, mode: "edit" })
+            }}
+            accessibilityLabel={t("contactProfile.edit")}
+          >
+            {t("contactProfile.edit")}
+          </Button>
         </View>
 
         {/* Call history */}

@@ -1,6 +1,8 @@
 // SCR-005 — Contacts: favorites + all contacts, search, swipe-to-delete
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  PanResponder,
   Pressable,
   SafeAreaView,
   SectionList,
@@ -23,6 +25,110 @@ interface SectionData {
   data: ContactEntry[];
 }
 
+const SWIPE_THRESHOLD = 80;
+const DELETE_BUTTON_WIDTH = 80;
+
+interface SwipeableContactRowProps {
+  item: ContactEntry;
+  deleteLabel: string;
+  onPress: () => void;
+  onFavoritePress: () => void;
+  onDelete: () => void;
+}
+
+function SwipeableContactRow({
+  item,
+  deleteLabel,
+  onPress,
+  onFavoritePress,
+  onDelete,
+}: SwipeableContactRowProps) {
+  const theme = useTheme();
+  const c = theme.colors;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const isOpen = useRef(false);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > 5 && Math.abs(gestureState.dy) < Math.abs(gestureState.dx),
+      onPanResponderMove: (_, gestureState) => {
+        const dx = Math.min(0, gestureState.dx);
+        translateX.setValue(dx);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < -SWIPE_THRESHOLD) {
+          Animated.spring(translateX, {
+            toValue: -DELETE_BUTTON_WIDTH,
+            useNativeDriver: true,
+          }).start();
+          isOpen.current = true;
+        } else {
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+          isOpen.current = false;
+        }
+      },
+    }),
+  ).current;
+
+  const handleClose = useCallback(() => {
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+    isOpen.current = false;
+  }, [translateX]);
+
+  return (
+    <View style={swipeStyles.container}>
+      {/* Delete action revealed on the right */}
+      <Pressable
+        accessibilityLabel={deleteLabel}
+        accessibilityRole="button"
+        onPress={() => {
+          handleClose();
+          onDelete();
+        }}
+        style={[swipeStyles.deleteButton, { backgroundColor: c.danger, width: DELETE_BUTTON_WIDTH }]}
+      >
+        <Text style={[swipeStyles.deleteText, { color: c.subtitleText }]}>{deleteLabel}</Text>
+      </Pressable>
+
+      {/* Swipeable contact row */}
+      <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
+        <Pressable
+          onPress={() => {
+            if (isOpen.current) {
+              handleClose();
+            } else {
+              onPress();
+            }
+          }}
+        >
+          <ContactRow
+            name={item.displayName}
+            trancallId={item.trancallId}
+            {...(item.avatarUrl != null ? { avatarUri: item.avatarUrl } : {})}
+            isFavorite={item.isFavorite}
+            onPress={() => {
+              if (isOpen.current) {
+                handleClose();
+              } else {
+                onPress();
+              }
+            }}
+            onFavoritePress={onFavoritePress}
+            accessibilityLabel={`${item.displayName}, ${item.trancallId}`}
+          />
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
 export function ContactsScreen({ navigation }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -35,6 +141,7 @@ export function ContactsScreen({ navigation }: Props) {
   const load = useContactsStore((state) => state.load);
   const isLoading = useContactsStore((state) => state.isLoading);
   const toggleFavorite = useContactsStore((state) => state.toggleFavorite);
+  const removeContact = useContactsStore((state) => state.remove);
   const search = useContactsStore((state) => state.search);
 
   useEffect(() => {
@@ -62,14 +169,12 @@ export function ContactsScreen({ navigation }: Props) {
   );
 
   const renderContact = ({ item }: { item: ContactEntry }) => (
-    <ContactRow
-      name={item.displayName}
-      trancallId={item.trancallId}
-      {...(item.avatarUrl != null ? { avatarUri: item.avatarUrl } : {})}
-      isFavorite={item.isFavorite}
+    <SwipeableContactRow
+      item={item}
+      deleteLabel={t("contacts.swipeDelete")}
       onPress={() => { handleContactPress(item); }}
       onFavoritePress={() => { toggleFavorite(item.contactUserId); }}
-      accessibilityLabel={`${item.displayName}, ${item.trancallId}`}
+      onDelete={() => { void removeContact(item.id); }}
     />
   );
 
@@ -136,6 +241,25 @@ export function ContactsScreen({ navigation }: Props) {
     </SafeAreaView>
   );
 }
+
+const swipeStyles = StyleSheet.create({
+  container: {
+    position: "relative",
+    overflow: "hidden",
+  },
+  deleteButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+});
 
 const styles = StyleSheet.create({
   safeArea: {
