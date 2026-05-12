@@ -17,16 +17,16 @@
 
 1. スコープと位置付け
 2. 前提条件
-3. Render Background Worker
-4. Vercel Project (Fastify Serverless)
-5. Supabase Project + Migration
-6. LiveKit Cloud
-7. 環境変数配布マトリクス
-8. Staging vs Production
-9. dry-run チェックリスト
+3. Render Background Worker (translation-agent)
+4. Vercel Project (apps/server)
+5. Supabase Project
+6. LiveKit Cloud Project
+7. 環境変数の配布マトリクス (全体)
+8. Staging vs Production 分離
+9. dry-run チェックリスト (Sprint 2 Gate Check 前)
 10. ロールバック
-11. ログとアラート
-12. Phase 1b 以降への持ち越し
+11. ログとアラート初期設定
+12. Phase 1b 以降の改善 (deferred)
 13. 既知のリスク
 14. 改訂履歴
 
@@ -80,6 +80,8 @@
 - `supabase/migrations/00001〜00006_*.sql` 6 ファイル存在
 
 ### 2.3 secrets 保管
+`op` コマンドの利用には 1Password CLI が必要 (`brew install 1password-cli` でインストール、初回 `op signin` でアカウント連携)。
+
 全 secrets は 1Password Vault `TranCall-Infra` に保存 (本書を 1Password 運用の canonical とする)。
 
 - Vault 名: `TranCall-Infra`
@@ -270,6 +272,8 @@ Render は worker タイプでは HTTP ヘルスチェックを行わない。�
 }
 ```
 
+> ⚠️ **注意**: 本 vercel.json は `apps/server/api/index.ts` を entrypoint として参照する。同ファイルは Sprint 2 内の別タスク (Fastify → Vercel serverless adapter 実装) で作成予定。**それまで vercel.json をコミットすると Vercel build が module-not-found で失敗する**。本 PR では仕様のみ示し、commit は entrypoint 実装と同 PR で行う。
+
 **注意**: Vercel Serverless は `apps/server` の Fastify を **コールドスタートあり** で動かす。LiveKit Token 発行は実行時間が短いので問題ないが、Stripe Webhook 等で 30 秒超の処理が必要になれば `vercel.json` の `maxDuration` を引き上げる (Pro plan で最大 300 秒)。
 
 ### 4.3 環境変数
@@ -335,7 +339,9 @@ supabase link --project-ref <project-ref>
 supabase migration list --linked
 
 # 3. ローカルとリモートの差分をプレビュー (dry-run 相当)
-supabase db diff --linked --schema public,trancall_room,trancall_billing,trancall_translation
+supabase db diff --linked --schema public,trancall_auth,trancall_room,trancall_contact,trancall_billing,trancall_transcript,trancall_notification,trancall_event
+# ※ translation 関連テーブル (translation_sessions / translation_events / agent_metrics) は trancall_event 配下。
+#    スキーマ詳細は docs/architecture.md §2 を参照。
 
 # 4. 差分を目視確認 (想定外の DROP/ALTER がないか)
 
@@ -479,6 +485,19 @@ supabase migration list --linked
 
 > 確認手順: Render Dashboard → 対象 Service → **Metrics** タブ → **Memory** グラフを 30 分間隔で表示。ピーク値が 450 MB 未満であることを確認。Render の Memory metrics は RSS 相当値を表示する (VSZ との区別は提供されない)。512 MB プラン上限の 88% 以下を維持できれば OK 判定。
 
+**WS 切断ログ例** (正常な再接続フロー):
+
+```
+[openai-ws] disconnected, reconnecting in 3s...
+[openai-ws] reconnect attempt 1/5
+[openai-ws] connected wss://api.openai.com/v1/realtime/translations
+```
+
+5 回以上の再接続失敗が続く場合は OpenAI 側の障害または rate limit を疑う (§13 #8 参照)。
+
+**`agent_metrics` の Supabase Dashboard 確認手順**:
+Supabase Dashboard → Table Editor → schema=`trancall_event` → `agent_metrics` を開き、最新 1h の `partial_latency_ms_p95` `final_latency_ms_p95` を確認する。
+
 ### 9.5 観測確認
 - [ ] Render Dashboard で CPU / Memory グラフが取れる
 - [ ] Vercel Analytics で API レイテンシが見える
@@ -495,9 +514,9 @@ supabase migration list --linked
 
 | 対象 | 基準 | 確認方法 |
 |------|------|----------|
-| Render Worker | デプロイ後 5 分以内に `/health` が 3 連続失敗、または "Crashed" 状態にマーク | Render Dashboard → Service → Events |
+| Render Worker | Render Dashboard 上で Service が `Crashed` 状態にマークされる、または Logs に起動ログが 5 分以内に出ない (LiveKit 接続成功ログ未出現) | Render Dashboard → Service → Events / Logs |
 | Vercel Server | 5 分間 5xx 率 > 5%、または `/health` が 3 連続失敗 | Vercel Dashboard → Logs |
-| Supabase Migration | `supabase db push` がエラー終了、または migration 後に既存 RLS テストが失敗 | `pnpm --filter @trancall/db test:rls` |
+| Supabase Migration | `supabase db push` がエラー終了、または migration 後に RLS ポリシーの目視確認/差分確認で問題を検知 | Supabase Dashboard で対象テーブルの RLS Policy 一覧を目視確認、または `supabase db diff --linked --schema <schema>` を staging に対して実行し差分なしを確認。`supabase/tests/rls/*.sql` が存在し手動実行可能 (Phase 1b で CI 化予定)。`packages/db` は存在しないため `pnpm --filter @trancall/db` コマンドは使用不可 |
 | HMAC 認証 | Server → Agent の HMAC 401 が 1 分間に 5 件以上 | Render Logs `level: "error"` フィルタ |
 
 判断者: dry-run フェーズはオーケストレーター (堀)、本番フェーズはオンコール担当 (Phase 1b で確立)。
@@ -530,6 +549,17 @@ supabase migration list --linked
 5. staging で 30 分連続 OK を確認後、production に手動 promote (Render Dashboard / Vercel Dashboard)
 6. インシデント記録に rollback → 再デプロイの完了タイムスタンプを追記
 
+**インシデント記録項目** (GitHub Discussion テンプレート):
+
+- 発生時刻 (UTC + JST 併記)
+- 検知トリガ (Sentry alert / ユーザー報告 / 内部監視)
+- 影響サービスと影響ユーザー数 (推定値でも可)
+- 暫定原因仮説
+- 対応アクション (rollback / hotfix / 観察継続)
+- rollback 範囲 (Render only / Vercel only / Supabase migration revert 含む)
+- 恒久対応 PR 番号
+- 再発防止策 (テスト追加 / 監視強化 / runbook 改訂)
+
 ---
 
 ## 11. ログとアラート初期設定
@@ -551,12 +581,16 @@ supabase migration list --linked
 
 ### 11.4 Phase 1a の横断調査
 
+> **前提**: 本節の `correlation_id` フィルタおよび `ENVIRONMENT` タグは Sprint 2 内の別タスクで config.ts / logger 実装を追加したのちに有効化される。Phase 1a (本 dry-run 実施時点) では未実装のため、`timestamp` 範囲 + `service` 名 + `room_id` で代替相関を取る。
+
 3 サービス (Render / Vercel / Supabase) のログは別々の Dashboard に分かれる。Phase 1a では **`correlation_id` を手がかりに各 Dashboard を個別検索** する手動運用とする:
 
 1. Mobile → Server リクエスト時に `correlation_id` (UUID v4) を生成し HTTP header に付与
 2. Server → Agent HMAC リクエストにも `correlation_id` を伝搬
 3. 各サービスのログには `{ "correlation_id": "...", ... }` を JSON Lines で出力
 4. インシデント調査時は Render Logs / Vercel Logs / Supabase Logs それぞれで `correlation_id` を検索
+
+**Phase 1a 代替相関 (実装前の暫定運用)**: `timestamp` 範囲 (UTC 時刻帯) + `service` 名 + `room_id` を手掛かりに各 Dashboard を横断検索する。
 
 Phase 1b で Sentry または Datadog Logs に集約予定。
 
@@ -587,19 +621,26 @@ Phase 1b で Sentry または Datadog Logs に集約予定。
 ## 13. 既知のリスク
 
 1. **`render.yaml` 未作成**: 本書 §3.2 に雛形を canonical 化したが、Sprint 2 Day 1 に commit して Render Dashboard の "Sync from Blueprint" を実行する必要あり。
-2. **`vercel.json` 未作成**: 同様、§4.2 雛形を Sprint 2 Day 1 に commit。`apps/server` を Fastify で動かす場合の Vercel での compatibility が未検証 (一般的に Express/Fastify を Vercel Serverless で動かすには adapter が必要)。**dry-run の最大リスク要因**。
+   Mitigation: §3.2 の雛形を Day 1 タスクとしてチケット化し、commit と Dashboard 反映を当日ブロッカーとして管理する。
+2. **`vercel.json` 未作成 + `apps/server/api/index.ts` 未作成**: §4.2 雛形を Sprint 2 Day 1 に commit 予定だが、`apps/server/api/index.ts` (serverless adapter エントリポイント) が未作成のため **vercel.json を先にコミットすると Vercel build が module-not-found で失敗する**。`apps/server` を Fastify で動かす場合の Vercel での compatibility が未検証。**dry-run の最大リスク要因**。entrypoint 実装と vercel.json は同一 PR でコミットすること。
 3. **Supabase migration deploy フロー**: 本書 §5.2 で `supabase db push` を確定したが、Sprint 1 までドキュメント化されていなかった。実行権限のあるメンバーは現状 1 名 (オーナーアカウント)、Phase 1b で複数名対応。
+   Mitigation: migration 実行前に §5.2 のコマンドを staging で必ず先行検証し、dry-run 出力を 1Password に保存する。
 4. **OpenAI Realtime Translation beta access**: API key が beta access を保有していることを Sprint 2 Day 1 に確認 (現状 owner アカウントのみ確認済、追加開発者は別途申請)。
+   Mitigation: beta access が取得できない場合は Whisper streaming + GPT-4o text → TTS の段組み代替パイプラインを Phase 1b 候補として保持する。
 5. **LiveKit Cloud Free tier の消費**: Gate Check 30 分 × 複数回で残量 5,000 min を消費。Phase 1a で Build tier ($50) に上げる判断が必要かもしれない (Sprint 2 中盤)。
 6. **HMAC secret rotation 中の整合**: 本書 §8.3 で 同時更新を必須としたが、現状自動化なし。手順失敗で内部 API が止まるリスク。
+   Containment: 旧 secret を 24h 並行 accept する dual-key 期間を設け、Vercel→Render 双方の env を順次更新する。ロールバック時は旧 secret を復活させる手順を事前に用意しておく。
 7. **Render Singapore リージョン**: Tokyo 未提供のため。LiveKit Cloud (Tokyo) との間で 50-80ms 程度のレイテンシ加算、PERF-002 への影響を Gate Check で計測。
 8. **OpenAI Realtime API rate limit**: beta access では RPM/TPM 制限が厳しい場合がある。Gate Check 中に 429 が頻発した場合は中断し OpenAI に quota 引き上げを申請する。
 9. **Supabase Free tier の制限**: バックアップ機能なし (誤 migration / データ誤削除は復元不可)、同時 DB 接続数 60 上限。Phase 1a の staging は使い捨て前提、production 切替前に必ず Pro plan に移行。
+   Mitigation: Phase 1a dry-run 期間中はステータスを「使い捨て staging」と位置づけ、マイグレーション前に SQL ダンプを手動バックアップする。
 10. **NODE_ENV と ENVIRONMENT の役割分離**: Render/Vercel に投入する `NODE_ENV` は config.ts Zod enum (development/test/production) 制約のため `production` 固定。staging/prod の論理的環境識別は別途 `ENVIRONMENT` 環境変数で行う。
+11. **`ENVIRONMENT` / `correlation_id` 未実装 (Sprint 2 内タスク)**: `ENVIRONMENT` 環境変数は `apps/translation-agent/src/config.ts` および `apps/server/src/config.ts` のいずれにも未定義 (2026-05-12 時点)。`correlation_id` も両サービスの logger で未実装。§11.4 の横断調査フローは実装完了後に有効化される。本 PR では実装変更を行わず、Sprint 2 内の別タスク (config.ts + logger 修正) として管理する。
 
 ---
 
 ## 14. 改訂履歴
 
 - v1 (2026-05-12) 初版。Sprint 2 D2 として `docs/deploy.md` (overall 設計) を補完する実行手順を canonical 化。`render.yaml` / `vercel.json` の雛形、env vars 配布マトリクス、Supabase migration 実行手順、dry-run チェックリスト、ロールバック手順を含む。
-- v1.1 (2026-05-12): NODE_ENV/ENVIRONMENT 役割分離、vercel.json adapter 注記、ロールバック発動基準、§13 risk 追加。
+- v1.1 (2026-05-12): NODE_ENV/ENVIRONMENT 役割分離 (§13 #10)、vercel.json adapter 注記 (§4.2)、ロールバック発動基準 (§10.0)、§13 risk 追加。§1.3 (1Password vault 構造) 新設。§10.5 (インシデント対応プロトコル) 新設。§11.4 (横断調査クエリ例) 新設。§9.4 (ナビゲーション) 追記。§11.1 Sentry 代替記述。§3.1 / §8.2 autoDeploy 警告。§12 label 注記。目次追加。
+- v1.2 (2026-05-12): Round 2 レビュー指摘 Critical 3 + Major 7 + Minor 3 を反映。§10.0 RLS テストコマンドを実在しない packages/db から supabase/tests/rls + Dashboard 目視に差し替え (Fix-1)。§5.2 schema 一覧を実 7 schema (trancall_event 等) に修正、translation 関連テーブルは trancall_event 配下と注記 (Fix-2)。§10.0 Worker ヘルス判定を /health 失敗から Crashed/Logs 無出力に修正 (Fix-3)。§11.4 冒頭に correlation_id / ENVIRONMENT 未実装の代替相関注記を追加、§13 #11 に Sprint 2 内タスクとして追記 (Fix-4)。§4.2 vercel.json コミット時 build 失敗の警告強化、§13 #2 更新 (Fix-5)。§10.5 インシデント記録テンプレ追加 (Fix-6)。§13 risks #1/#3/#4/#6 に mitigation/containment 追記 (Fix-7)。目次 6 項目を実節タイトルと完全一致に修正 (Fix-8)。§14 v1.1 改訂履歴を補完し v1.2 行を追加 (Fix-9)。§2.3 1Password CLI 前提追記 (Fix-10)。§9.4 WS 切断ログ例 + agent_metrics Dashboard 確認手順追記 (Fix-11)。
