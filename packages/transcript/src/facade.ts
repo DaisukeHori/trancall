@@ -26,7 +26,16 @@ import type { AccessRepository } from "./repositories/access-repository.js";
 import { createSegmentService } from "./services/segment-service.js";
 import { createAccessService } from "./services/access-service.js";
 import { createSearchService } from "./services/search-service.js";
-import { createExportService, type ExportFormat } from "./services/export-service.js";
+import { createExportService, type ExportFormat, type ExportInput, type RoomMeta } from "./services/export-service.js";
+
+/**
+ * roomId / userId から room メタ情報を解決するプロバイダ。
+ * apps/server 側で Supabase クエリ実装を DI 注入する。
+ * テストでは in-memory stub を使う。
+ */
+export interface RoomMetaProvider {
+  getRoomMeta(roomId: RoomId, userId: UserId): Promise<Result<RoomMeta>>;
+}
 
 export interface TranscriptFacade {
   /**
@@ -66,14 +75,14 @@ export interface TranscriptFacade {
   ): Promise<Result<true>>;
 
   /**
-   * トランスクリプトをエクスポートする（Sprint 2 実装予定）。
-   * 現状は常に TRANSCRIPT_EXPORT_NOT_IMPLEMENTED を返す。
+   * トランスクリプトをエクスポートする。
+   * transcript-export-spec.md (TRANSCRIPT-EXPORT-001) 準拠。
    */
   exportTranscript(
     roomId: RoomId,
     userId: UserId,
     format: ExportFormat,
-  ): Promise<Result<{ contentBase64: string; mime: string }>>;
+  ): Promise<Result<{ contentBase64: string; mime: string; filename: string }>>;
 
   /**
    * LiveSubtitleDelta をバリデーションする。
@@ -87,6 +96,7 @@ export interface TranscriptFacade {
 export function createTranscriptFacade(
   segmentRepo: SegmentRepository,
   accessRepo: AccessRepository,
+  roomMetaProvider?: RoomMetaProvider,
 ): TranscriptFacade {
   const segmentService = createSegmentService(segmentRepo);
   const accessService = createAccessService(accessRepo);
@@ -160,7 +170,82 @@ export function createTranscriptFacade(
       userId: UserId,
       format: ExportFormat,
     ) => {
-      return exportService.exportTranscript(roomId, userId, format);
+      // アクセス権チェック
+      const canViewResult = await accessService.canView(roomId, userId);
+      if (!canViewResult.ok) {
+        return canViewResult;
+      }
+      if (!canViewResult.data) {
+        return err({
+          code: "TRANSCRIPT_EXPORT_FORBIDDEN",
+          message: "このトランスクリプトへのエクスポート権限がありません",
+          retryable: false,
+          httpStatus: 403,
+        });
+      }
+
+      // セグメント取得
+      const segmentsResult = await segmentRepo.findByRoomId(roomId);
+      if (!segmentsResult.ok) {
+        return segmentsResult;
+      }
+
+      const segments = segmentsResult.data;
+
+      // 空チェック
+      if (segments.length === 0) {
+        return err({
+          code: "TRANSCRIPT_EXPORT_EMPTY",
+          message: "録音された会話がありません",
+          retryable: false,
+          httpStatus: 422,
+        });
+      }
+
+      // 上限チェック (Phase 1a: 1000 segments)
+      if (segments.length > 1000) {
+        return err({
+          code: "TRANSCRIPT_EXPORT_TOO_LARGE",
+          message: "会話が長すぎます (1000 セグメント超)、分割エクスポートを Sprint 3 で実装予定",
+          retryable: false,
+          httpStatus: 422,
+        });
+      }
+
+      // RoomMeta 取得（プロバイダ提供時は使用、未提供時はセグメントから推定）
+      let roomMeta: RoomMeta;
+      if (roomMetaProvider) {
+        const metaResult = await roomMetaProvider.getRoomMeta(roomId, userId);
+        if (!metaResult.ok) {
+          return metaResult;
+        }
+        roomMeta = metaResult.data;
+      } else {
+        // fallback: セグメントから推定（apps/server で roomMetaProvider なしにテスト使用時）
+        const speakerNames = [...new Set(segments.map((s) => s.speakerName))];
+        const myName = speakerNames[0] ?? "Unknown";
+        const otherNames = speakerNames.slice(1);
+        const langPairs = [...new Set(segments.map((s) => s.languagePair))];
+        const firstSegCreatedAt = segments[0]?.createdAt ?? new Date().toISOString();
+
+        roomMeta = {
+          roomId,
+          createdAt: firstSegCreatedAt,
+          endedAt: null,
+          myName,
+          otherNames,
+          languagePairs: langPairs,
+        };
+      }
+
+      const exportInput: ExportInput = {
+        roomMeta,
+        segments,
+        termsVersion: "1.0.0",
+        privacyVersion: "1.0.0",
+      };
+
+      return exportService.exportTranscript(exportInput, format);
     },
 
     validateLiveDelta: (rawDelta: unknown) => {
