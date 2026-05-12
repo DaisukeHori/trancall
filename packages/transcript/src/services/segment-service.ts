@@ -7,7 +7,6 @@
  */
 
 import { type Result, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 import type { TranscriptSegment } from "../schemas.js";
 import { TranscriptSegmentSchema } from "../schemas.js";
 import type { SegmentRepository } from "../repositories/segment-repository.js";
@@ -20,7 +19,7 @@ export interface SegmentService {
    */
   appendFinalSegment(
     rawSegment: unknown,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 }
 
 export function createSegmentService(
@@ -59,7 +58,7 @@ export interface SequenceNoProvider {
     repo: SegmentRepository,
     roomId: TranscriptSegment["roomId"],
     participantId: TranscriptSegment["participantId"],
-  ): Promise<Result<number, AppError>>;
+  ): Promise<Result<number>>;
 }
 
 export function createSequenceNoProvider(): SequenceNoProvider {
@@ -100,7 +99,7 @@ export type PlanTierKey = keyof typeof RETENTION_DAYS;
 export function calcRetentionUntilByPlan(
   planTier: PlanTierKey,
   now: Date = new Date(),
-): Result<string, AppError> {
+): Result<string> {
   const days = RETENTION_DAYS[planTier];
   return ok(calcRetentionUntil(days, now));
 }

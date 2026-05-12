@@ -6,7 +6,6 @@
  */
 
 import type { Result } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 import type { RoomId, ParticipantId } from "@trancall/shared-kernel";
 import type { TranscriptSegment } from "../schemas.js";
 
@@ -16,13 +15,13 @@ export interface SegmentRepository {
    * UNIQUE(room_id, participant_id, sequence_no) 制約に従い冪等に動作する。
    * 同一 sequence_no が既に存在する場合は INSERT をスキップして ok(true) を返す。
    */
-  upsert(segment: TranscriptSegment): Promise<Result<true, AppError>>;
+  upsert(segment: TranscriptSegment): Promise<Result<true>>;
 
   /**
    * 指定 Room の全 segment を start_time_ms 昇順で返す。
    * transcript_access の可視性チェックは呼び出し側（サービス層）で行う。
    */
-  findByRoomId(roomId: RoomId): Promise<Result<TranscriptSegment[], AppError>>;
+  findByRoomId(roomId: RoomId): Promise<Result<TranscriptSegment[]>>;
 
   /**
    * 同一参加者の次の sequence_no を返す。
@@ -32,7 +31,7 @@ export interface SegmentRepository {
   getNextSequenceNo(
     roomId: RoomId,
     participantId: ParticipantId,
-  ): Promise<Result<number, AppError>>;
+  ): Promise<Result<number>>;
 
   /**
    * FTS（PostgreSQL to_tsvector）を使ってセグメントを検索する。
@@ -41,5 +40,5 @@ export interface SegmentRepository {
   searchByFts(
     roomId: RoomId,
     query: string,
-  ): Promise<Result<TranscriptSegment[], AppError>>;
+  ): Promise<Result<TranscriptSegment[]>>;
 }

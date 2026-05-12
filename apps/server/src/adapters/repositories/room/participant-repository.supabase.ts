@@ -7,7 +7,6 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ParticipantRepository } from "@trancall/room";
 import { type Result, type RoomId, type UserId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 // packages/room/src/schemas.ts と同等のローカル型定義
 // ParticipantRowSchema / UpsertParticipantCommand は room パッケージから export されていないため
@@ -31,16 +30,16 @@ type UpsertParticipantCommand = {
 };
 
 const ParticipantRowSchema = z.object({
-  id: z.string().uuid(),
-  room_id: z.string().uuid(),
-  user_id: z.string().uuid(),
+  id: z.uuid(),
+  room_id: z.uuid(),
+  user_id: z.uuid(),
   role: z.enum(["host", "member"]),
   is_muted: z.boolean(),
-  joined_at: z.string().datetime(),
-  left_at: z.string().datetime().nullable(),
+  joined_at: z.iso.datetime(),
+  left_at: z.iso.datetime().nullable(),
 });
 
-function parseRow(row: Record<string, unknown>): Result<ParticipantRow, AppError> {
+function parseRow(row: Record<string, unknown>): Result<ParticipantRow> {
   const parsed = ParticipantRowSchema.safeParse({
     id: row["id"],
     room_id: row["room_id"],
@@ -58,7 +57,7 @@ function parseRow(row: Record<string, unknown>): Result<ParticipantRow, AppError
 
 export function createParticipantRepository(supabase: SupabaseClient): ParticipantRepository {
   return {
-    async upsert(cmd: UpsertParticipantCommand): Promise<Result<ParticipantRow, AppError>> {
+    async upsert(cmd: UpsertParticipantCommand): Promise<Result<ParticipantRow>> {
       const { data, error } = await supabase
         .schema("trancall_room")
         .from("participants")
@@ -83,7 +82,7 @@ export function createParticipantRepository(supabase: SupabaseClient): Participa
       return parseRow(data as Record<string, unknown>);
     },
 
-    async findByRoomId(roomId: RoomId): Promise<Result<ParticipantRow[], AppError>> {
+    async findByRoomId(roomId: RoomId): Promise<Result<ParticipantRow[]>> {
       const { data, error } = await supabase
         .schema("trancall_room")
         .from("participants")
@@ -102,7 +101,7 @@ export function createParticipantRepository(supabase: SupabaseClient): Participa
       return ok(rows);
     },
 
-    async setLeftAtForAll(roomId: RoomId, leftAt: string): Promise<Result<true, AppError>> {
+    async setLeftAtForAll(roomId: RoomId, leftAt: string): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_room")
         .from("participants")

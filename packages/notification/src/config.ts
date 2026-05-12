@@ -34,10 +34,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): NotificationCo
   const parsed = ConfigSchema.safeParse(env);
 
   if (!parsed.success) {
-    // eslint-disable-next-line no-console
     console.error("[notification/config] 環境変数バリデーション失敗:");
     for (const issue of parsed.error.issues) {
-      // eslint-disable-next-line no-console
       console.error(`  - ${issue.path.join(".")}: ${issue.message}`);
     }
     process.exit(1);

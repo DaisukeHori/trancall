@@ -9,7 +9,6 @@
 
 import {
   type Result,
-  type AppError,
   type UserId,
   type TranslationSessionId,
   ok,
@@ -48,7 +47,7 @@ export function createReservationService(deps: ReservationServiceDeps) {
       userId: UserId,
       sessionId: TranslationSessionId,
       minutes: number,
-    ): Promise<Result<true, AppError>> {
+    ): Promise<Result<true>> {
       const subResult = await subscriptionRepo.findByUserId(userId);
       if (!subResult.ok) {
         return err({
@@ -107,7 +106,7 @@ export function createReservationService(deps: ReservationServiceDeps) {
     async reconcile(
       userId: UserId,
       sessionId: TranslationSessionId,
-    ): Promise<Result<SubscriptionState, AppError>> {
+    ): Promise<Result<SubscriptionState>> {
       // 1. 当該セッションの usage_windows を集計
       const windowsResult = await usageRepo.findBySessionId(sessionId);
       if (!windowsResult.ok) return windowsResult;
@@ -164,7 +163,7 @@ export function createReservationService(deps: ReservationServiceDeps) {
      */
     async refundMinutes(
       sessionId: TranslationSessionId,
-    ): Promise<Result<true, AppError>> {
+    ): Promise<Result<true>> {
       const result = await reservationRepo.expire(sessionId);
       if (!result.ok) return result;
       return ok(true);

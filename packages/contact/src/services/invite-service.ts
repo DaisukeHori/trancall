@@ -4,7 +4,6 @@
 
 import {
   type Result,
-  type AppError,
   type UserId,
   err,
   ok,
@@ -35,7 +34,7 @@ export interface InviteService {
    *   実際の rate limit は server (Layer 3) のミドルウェア層で実装すること。
    */
   createInviteLink(userId: UserId): Promise<
-    Result<{ url: string; token: string; expiresAt: string }, AppError>
+    Result<{ url: string; token: string; expiresAt: string }>
   >;
 
   /**
@@ -47,7 +46,7 @@ export interface InviteService {
   consumeInviteLink(
     token: string,
     newUserId: UserId,
-  ): Promise<Result<ContactEntry, AppError>>;
+  ): Promise<Result<ContactEntry>>;
 }
 
 export function createInviteService(
@@ -57,7 +56,7 @@ export function createInviteService(
   return {
     createInviteLink: async (
       userId: UserId,
-    ): Promise<Result<{ url: string; token: string; expiresAt: string }, AppError>> => {
+    ): Promise<Result<{ url: string; token: string; expiresAt: string }>> => {
       const token = nanoid(TOKEN_LENGTH);
       const expiresAt = new Date(
         Date.now() + INVITE_EXPIRES_DAYS * 24 * 60 * 60 * 1000,
@@ -78,7 +77,7 @@ export function createInviteService(
     consumeInviteLink: async (
       token: string,
       newUserId: UserId,
-    ): Promise<Result<ContactEntry, AppError>> => {
+    ): Promise<Result<ContactEntry>> => {
       // トークン検索
       const invite = await inviteRepo.findByToken(token);
       if (invite === null) {

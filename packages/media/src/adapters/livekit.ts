@@ -16,7 +16,6 @@ import { AccessToken, RoomServiceClient, type AccessTokenOptions } from "livekit
 
 import {
   type Result,
-  type AppError,
   type RoomId,
   ok,
   err,
@@ -55,7 +54,7 @@ export interface LiveKitAdapter {
    */
   issueAccessToken: (
     request: IssueAccessTokenRequest,
-  ) => Promise<Result<IssueAccessTokenResponse, AppError>>;
+  ) => Promise<Result<IssueAccessTokenResponse>>;
 
   /**
    * Room を作成する（既に存在する場合はエラーにせず冪等に返す）。
@@ -63,12 +62,12 @@ export interface LiveKitAdapter {
   createRoom: (
     roomId: RoomId,
     options?: { emptyTimeoutSec?: number; maxParticipants?: number },
-  ) => Promise<Result<void, AppError>>;
+  ) => Promise<Result<void>>;
 
   /**
    * Room を削除する（存在しない場合もエラーにしない）。
    */
-  deleteRoom: (roomId: RoomId) => Promise<Result<void, AppError>>;
+  deleteRoom: (roomId: RoomId) => Promise<Result<void>>;
 }
 
 export function createLiveKitAdapter(config: LiveKitAdapterConfig): LiveKitAdapter {
@@ -216,7 +215,7 @@ export function createLiveKitAdapter(config: LiveKitAdapterConfig): LiveKitAdapt
  */
 export function parseParticipantMetadata(
   raw: string | undefined,
-): Result<ParticipantMetadata | null, AppError> {
+): Result<ParticipantMetadata | null> {
   if (raw === undefined || raw === "") {
     return ok(null);
   }

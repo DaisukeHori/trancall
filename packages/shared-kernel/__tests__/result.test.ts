@@ -67,7 +67,7 @@ describe("err()", () => {
 // --- validate() ---
 
 const EmailSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   age: z.number().int().min(0),
 });
 

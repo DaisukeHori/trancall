@@ -6,7 +6,7 @@
  * 実装は apps/server 側（Supabase）。
  */
 
-import type { Result, AppError } from "@trancall/shared-kernel";
+import type { Result} from "@trancall/shared-kernel";
 import type { WebhookEvent, WebhookProvider } from "../schemas.js";
 
 export interface WebhookEventRepository {
@@ -20,15 +20,15 @@ export interface WebhookEventRepository {
     externalEventId: string;
     eventType: string;
     payload: Record<string, unknown>;
-  }): Promise<Result<{ event: WebhookEvent; isNew: boolean }, AppError>>;
+  }): Promise<Result<{ event: WebhookEvent; isNew: boolean }>>;
 
   /**
    * 処理完了を記録する。
    */
-  markProcessed(id: string): Promise<Result<void, AppError>>;
+  markProcessed(id: string): Promise<Result<void>>;
 
   /**
    * 処理エラーを記録する。
    */
-  markFailed(id: string, error: string): Promise<Result<void, AppError>>;
+  markFailed(id: string, error: string): Promise<Result<void>>;
 }

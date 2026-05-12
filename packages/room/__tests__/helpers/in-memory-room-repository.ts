@@ -15,7 +15,7 @@ export function createInMemoryRoomRepository(): RoomRepository & {
   return {
     _store: store,
 
-    async insert(cmd: InsertRoomCommand): Promise<Result<RoomRow, AppError>> {
+    async insert(cmd: InsertRoomCommand): Promise<Result<RoomRow>> {
       const row: RoomRow = {
         room_id: cmd.roomId,
         status: cmd.status,
@@ -29,7 +29,7 @@ export function createInMemoryRoomRepository(): RoomRepository & {
       return ok(row);
     },
 
-    async findById(roomId: RoomId): Promise<Result<RoomRow, AppError>> {
+    async findById(roomId: RoomId): Promise<Result<RoomRow>> {
       const row = store.get(roomId);
       if (!row) {
         return err({
@@ -45,7 +45,7 @@ export function createInMemoryRoomRepository(): RoomRepository & {
       roomId: RoomId,
       status: "active" | "ended",
       endedAt?: string,
-    ): Promise<Result<RoomRow, AppError>> {
+    ): Promise<Result<RoomRow>> {
       const row = store.get(roomId);
       if (!row) {
         return err({

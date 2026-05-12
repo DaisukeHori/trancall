@@ -9,13 +9,12 @@ import { ProfileSchema } from "@trancall/auth";
 import type { ProfileRepository } from "@trancall/auth";
 import { type Result, type UserId, err, ok } from "@trancall/shared-kernel";
 import type { Profile } from "@trancall/auth";
-import type { AppError } from "@trancall/shared-kernel";
 
 export function createProfileRepository(
   supabase: SupabaseClient,
 ): ProfileRepository {
   return {
-    async findByUserId(userId: UserId): Promise<Result<Profile, AppError>> {
+    async findByUserId(userId: UserId): Promise<Result<Profile>> {
       const { data, error } = await supabase
         .schema("trancall_auth")
         .from("profiles")

@@ -7,7 +7,7 @@
  */
 
 import { ok } from "@trancall/shared-kernel";
-import type { Result, AppError } from "@trancall/shared-kernel";
+import type { Result} from "@trancall/shared-kernel";
 
 import type { ApnsAdapter } from "@trancall/notification";
 import type { FcmAdapter } from "@trancall/notification";
@@ -19,10 +19,10 @@ import type { StripeAdapter, AppleIapAdapter, GooglePlayAdapter } from "@trancal
 
 export function makeApnsAdapter(): ApnsAdapter {
   return {
-    sendVoipPush: async (_deviceToken, _payload): Promise<Result<{ apnsId: string | undefined }, AppError>> => {
+    sendVoipPush: async (_deviceToken, _payload): Promise<Result<{ apnsId: string | undefined }>> => {
       return ok({ apnsId: `mock-apns-${crypto.randomUUID()}` });
     },
-    sendNormalPush: async (_deviceToken, _payload): Promise<Result<{ apnsId: string | undefined }, AppError>> => {
+    sendNormalPush: async (_deviceToken, _payload): Promise<Result<{ apnsId: string | undefined }>> => {
       return ok({ apnsId: `mock-apns-${crypto.randomUUID()}` });
     },
   };
@@ -34,7 +34,7 @@ export function makeApnsAdapter(): ApnsAdapter {
 
 export function makeFcmAdapter(): FcmAdapter {
   return {
-    sendData: async (_fcmToken, _data): Promise<Result<{ messageId: string }, AppError>> => {
+    sendData: async (_fcmToken, _data): Promise<Result<{ messageId: string }>> => {
       return ok({ messageId: `mock-fcm-${crypto.randomUUID()}` });
     },
     close: async (): Promise<void> => {

@@ -17,7 +17,7 @@ export const ParticipantJoinedPayloadSchema = z.object({
   roomId: RoomIdSchema,
   userId: UserIdSchema,
   role: ParticipantRoleSchema,
-  joinedAt: z.string().datetime(),
+  joinedAt: z.iso.datetime(),
 });
 export type ParticipantJoinedPayload = z.infer<typeof ParticipantJoinedPayloadSchema>;
 

@@ -15,7 +15,7 @@
 
 import { randomUUID } from "node:crypto";
 
-import { validate, type Result, type AppError } from "@trancall/shared-kernel";
+import { validate, type Result } from "@trancall/shared-kernel";
 import { OutputLanguage, RoomIdSchema, ParticipantIdSchema } from "@trancall/shared-kernel";
 
 import {
@@ -38,7 +38,7 @@ export interface AgentEventHandlerDeps {
 export async function handleAgentEvent(
   rawEvent: unknown,
   deps: AgentEventHandlerDeps,
-): Promise<Result<true, AppError>> {
+): Promise<Result<true>> {
   const parsed = validate(AgentEventSchema, rawEvent);
   if (!parsed.ok) {
     return parsed;
@@ -83,7 +83,7 @@ export async function handleAgentEvent(
 async function handleSessionStarted(
   event: SessionStartedPayload,
   repo: TranslationSessionRepository,
-): Promise<Result<true, AppError>> {
+): Promise<Result<true>> {
   // outputLanguage は共有型として OutputLanguage enum で検証
   const langResult = OutputLanguage.safeParse(event.outputLanguage);
   if (!langResult.success) {
@@ -157,7 +157,7 @@ async function handleSessionStarted(
 async function handleSessionEnded(
   event: SessionEndedPayload,
   repo: TranslationSessionRepository,
-): Promise<Result<true, AppError>> {
+): Promise<Result<true>> {
   const result = await repo.updateEnded(event.agentJobId, {
     endedAt: event.endedAt,
     durationMs: event.durationMs,
@@ -175,7 +175,7 @@ async function handleSessionEnded(
 async function handleAgentMetrics(
   event: AgentMetricsPayload,
   repo: AgentMetricsRepository,
-): Promise<Result<true, AppError>> {
+): Promise<Result<true>> {
   const roomResult = RoomIdSchema.safeParse(event.roomId);
   if (!roomResult.success) {
     return {

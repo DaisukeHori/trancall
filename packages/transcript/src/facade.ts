@@ -14,7 +14,6 @@ import {
   err,
   validate,
 } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 import {
   type TranscriptSegment,
   type LiveSubtitleDelta,
@@ -36,7 +35,7 @@ export interface TranscriptFacade {
    */
   appendFinalSegment(
     segment: TranscriptSegment,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * Room のトランスクリプト全文を取得する。
@@ -55,7 +54,7 @@ export interface TranscriptFacade {
     roomId: RoomId,
     userId: UserId,
     query: string,
-  ): Promise<Result<TranscriptSegment[], AppError>>;
+  ): Promise<Result<TranscriptSegment[]>>;
 
   /**
    * 自分の transcript_access を論理削除する。
@@ -64,7 +63,7 @@ export interface TranscriptFacade {
   deleteAccess(
     roomId: RoomId,
     userId: UserId,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 
   /**
    * トランスクリプトをエクスポートする（Sprint 2 実装予定）。
@@ -74,7 +73,7 @@ export interface TranscriptFacade {
     roomId: RoomId,
     userId: UserId,
     format: ExportFormat,
-  ): Promise<Result<{ contentBase64: string; mime: string }, AppError>>;
+  ): Promise<Result<{ contentBase64: string; mime: string }>>;
 
   /**
    * LiveSubtitleDelta をバリデーションする。
@@ -82,7 +81,7 @@ export interface TranscriptFacade {
    */
   validateLiveDelta(
     rawDelta: unknown,
-  ): Result<LiveSubtitleDelta, AppError>;
+  ): Result<LiveSubtitleDelta>;
 }
 
 export function createTranscriptFacade(

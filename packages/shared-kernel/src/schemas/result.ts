@@ -19,14 +19,14 @@ export type ResultErr<E = AppError> = { ok: false; error: E };
 export type Result<T, E = AppError> = ResultOk<T> | ResultErr<E>;
 
 // Zodスキーマから推論した型でResultを生成するユーティリティ型
-export type ResultOf<S extends z.ZodType> = Result<z.infer<S>, AppError>;
+export type ResultOf<S extends z.ZodType> = Result<z.infer<S>>;
 
 // --- Validation Helper ---
 
 export function validate<T extends z.ZodType>(
   schema: T,
   data: unknown,
-): Result<z.infer<T>, AppError> {
+): Result<z.infer<T>> {
   const result = schema.safeParse(data);
   if (result.success) {
     return { ok: true, data: result.data };
@@ -50,6 +50,6 @@ export function ok<T>(data: T): ResultOk<T> {
   return { ok: true, data };
 }
 
-export function err(error: AppError): ResultErr<AppError> {
+export function err(error: AppError): ResultErr {
   return { ok: false, error };
 }

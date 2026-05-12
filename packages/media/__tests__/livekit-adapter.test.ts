@@ -41,7 +41,7 @@ function makeRoomId() {
 function makeAuthFacade(profile: Profile): AuthFacade {
   return {
     getProfile: vi
-      .fn<(userId: UserId) => Promise<Result<Profile, AppError>>>()
+      .fn<(userId: UserId) => Promise<Result<Profile>>>()
       .mockResolvedValue({ ok: true, data: profile }),
   };
 }
@@ -49,7 +49,7 @@ function makeAuthFacade(profile: Profile): AuthFacade {
 function makeFailingAuthFacade(error: AppError): AuthFacade {
   return {
     getProfile: vi
-      .fn<(userId: UserId) => Promise<Result<Profile, AppError>>>()
+      .fn<(userId: UserId) => Promise<Result<Profile>>>()
       .mockResolvedValue({ ok: false, error }),
   };
 }

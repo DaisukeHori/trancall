@@ -6,7 +6,6 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PushLogRepository } from "@trancall/notification";
 import { type Result, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 type PushLogWrite = {
   userId: string;
@@ -18,7 +17,7 @@ type PushLogWrite = {
 
 export function createPushLogRepository(supabase: SupabaseClient): PushLogRepository {
   return {
-    async write(log: PushLogWrite): Promise<Result<true, AppError>> {
+    async write(log: PushLogWrite): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_notification")
         .from("push_logs")

@@ -9,7 +9,7 @@ import { RoomIdSchema, ParticipantIdSchema, validate } from "@trancall/shared-ke
 
 import { TranslationSessionRecordSchema, TranslationUsageSchema } from "../schemas.js";
 import type { TranslationSessionRecord, TranslationUsage } from "../schemas.js";
-import type { Result, AppError } from "@trancall/shared-kernel";
+import type { Result } from "@trancall/shared-kernel";
 
 /**
  * durationMs から billableSeconds を算出する。
@@ -25,7 +25,7 @@ export function calcBillableSeconds(durationMs: number): number {
  */
 export function calcUsageFromRecord(
   record: TranslationSessionRecord,
-): Result<TranslationUsage, AppError> {
+): Result<TranslationUsage> {
   if (
     record.endedAt === null ||
     record.durationMs === null ||

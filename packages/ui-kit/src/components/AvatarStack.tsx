@@ -42,7 +42,7 @@ export function AvatarStack({ items, maxVisible = 3 }: AvatarStackProps) {
   return (
     <View
       style={styles.container}
-      accessibilityLabel={`${items.length} participants`}
+      accessibilityLabel={`${String(items.length)} participants`}
       accessibilityRole="none"
     >
       {visibleItems.map((item, index) => (
@@ -78,11 +78,11 @@ export function AvatarStack({ items, maxVisible = 3 }: AvatarStackProps) {
               zIndex: 0,
             },
           ]}
-          accessibilityLabel={`+${overflowCount} more`}
+          accessibilityLabel={`+${String(overflowCount)} more`}
           accessibilityRole="text"
         >
           <Text style={[styles.overflowText, { color: c.primary }]}>
-            +{overflowCount}
+            +{String(overflowCount)}
           </Text>
         </View>
       )}

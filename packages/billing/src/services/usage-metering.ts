@@ -10,7 +10,6 @@
 
 import {
   type Result,
-  type AppError,
   ok,
   err,
 } from "@trancall/shared-kernel";
@@ -49,7 +48,7 @@ export function createUsageMeteringService(deps: UsageMeteringServiceDeps) {
      */
     async recordUsage(
       cmd: RecordUsageCommand,
-    ): Promise<Result<RecordUsageResult, AppError>> {
+    ): Promise<Result<RecordUsageResult>> {
       // 1. サブスクリプション取得
       const subResult = await subscriptionRepo.findByUserId(cmd.userId);
       if (!subResult.ok) {

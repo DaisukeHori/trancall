@@ -9,7 +9,7 @@ import { z } from "zod";
 
 const ConfigSchema = z.object({
   // --- LiveKit ---
-  LIVEKIT_URL: z.string().url().describe("LiveKit Server WSS URL (e.g. wss://xxx.livekit.cloud)"),
+  LIVEKIT_URL: z.url().describe("LiveKit Server WSS URL (e.g. wss://xxx.livekit.cloud)"),
   LIVEKIT_API_KEY: z.string().min(1),
   LIVEKIT_API_SECRET: z.string().min(1),
 
@@ -35,7 +35,7 @@ const ConfigSchema = z.object({
 
   // --- 任意 ---
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  SENTRY_DSN: z.string().url().optional(),
+  SENTRY_DSN: z.url().optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

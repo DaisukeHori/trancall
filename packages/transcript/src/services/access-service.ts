@@ -7,7 +7,7 @@
  */
 
 import { type Result, ok } from "@trancall/shared-kernel";
-import type { AppError, RoomId, UserId } from "@trancall/shared-kernel";
+import type { RoomId, UserId } from "@trancall/shared-kernel";
 import type { AccessRepository } from "../repositories/access-repository.js";
 
 export interface AccessService {
@@ -15,14 +15,14 @@ export interface AccessService {
    * 指定ユーザーが指定 Room の transcript を閲覧できるかチェックする。
    * 閲覧不可の場合は ok(false) を返す（エラーではない）。
    */
-  canView(roomId: RoomId, userId: UserId): Promise<Result<boolean, AppError>>;
+  canView(roomId: RoomId, userId: UserId): Promise<Result<boolean>>;
 
   /**
    * 自分の transcript_access を論理削除する。
    * deleted_at を now() にセットする。相手側のアクセス行には触れない。
    * アクセス行が存在しない場合は NOT_FOUND エラーを返す。
    */
-  deleteAccess(roomId: RoomId, userId: UserId): Promise<Result<true, AppError>>;
+  deleteAccess(roomId: RoomId, userId: UserId): Promise<Result<true>>;
 }
 
 export function createAccessService(repo: AccessRepository): AccessService {

@@ -8,9 +8,8 @@ import type { TranslationSessionRepository } from "@trancall/translation";
 import { TranslationSessionRecordSchema } from "@trancall/translation";
 import type { TranslationSessionRecord } from "@trancall/translation";
 import { type Result, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
-function parseRow(row: Record<string, unknown>): Result<TranslationSessionRecord, AppError> {
+function parseRow(row: Record<string, unknown>): Result<TranslationSessionRecord> {
   const parsed = TranslationSessionRecordSchema.safeParse({
     id: row["id"],
     agentJobId: row["agent_job_id"],
@@ -35,7 +34,7 @@ export function createTranslationSessionRepository(
   supabase: SupabaseClient,
 ): TranslationSessionRepository {
   return {
-    async insert(record): Promise<Result<TranslationSessionRecord, AppError>> {
+    async insert(record): Promise<Result<TranslationSessionRecord>> {
       const { data, error } = await supabase
         .schema("trancall_event")
         .from("translation_sessions")
@@ -80,7 +79,7 @@ export function createTranslationSessionRepository(
         billableSeconds: number;
         reason: TranslationSessionRecord["reason"];
       },
-    ): Promise<Result<TranslationSessionRecord, AppError>> {
+    ): Promise<Result<TranslationSessionRecord>> {
       const { data, error } = await supabase
         .schema("trancall_event")
         .from("translation_sessions")
@@ -100,7 +99,7 @@ export function createTranslationSessionRepository(
       return parseRow(data as Record<string, unknown>);
     },
 
-    async findByAgentJobId(agentJobId: string): Promise<Result<TranslationSessionRecord, AppError>> {
+    async findByAgentJobId(agentJobId: string): Promise<Result<TranslationSessionRecord>> {
       const { data, error } = await supabase
         .schema("trancall_event")
         .from("translation_sessions")

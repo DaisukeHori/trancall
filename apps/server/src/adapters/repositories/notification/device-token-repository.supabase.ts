@@ -7,7 +7,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DeviceTokenRepository } from "@trancall/notification";
 import type { NotificationTarget } from "@trancall/notification";
 import { type Result, type UserId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
 // packages/notification/src/schemas.ts に合わせた型
 type DeviceTokenRow = {
@@ -38,7 +37,7 @@ function parseRow(row: Record<string, unknown>): DeviceTokenRow {
 
 export function createDeviceTokenRepository(supabase: SupabaseClient): DeviceTokenRepository {
   return {
-    async upsert(userId: UserId, target: NotificationTarget): Promise<Result<DeviceTokenRow, AppError>> {
+    async upsert(userId: UserId, target: NotificationTarget): Promise<Result<DeviceTokenRow>> {
       const now = new Date().toISOString();
       const baseRow = {
         id: randomUUID(),
@@ -72,7 +71,7 @@ export function createDeviceTokenRepository(supabase: SupabaseClient): DeviceTok
     async findActiveByUserId(
       userId: UserId,
       platform?: "ios" | "android",
-    ): Promise<Result<DeviceTokenRow[], AppError>> {
+    ): Promise<Result<DeviceTokenRow[]>> {
       let query = supabase
         .schema("trancall_notification")
         .from("device_tokens")
@@ -92,7 +91,7 @@ export function createDeviceTokenRepository(supabase: SupabaseClient): DeviceTok
       return ok(((data ?? []) as Record<string, unknown>[]).map(parseRow));
     },
 
-    async revoke(platform: "ios" | "android", token: string): Promise<Result<true, AppError>> {
+    async revoke(platform: "ios" | "android", token: string): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_notification")
         .from("device_tokens")
@@ -106,7 +105,7 @@ export function createDeviceTokenRepository(supabase: SupabaseClient): DeviceTok
       return ok(true);
     },
 
-    async delete(userId: UserId, platform: "ios" | "android", token: string): Promise<Result<true, AppError>> {
+    async delete(userId: UserId, platform: "ios" | "android", token: string): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_notification")
         .from("device_tokens")

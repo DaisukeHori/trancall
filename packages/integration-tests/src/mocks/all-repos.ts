@@ -8,7 +8,6 @@
 import { ok, err } from "@trancall/shared-kernel";
 import type {
   Result,
-  AppError,
   UserId,
   RoomId,
   ParticipantId,
@@ -98,7 +97,7 @@ export function makeProfileRepository(
   }
 
   return {
-    findByUserId: async (userId: UserId): Promise<Result<Profile, AppError>> => {
+    findByUserId: async (userId: UserId): Promise<Result<Profile>> => {
       const p = profiles.get(userId);
       if (p === undefined) {
         return err({ code: "auth.profile.not_found", message: "Profile not found", retryable: false });
@@ -161,7 +160,7 @@ export function makeSubscriptionRepository(
       usedSecondsMap.set(userId, prev + seconds);
     },
 
-    findByUserId: async (userId: UserId): Promise<Result<SubscriptionRow, AppError>> => {
+    findByUserId: async (userId: UserId): Promise<Result<SubscriptionRow>> => {
       const row = rows.get(userId);
       if (row === undefined) {
         return err({ code: "NOT_FOUND", message: "Subscription not found", retryable: false });
@@ -169,7 +168,7 @@ export function makeSubscriptionRepository(
       return ok(row);
     },
 
-    upsert: async (userId: UserId, data: Partial<Omit<SubscriptionRow, "id" | "user_id" | "created_at">>): Promise<Result<SubscriptionRow, AppError>> => {
+    upsert: async (userId: UserId, data: Partial<Omit<SubscriptionRow, "id" | "user_id" | "created_at">>): Promise<Result<SubscriptionRow>> => {
       const existing = rows.get(userId);
       const now = new Date().toISOString();
       if (existing !== undefined) {
@@ -200,7 +199,7 @@ export function makeSubscriptionRepository(
       return ok(newRow);
     },
 
-    updatePlan: async (userId: UserId, params): Promise<Result<SubscriptionRow, AppError>> => {
+    updatePlan: async (userId: UserId, params): Promise<Result<SubscriptionRow>> => {
       const existing = rows.get(userId) ?? makeDefaultSubscriptionRow(userId, "free");
       const updated: SubscriptionRow = {
         ...existing,
@@ -218,7 +217,7 @@ export function makeSubscriptionRepository(
       return ok(updated);
     },
 
-    getUsedSecondsInPeriod: async (userId: UserId, _periodStart: string, _periodEnd: string): Promise<Result<number, AppError>> => {
+    getUsedSecondsInPeriod: async (userId: UserId, _periodStart: string, _periodEnd: string): Promise<Result<number>> => {
       const s = usedSecondsMap.get(userId) ?? 0;
       return ok(s);
     },
@@ -242,7 +241,7 @@ export function makeUsageRepository(): InMemoryUsageRepo {
       return windows;
     },
 
-    insertWindowIdempotent: async (cmd: RecordUsageCommand, amountYen: number): Promise<Result<UsageWindow, AppError>> => {
+    insertWindowIdempotent: async (cmd: RecordUsageCommand, amountYen: number): Promise<Result<UsageWindow>> => {
       if (idempotencyKeys.has(cmd.idempotencyKey)) {
         // 冪等: 既存 window を返す
         const existing = windows.find((w) => w.idempotencyKey === cmd.idempotencyKey);
@@ -268,12 +267,12 @@ export function makeUsageRepository(): InMemoryUsageRepo {
       return ok(window);
     },
 
-    findBySessionId: async (sessionId: TranslationSessionId): Promise<Result<UsageWindow[], AppError>> => {
+    findBySessionId: async (sessionId: TranslationSessionId): Promise<Result<UsageWindow[]>> => {
       const found = windows.filter((w) => w.sessionId === sessionId);
       return ok(found);
     },
 
-    sumDurationSecondsInPeriod: async (userId: UserId, _periodStart: string, _periodEnd: string): Promise<Result<number, AppError>> => {
+    sumDurationSecondsInPeriod: async (userId: UserId, _periodStart: string, _periodEnd: string): Promise<Result<number>> => {
       const sum = windows
         .filter((w) => w.userId === userId)
         .reduce((acc, w) => acc + w.durationSeconds, 0);
@@ -290,7 +289,7 @@ export function makeReservationRepository(): ReservationRepository {
   const reservations: UsageReservation[] = [];
 
   return {
-    create: async (userId: UserId, sessionId: TranslationSessionId, reservedMinutes: number): Promise<Result<UsageReservation, AppError>> => {
+    create: async (userId: UserId, sessionId: TranslationSessionId, reservedMinutes: number): Promise<Result<UsageReservation>> => {
       const now = new Date().toISOString();
       const reservation: UsageReservation = {
         id: crypto.randomUUID(),
@@ -306,12 +305,12 @@ export function makeReservationRepository(): ReservationRepository {
       return ok(reservation);
     },
 
-    findActiveBySessionId: async (sessionId: TranslationSessionId): Promise<Result<UsageReservation | null, AppError>> => {
+    findActiveBySessionId: async (sessionId: TranslationSessionId): Promise<Result<UsageReservation | null>> => {
       const found = reservations.find((r) => r.sessionId === sessionId && r.status === "active");
       return ok(found ?? null);
     },
 
-    reconcile: async (sessionId: TranslationSessionId, consumedMinutes: number): Promise<Result<UsageReservation, AppError>> => {
+    reconcile: async (sessionId: TranslationSessionId, consumedMinutes: number): Promise<Result<UsageReservation>> => {
       const idx = reservations.findIndex((r) => r.sessionId === sessionId && r.status === "active");
       if (idx === -1) {
         return err({ code: "NOT_FOUND", message: "Reservation not found", retryable: false });
@@ -330,7 +329,7 @@ export function makeReservationRepository(): ReservationRepository {
       return ok(updated);
     },
 
-    expire: async (sessionId: TranslationSessionId): Promise<Result<UsageReservation | null, AppError>> => {
+    expire: async (sessionId: TranslationSessionId): Promise<Result<UsageReservation | null>> => {
       const idx = reservations.findIndex((r) => r.sessionId === sessionId && r.status === "active");
       if (idx === -1) {
         return ok(null);
@@ -354,7 +353,7 @@ export function makeWebhookEventRepository(): WebhookEventRepository {
   const events: WebhookEvent[] = [];
 
   return {
-    insertIdempotent: async (params): Promise<Result<{ event: WebhookEvent; isNew: boolean }, AppError>> => {
+    insertIdempotent: async (params): Promise<Result<{ event: WebhookEvent; isNew: boolean }>> => {
       const existing = events.find(
         (e) => e.provider === params.provider && e.externalEventId === params.externalEventId,
       );
@@ -376,7 +375,7 @@ export function makeWebhookEventRepository(): WebhookEventRepository {
       return ok({ event, isNew: true });
     },
 
-    markProcessed: async (id: string): Promise<Result<void, AppError>> => {
+    markProcessed: async (id: string): Promise<Result<void>> => {
       const idx = events.findIndex((e) => e.id === id);
       if (idx !== -1) {
         const existing = events[idx];
@@ -387,7 +386,7 @@ export function makeWebhookEventRepository(): WebhookEventRepository {
       return ok(undefined);
     },
 
-    markFailed: async (id: string, error: string): Promise<Result<void, AppError>> => {
+    markFailed: async (id: string, error: string): Promise<Result<void>> => {
       const idx = events.findIndex((e) => e.id === id);
       if (idx !== -1) {
         const existing = events[idx];
@@ -408,7 +407,7 @@ export function makeContactRepository(): ContactRepository {
   const entries: ContactEntry[] = [];
 
   return {
-    add: async (userId: UserId, contactUserId: UserId): Promise<Result<ContactEntry, AppError>> => {
+    add: async (userId: UserId, contactUserId: UserId): Promise<Result<ContactEntry>> => {
       const now = new Date().toISOString();
       const entry: ContactEntry = {
         contactId: crypto.randomUUID(),
@@ -425,7 +424,7 @@ export function makeContactRepository(): ContactRepository {
       return ok(entry);
     },
 
-    remove: async (_userId: UserId, contactId: string): Promise<Result<true, AppError>> => {
+    remove: async (_userId: UserId, contactId: string): Promise<Result<true>> => {
       const idx = entries.findIndex((e) => e.contactId === contactId);
       if (idx !== -1) {
         entries.splice(idx, 1);
@@ -441,7 +440,7 @@ export function makeContactRepository(): ContactRepository {
       return entries.some((e) => e.userId === userId && e.contactUserId === contactUserId);
     },
 
-    toggleFavorite: async (_userId: UserId, contactId: string): Promise<Result<true, AppError>> => {
+    toggleFavorite: async (_userId: UserId, contactId: string): Promise<Result<true>> => {
       const idx = entries.findIndex((e) => e.contactId === contactId);
       if (idx === -1) {
         return err({ code: "CONTACT_NOT_FOUND", message: "Contact not found", retryable: false });
@@ -474,12 +473,12 @@ export function makeBlockRepository(): InMemoryBlockRepo {
       return blocks.has(key(userId, targetId));
     },
 
-    block: async (userId: UserId, blockedUserId: UserId, _reason?: string): Promise<Result<true, AppError>> => {
+    block: async (userId: UserId, blockedUserId: UserId, _reason?: string): Promise<Result<true>> => {
       blocks.add(key(userId, blockedUserId));
       return ok(true);
     },
 
-    unblock: async (userId: UserId, blockedUserId: UserId): Promise<Result<true, AppError>> => {
+    unblock: async (userId: UserId, blockedUserId: UserId): Promise<Result<true>> => {
       blocks.delete(key(userId, blockedUserId));
       return ok(true);
     },
@@ -532,7 +531,7 @@ export function makeInviteRepository(): InviteRepository {
   const invites: InviteLink[] = [];
 
   return {
-    create: async (userId: UserId, token: string, expiresAt: Date): Promise<Result<InviteLink, AppError>> => {
+    create: async (userId: UserId, token: string, expiresAt: Date): Promise<Result<InviteLink>> => {
       const invite: InviteLink = {
         id: crypto.randomUUID(),
         userId,
@@ -551,7 +550,7 @@ export function makeInviteRepository(): InviteRepository {
       return invites.find((i) => i.token === token) ?? null;
     },
 
-    markUsed: async (token: string, usedBy: UserId): Promise<Result<true, AppError>> => {
+    markUsed: async (token: string, usedBy: UserId): Promise<Result<true>> => {
       const idx = invites.findIndex((i) => i.token === token);
       if (idx !== -1) {
         const existing = invites[idx];
@@ -570,7 +569,7 @@ export function makeInviteRepository(): InviteRepository {
 
 export function makeReportRepository(): ReportRepository {
   return {
-    create: async (_cmd): Promise<Result<true, AppError>> => {
+    create: async (_cmd): Promise<Result<true>> => {
       return ok(true);
     },
     exists: async (_reporterId: UserId, _reportedId: UserId): Promise<boolean> => {
@@ -587,7 +586,7 @@ export function makeDeviceTokenRepository(): DeviceTokenRepository {
   const tokens: DeviceTokenRow[] = [];
 
   return {
-    upsert: async (userId: UserId, target): Promise<Result<DeviceTokenRow, AppError>> => {
+    upsert: async (userId: UserId, target): Promise<Result<DeviceTokenRow>> => {
       const platform = target.platform;
       const token = platform === "ios" ? target.voipToken : target.fcmToken;
       const existing = tokens.find((t) => t.platform === platform && t.token === token);
@@ -610,14 +609,14 @@ export function makeDeviceTokenRepository(): DeviceTokenRepository {
       return ok(row);
     },
 
-    findActiveByUserId: async (userId: UserId, platform?: "ios" | "android"): Promise<Result<DeviceTokenRow[], AppError>> => {
+    findActiveByUserId: async (userId: UserId, platform?: "ios" | "android"): Promise<Result<DeviceTokenRow[]>> => {
       const found = tokens.filter(
         (t) => t.userId === userId && t.isActive && (platform === undefined || t.platform === platform),
       );
       return ok(found);
     },
 
-    revoke: async (platform: "ios" | "android", token: string): Promise<Result<true, AppError>> => {
+    revoke: async (platform: "ios" | "android", token: string): Promise<Result<true>> => {
       const idx = tokens.findIndex((t) => t.platform === platform && t.token === token);
       if (idx !== -1) {
         const existing = tokens[idx];
@@ -628,7 +627,7 @@ export function makeDeviceTokenRepository(): DeviceTokenRepository {
       return ok(true);
     },
 
-    delete: async (userId: UserId, platform: "ios" | "android", token: string): Promise<Result<true, AppError>> => {
+    delete: async (userId: UserId, platform: "ios" | "android", token: string): Promise<Result<true>> => {
       const idx = tokens.findIndex((t) => t.userId === userId && t.platform === platform && t.token === token);
       if (idx !== -1) {
         tokens.splice(idx, 1);
@@ -644,7 +643,7 @@ export function makeDeviceTokenRepository(): DeviceTokenRepository {
 
 export function makePushLogRepository(): PushLogRepository {
   return {
-    write: async (_log): Promise<Result<true, AppError>> => {
+    write: async (_log): Promise<Result<true>> => {
       return ok(true);
     },
   };
@@ -666,7 +665,7 @@ export function makeSegmentRepository(): InMemorySegmentRepo {
       return segments;
     },
 
-    upsert: async (segment: TranscriptSegment): Promise<Result<true, AppError>> => {
+    upsert: async (segment: TranscriptSegment): Promise<Result<true>> => {
       // UNIQUE(room_id, participant_id, sequence_no) 冪等
       const exists = segments.some(
         (s) =>
@@ -680,14 +679,14 @@ export function makeSegmentRepository(): InMemorySegmentRepo {
       return ok(true);
     },
 
-    findByRoomId: async (roomId: RoomId): Promise<Result<TranscriptSegment[], AppError>> => {
+    findByRoomId: async (roomId: RoomId): Promise<Result<TranscriptSegment[]>> => {
       const found = segments
         .filter((s) => s.roomId === roomId)
         .sort((a, b) => a.startTimeMs - b.startTimeMs);
       return ok(found);
     },
 
-    getNextSequenceNo: async (roomId: RoomId, participantId: ParticipantId): Promise<Result<number, AppError>> => {
+    getNextSequenceNo: async (roomId: RoomId, participantId: ParticipantId): Promise<Result<number>> => {
       const matching = segments.filter(
         (s) => s.roomId === roomId && s.participantId === participantId,
       );
@@ -696,7 +695,7 @@ export function makeSegmentRepository(): InMemorySegmentRepo {
       return ok(maxSeq + 1);
     },
 
-    searchByFts: async (roomId: RoomId, query: string): Promise<Result<TranscriptSegment[], AppError>> => {
+    searchByFts: async (roomId: RoomId, query: string): Promise<Result<TranscriptSegment[]>> => {
       const q = query.toLowerCase();
       const found = segments.filter(
         (s) => s.roomId === roomId && s.originalText.toLowerCase().includes(q),
@@ -732,14 +731,14 @@ export function makeAccessRepository(): InMemoryAccessRepo {
       });
     },
 
-    canView: async (roomId: RoomId, userId: UserId): Promise<Result<boolean, AppError>> => {
+    canView: async (roomId: RoomId, userId: UserId): Promise<Result<boolean>> => {
       const access = accesses.find(
         (a) => a.roomId === roomId && a.userId === userId && a.deletedAt === null && a.canView,
       );
       return ok(access !== undefined);
     },
 
-    softDelete: async (roomId: RoomId, userId: UserId): Promise<Result<true, AppError>> => {
+    softDelete: async (roomId: RoomId, userId: UserId): Promise<Result<true>> => {
       const idx = accesses.findIndex(
         (a) => a.roomId === roomId && a.userId === userId && a.deletedAt === null,
       );
@@ -752,7 +751,7 @@ export function makeAccessRepository(): InMemoryAccessRepo {
       return ok(true);
     },
 
-    findOne: async (roomId: RoomId, userId: UserId): Promise<Result<TranscriptAccess, AppError>> => {
+    findOne: async (roomId: RoomId, userId: UserId): Promise<Result<TranscriptAccess>> => {
       const found = accesses.find((a) => a.roomId === roomId && a.userId === userId);
       if (found === undefined) {
         return err({ code: "NOT_FOUND", message: "Access not found", retryable: false });
@@ -778,7 +777,7 @@ export function makeTranslationSessionRepository(): InMemoryTranslationSessionRe
       return sessions;
     },
 
-    insert: async (record): Promise<Result<TranslationSessionRecord, AppError>> => {
+    insert: async (record): Promise<Result<TranslationSessionRecord>> => {
       // agentJobId で冪等化
       const existing = sessions.find((s) => s.agentJobId === record.agentJobId);
       if (existing !== undefined) {
@@ -792,7 +791,7 @@ export function makeTranslationSessionRepository(): InMemoryTranslationSessionRe
       return ok(full);
     },
 
-    updateEnded: async (agentJobId, update): Promise<Result<TranslationSessionRecord, AppError>> => {
+    updateEnded: async (agentJobId, update): Promise<Result<TranslationSessionRecord>> => {
       const idx = sessions.findIndex((s) => s.agentJobId === agentJobId);
       if (idx === -1) {
         return err({ code: "NOT_FOUND", message: "Session not found", retryable: false });
@@ -806,7 +805,7 @@ export function makeTranslationSessionRepository(): InMemoryTranslationSessionRe
       return ok(updated);
     },
 
-    findByAgentJobId: async (agentJobId): Promise<Result<TranslationSessionRecord | null, AppError>> => {
+    findByAgentJobId: async (agentJobId): Promise<Result<TranslationSessionRecord | null>> => {
       const found = sessions.find((s) => s.agentJobId === agentJobId);
       return ok(found ?? null);
     },
@@ -819,7 +818,7 @@ export function makeTranslationSessionRepository(): InMemoryTranslationSessionRe
 
 export function makeAgentMetricsRepository(): AgentMetricsRepository {
   return {
-    insert: async (record): Promise<Result<AgentMetricsRecord, AppError>> => {
+    insert: async (record): Promise<Result<AgentMetricsRecord>> => {
       const full: AgentMetricsRecord = {
         ...record,
         id: crypto.randomUUID(),

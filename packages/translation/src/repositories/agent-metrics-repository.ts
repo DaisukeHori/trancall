@@ -4,7 +4,7 @@
  * agent_metrics テーブルへの INSERT のみ。集計は別サービス（BigQuery 等）が担う。
  */
 
-import type { Result, AppError } from "@trancall/shared-kernel";
+import type { Result } from "@trancall/shared-kernel";
 
 import type { AgentMetricsRecord } from "../schemas.js";
 
@@ -15,5 +15,5 @@ export interface AgentMetricsRepository {
    */
   insert: (
     record: Omit<AgentMetricsRecord, "id" | "createdAt">,
-  ) => Promise<Result<AgentMetricsRecord, AppError>>;
+  ) => Promise<Result<AgentMetricsRecord>>;
 }

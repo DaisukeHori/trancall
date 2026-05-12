@@ -17,7 +17,7 @@ import { OutputLanguage, UserIdSchema } from "@trancall/shared-kernel";
 export const ProfileSchema = z.object({
   userId: UserIdSchema,
   /** メールアドレス（OAuth 経由の場合は provider の email） */
-  email: z.string().email(),
+  email: z.email(),
   /** 表示名（任意、未設定時はユーザーが Picker で選択） */
   displayName: z.string().min(1).max(100).optional(),
   /** ネイティブ言語（13 出力言語のいずれか） */
@@ -27,6 +27,6 @@ export const ProfileSchema = z.object({
     .string()
     .regex(/^[a-z0-9_]{4,30}$/, "TranCall ID は 4-30 文字の英小文字・数字・アンダースコア"),
   /** プロフィール更新日時 */
-  updatedAt: z.string().datetime(),
+  updatedAt: z.iso.datetime(),
 });
 export type Profile = z.infer<typeof ProfileSchema>;

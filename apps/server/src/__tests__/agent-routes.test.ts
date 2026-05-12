@@ -77,7 +77,6 @@ describe("POST /internal/agent/events", () => {
 
   it("不正な HMAC シグネチャで 401 を返す", async () => {
     const payload = { type: "translation.session_started" };
-    const body = JSON.stringify(payload);
 
     const response = await app.inject({
       method: "POST",

@@ -5,7 +5,7 @@
  * 実装は apps/server 側（Supabase）。
  */
 
-import type { Result, AppError, UserId } from "@trancall/shared-kernel";
+import type { Result, UserId } from "@trancall/shared-kernel";
 import type { TranslationSessionId } from "@trancall/shared-kernel";
 import type { UsageWindow, RecordUsageCommand } from "../schemas.js";
 
@@ -17,14 +17,14 @@ export interface UsageRepository {
   insertWindowIdempotent(
     cmd: RecordUsageCommand,
     amountYen: number,
-  ): Promise<Result<UsageWindow, AppError>>;
+  ): Promise<Result<UsageWindow>>;
 
   /**
    * セッション内の全ウィンドウを取得する（reconcile 用）。
    */
   findBySessionId(
     sessionId: TranslationSessionId,
-  ): Promise<Result<UsageWindow[], AppError>>;
+  ): Promise<Result<UsageWindow[]>>;
 
   /**
    * 当期課金サイクル内の消費秒数合計を取得する。
@@ -33,5 +33,5 @@ export interface UsageRepository {
     userId: UserId,
     periodStart: string,
     periodEnd: string,
-  ): Promise<Result<number, AppError>>;
+  ): Promise<Result<number>>;
 }

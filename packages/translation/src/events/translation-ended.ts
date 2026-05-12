@@ -23,8 +23,8 @@ export const TranslationEndedEventSchema = DomainEventBase.extend({
     outputLanguage: OutputLanguage,
     durationMs: z.number().int().nonnegative(),
     billableSeconds: z.number().int().nonnegative(),
-    startedAt: z.string().datetime(),
-    endedAt: z.string().datetime(),
+    startedAt: z.iso.datetime(),
+    endedAt: z.iso.datetime(),
     reason: z.enum([
       "participant_left",
       "agent_shutdown",

@@ -4,7 +4,7 @@
  * 他のモジュールはこのファサード経由でのみ contact モジュールを利用できる。
  */
 
-import type { Result, AppError, UserId } from "@trancall/shared-kernel";
+import type { Result, UserId } from "@trancall/shared-kernel";
 
 import type { ContactEntry, PublicProfile } from "./schemas.js";
 import type { BlockUserCommand, ReportUserCommand, AddContactCommand } from "./schemas.js";
@@ -15,21 +15,21 @@ import type { ReportService } from "./services/report-service.js";
 import type { InviteService } from "./services/invite-service.js";
 
 export interface ContactFacade {
-  addContact(cmd: AddContactCommand): Promise<Result<ContactEntry, AppError>>;
-  removeContact(userId: UserId, contactId: string): Promise<Result<true, AppError>>;
+  addContact(cmd: AddContactCommand): Promise<Result<ContactEntry>>;
+  removeContact(userId: UserId, contactId: string): Promise<Result<true>>;
   listContacts(userId: UserId): Promise<ContactEntry[]>;
   searchUsers(query: string, callerId: UserId): Promise<PublicProfile[]>;
-  blockUser(cmd: BlockUserCommand): Promise<Result<true, AppError>>;
-  unblockUser(userId: UserId, blockedUserId: UserId): Promise<Result<true, AppError>>;
-  reportUser(cmd: ReportUserCommand): Promise<Result<true, AppError>>;
-  toggleFavorite(userId: UserId, contactId: string): Promise<Result<true, AppError>>;
+  blockUser(cmd: BlockUserCommand): Promise<Result<true>>;
+  unblockUser(userId: UserId, blockedUserId: UserId): Promise<Result<true>>;
+  reportUser(cmd: ReportUserCommand): Promise<Result<true>>;
+  toggleFavorite(userId: UserId, contactId: string): Promise<Result<true>>;
   createInviteLink(
     userId: UserId,
-  ): Promise<Result<{ url: string; token: string; expiresAt: string }, AppError>>;
+  ): Promise<Result<{ url: string; token: string; expiresAt: string }>>;
   consumeInviteLink(
     token: string,
     newUserId: UserId,
-  ): Promise<Result<ContactEntry, AppError>>;
+  ): Promise<Result<ContactEntry>>;
 }
 
 export function createContactFacade(

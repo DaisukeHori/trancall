@@ -7,9 +7,8 @@ import type { AccessRepository } from "@trancall/transcript";
 import { TranscriptAccessSchema } from "@trancall/transcript";
 import type { TranscriptAccess } from "@trancall/transcript";
 import { type Result, type RoomId, type UserId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
-function parseRow(row: Record<string, unknown>): Result<TranscriptAccess, AppError> {
+function parseRow(row: Record<string, unknown>): Result<TranscriptAccess> {
   const parsed = TranscriptAccessSchema.safeParse({
     id: row["id"],
     roomId: row["room_id"],
@@ -28,7 +27,7 @@ function parseRow(row: Record<string, unknown>): Result<TranscriptAccess, AppErr
 
 export function createAccessRepository(supabase: SupabaseClient): AccessRepository {
   return {
-    async canView(roomId: RoomId, userId: UserId): Promise<Result<boolean, AppError>> {
+    async canView(roomId: RoomId, userId: UserId): Promise<Result<boolean>> {
       const { count, error } = await supabase
         .schema("trancall_transcript")
         .from("transcript_access")
@@ -44,7 +43,7 @@ export function createAccessRepository(supabase: SupabaseClient): AccessReposito
       return ok((count ?? 0) > 0);
     },
 
-    async softDelete(roomId: RoomId, userId: UserId): Promise<Result<true, AppError>> {
+    async softDelete(roomId: RoomId, userId: UserId): Promise<Result<true>> {
       const { error } = await supabase
         .schema("trancall_transcript")
         .from("transcript_access")
@@ -59,7 +58,7 @@ export function createAccessRepository(supabase: SupabaseClient): AccessReposito
       return ok(true);
     },
 
-    async findOne(roomId: RoomId, userId: UserId): Promise<Result<TranscriptAccess, AppError>> {
+    async findOne(roomId: RoomId, userId: UserId): Promise<Result<TranscriptAccess>> {
       const { data, error } = await supabase
         .schema("trancall_transcript")
         .from("transcript_access")

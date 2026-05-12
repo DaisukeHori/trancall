@@ -2,7 +2,7 @@
  * 認証エンドポイントテスト
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildTestApp } from "./helpers/test-app.js";
 import { createMockContainer } from "./helpers/mock-container.js";

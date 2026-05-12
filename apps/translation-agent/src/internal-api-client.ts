@@ -30,22 +30,22 @@ import { type Logger } from "./logger.js";
 
 export const TranslationSessionStartedSchema = z.object({
   type: z.literal("translation.session_started"),
-  agentJobId: z.string().uuid(),
-  roomId: z.string().uuid(),
-  sourceParticipantId: z.string().uuid(),
-  targetParticipantId: z.string().uuid(),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
+  sourceParticipantId: z.uuid(),
+  targetParticipantId: z.uuid(),
   outputLanguage: z.string(),
-  startedAt: z.string().datetime(),
+  startedAt: z.iso.datetime(),
 });
 export type TranslationSessionStartedEvent = z.infer<typeof TranslationSessionStartedSchema>;
 
 export const TranslationSessionEndedSchema = z.object({
   type: z.literal("translation.session_ended"),
-  agentJobId: z.string().uuid(),
-  roomId: z.string().uuid(),
-  sourceParticipantId: z.string().uuid(),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
+  sourceParticipantId: z.uuid(),
   outputLanguage: z.string(),
-  endedAt: z.string().datetime(),
+  endedAt: z.iso.datetime(),
   durationMs: z.number().int().nonnegative(),
   /** OpenAI 課金単位（秒）。billing モジュールが Stripe/IAP に転送する */
   billableSeconds: z.number().int().nonnegative(),
@@ -60,21 +60,21 @@ export type TranslationSessionEndedEvent = z.infer<typeof TranslationSessionEnde
 
 export const TranscriptDeltaPayloadSchema = z.object({
   type: z.literal("transcript.delta"),
-  agentJobId: z.string().uuid(),
-  roomId: z.string().uuid(),
-  sourceParticipantId: z.string().uuid(),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
+  sourceParticipantId: z.uuid(),
   outputLanguage: z.string(),
   sequenceNo: z.number().int().nonnegative(),
   text: z.string(),
   isFinal: z.boolean(),
-  spokenAt: z.string().datetime(),
+  spokenAt: z.iso.datetime(),
 });
 export type TranscriptDeltaPayload = z.infer<typeof TranscriptDeltaPayloadSchema>;
 
 export const AgentMetricsPayloadSchema = z.object({
   type: z.literal("agent.metrics"),
-  agentJobId: z.string().uuid(),
-  roomId: z.string().uuid(),
+  agentJobId: z.uuid(),
+  roomId: z.uuid(),
   /** ホップ別レイテンシ（ms）、p50/p95/p99 を後で計算するため raw 値を送る */
   latencyMs: z.object({
     captureToAgent: z.array(z.number()),
@@ -84,7 +84,7 @@ export const AgentMetricsPayloadSchema = z.object({
     totalEndToEnd: z.array(z.number()),
   }),
   memoryRssBytes: z.number().int().nonnegative(),
-  collectedAt: z.string().datetime(),
+  collectedAt: z.iso.datetime(),
 });
 export type AgentMetricsPayload = z.infer<typeof AgentMetricsPayloadSchema>;
 

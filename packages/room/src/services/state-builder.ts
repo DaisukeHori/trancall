@@ -4,7 +4,7 @@
  * Zod の safeParse を使用して型安全に変換する。
  */
 
-import type { Result, AppError } from "@trancall/shared-kernel";
+import type { Result } from "@trancall/shared-kernel";
 import {
   RoomIdSchema, UserIdSchema, ParticipantIdSchema,
 } from "@trancall/shared-kernel";
@@ -17,7 +17,7 @@ import type { RoomRow, ParticipantRow, RoomState } from "../schemas.js";
 export function buildRoomState(
   room: RoomRow,
   participants: ParticipantRow[],
-): Result<RoomState, AppError> {
+): Result<RoomState> {
   const roomIdResult = RoomIdSchema.safeParse(room.room_id);
   if (!roomIdResult.success) {
     return {

@@ -33,7 +33,7 @@ export interface ApnsAdapter {
   sendVoipPush(
     deviceToken: string,
     payload: ApnsVoipPayload,
-  ): Promise<Result<ApnsSendResult, AppError>>;
+  ): Promise<Result<ApnsSendResult>>;
 
   /**
    * 通常通知 (missed_call 等) を送信する。
@@ -42,7 +42,7 @@ export interface ApnsAdapter {
   sendNormalPush(
     deviceToken: string,
     payload: Record<string, unknown>,
-  ): Promise<Result<ApnsSendResult, AppError>>;
+  ): Promise<Result<ApnsSendResult>>;
 }
 
 /**
@@ -73,7 +73,6 @@ function mapApnsError(
 
 export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
   // node-apn の Provider を初期化
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   const provider = new apn.Provider({
     token: {
       key: config.keyPath,
@@ -85,30 +84,22 @@ export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
 
   return {
     sendVoipPush: async (deviceToken, payload) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const notification = new apn.Notification();
 
       // VoIP Push 設定
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       notification.topic = `${config.bundleId}.voip`;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       notification.pushType = "voip";
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       notification.priority = 10;
 
       // aps は空 (VoIP Push では aps を空にする)
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       notification.aps = {};
 
       // trancall カスタムペイロード
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       notification.payload = { trancall: payload.trancall };
 
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         const result = await provider.send(notification, deviceToken);
 
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         const failed = result.failed as Array<{
           device: string;
           response?: { reason?: string; statusCode?: number };
@@ -141,7 +132,6 @@ export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
           ));
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         const sent = result.sent as Array<{ device: string }>;
         const firstSent = sent[0];
         return ok({ apnsId: firstSent?.device });
@@ -156,21 +146,15 @@ export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
     },
 
     sendNormalPush: async (deviceToken, payload) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const notification = new apn.Notification();
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       notification.topic = config.bundleId;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       notification.priority = 10;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       notification.payload = payload;
 
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         const result = await provider.send(notification, deviceToken);
 
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         const failed = result.failed as Array<{
           device: string;
           response?: { reason?: string; statusCode?: number };
@@ -198,7 +182,6 @@ export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
           return err(mapApnsError(failure.response?.reason, failure.response?.statusCode));
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         const sent = result.sent as Array<{ device: string }>;
         const firstSent = sent[0];
         return ok({ apnsId: firstSent?.device });

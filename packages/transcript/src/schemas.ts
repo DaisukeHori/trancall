@@ -41,7 +41,7 @@ export type LiveSubtitleDelta = z.infer<typeof LiveSubtitleDeltaSchema>;
 // ---------------------------------------------------------------------------
 
 export const TranscriptSegmentSchema = z.object({
-  segmentId: z.string().uuid(),
+  segmentId: z.uuid(),
   roomId: RoomIdSchema,
   participantId: ParticipantIdSchema,
   speakerName: z.string().min(1),
@@ -51,10 +51,10 @@ export const TranscriptSegmentSchema = z.object({
   startTimeMs: z.number().int(),
   endTimeMs: z.number().int(),
   sequenceNo: z.number().int().nonnegative(),
-  sourceEventId: z.string().uuid(),
-  agentSessionId: z.string().uuid().nullable(),
-  retentionUntil: z.string().datetime(),
-  createdAt: z.string().datetime(),
+  sourceEventId: z.uuid(),
+  agentSessionId: z.uuid().nullable(),
+  retentionUntil: z.iso.datetime(),
+  createdAt: z.iso.datetime(),
 });
 
 export type TranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
@@ -65,14 +65,14 @@ export type TranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
 // ---------------------------------------------------------------------------
 
 export const TranscriptAccessSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   roomId: RoomIdSchema,
   userId: UserIdSchema,
   canView: z.boolean(),
   canExport: z.boolean(),
-  deletedAt: z.string().datetime().nullable(),
+  deletedAt: z.iso.datetime().nullable(),
   consentVersion: z.string().min(1),
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
 });
 
 export type TranscriptAccess = z.infer<typeof TranscriptAccessSchema>;
@@ -87,7 +87,7 @@ export const FullTranscriptSchema = z.object({
   segments: z.array(TranscriptSegmentSchema),
   duration: z.number().nonnegative(),
   participantCount: z.number().int().nonnegative(),
-  generatedAt: z.string().datetime(),
+  generatedAt: z.iso.datetime(),
 });
 
 export type FullTranscript = z.infer<typeof FullTranscriptSchema>;

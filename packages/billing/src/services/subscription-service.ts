@@ -8,7 +8,6 @@
 
 import {
   type Result,
-  type AppError,
   type UserId,
   ok,
   err,
@@ -36,7 +35,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
      */
     async getSubscription(
       userId: UserId,
-    ): Promise<Result<SubscriptionState, AppError>> {
+    ): Promise<Result<SubscriptionState>> {
       const rowResult = await subscriptionRepo.findByUserId(userId);
       if (!rowResult.ok) return rowResult;
 
@@ -77,7 +76,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
      * 残り 1 分以上 OR 支払い方法あり（超過課金プランのみ）なら true。
      * Free プランは残量 0 なら BILLING_INSUFFICIENT_BALANCE。
      */
-    async canStartCall(userId: UserId): Promise<Result<true, AppError>> {
+    async canStartCall(userId: UserId): Promise<Result<true>> {
       const subResult = await subscriptionRepo.findByUserId(userId);
       if (!subResult.ok) return subResult;
 
@@ -121,7 +120,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
      */
     async ensureSubscriptionExists(
       userId: UserId,
-    ): Promise<Result<SubscriptionState, AppError>> {
+    ): Promise<Result<SubscriptionState>> {
       const plan = PLAN_CONFIGS["free"];
       const now = new Date();
       const periodEnd = new Date(now);

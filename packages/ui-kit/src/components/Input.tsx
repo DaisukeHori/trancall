@@ -50,8 +50,8 @@ export function Input({
         secureTextEntry={secureTextEntry}
         placeholder={placeholder}
         placeholderTextColor={c.textTertiary}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
+        onFocus={() => { setIsFocused(true); }}
+        onBlur={() => { setIsFocused(false); }}
         style={[
           styles.input,
           {

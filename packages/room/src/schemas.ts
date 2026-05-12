@@ -27,8 +27,8 @@ export const ParticipantSchema = z.object({
   userId: UserIdSchema,
   role: ParticipantRoleSchema,
   isMuted: z.boolean(),
-  joinedAt: z.string().datetime(),
-  leftAt: z.string().datetime().nullable(),
+  joinedAt: z.iso.datetime(),
+  leftAt: z.iso.datetime().nullable(),
 });
 export type Participant = z.infer<typeof ParticipantSchema>;
 
@@ -41,8 +41,8 @@ export const RoomStateSchema = z.object({
   status: RoomStatusSchema,
   translationEnabled: z.boolean(),
   createdBy: UserIdSchema,
-  createdAt: z.string().datetime(),
-  endedAt: z.string().datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  endedAt: z.iso.datetime().nullable(),
   participants: z.array(ParticipantSchema),
 });
 export type RoomState = z.infer<typeof RoomStateSchema>;
@@ -52,24 +52,24 @@ export type RoomState = z.infer<typeof RoomStateSchema>;
 // ---------------------------------------------------------------------------
 
 export const RoomRowSchema = z.object({
-  room_id: z.string().uuid(),
+  room_id: z.uuid(),
   status: RoomStatusSchema,
   room_type: z.enum(["audio", "video"]),
   translation_enabled: z.boolean(),
-  created_by: z.string().uuid(),
-  created_at: z.string().datetime(),
-  ended_at: z.string().datetime().nullable(),
+  created_by: z.uuid(),
+  created_at: z.iso.datetime(),
+  ended_at: z.iso.datetime().nullable(),
 });
 export type RoomRow = z.infer<typeof RoomRowSchema>;
 
 export const ParticipantRowSchema = z.object({
-  id: z.string().uuid(),
-  room_id: z.string().uuid(),
-  user_id: z.string().uuid(),
+  id: z.uuid(),
+  room_id: z.uuid(),
+  user_id: z.uuid(),
   role: ParticipantRoleSchema,
   is_muted: z.boolean(),
-  joined_at: z.string().datetime(),
-  left_at: z.string().datetime().nullable(),
+  joined_at: z.iso.datetime(),
+  left_at: z.iso.datetime().nullable(),
 });
 export type ParticipantRow = z.infer<typeof ParticipantRowSchema>;
 
@@ -82,7 +82,7 @@ export const InsertRoomCommandSchema = z.object({
   status: RoomStatusSchema,
   translationEnabled: z.boolean(),
   createdBy: UserIdSchema,
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
 });
 export type InsertRoomCommand = z.infer<typeof InsertRoomCommandSchema>;
 
@@ -90,6 +90,6 @@ export const UpsertParticipantCommandSchema = z.object({
   roomId: RoomIdSchema,
   userId: UserIdSchema,
   role: ParticipantRoleSchema,
-  joinedAt: z.string().datetime(),
+  joinedAt: z.iso.datetime(),
 });
 export type UpsertParticipantCommand = z.infer<typeof UpsertParticipantCommandSchema>;

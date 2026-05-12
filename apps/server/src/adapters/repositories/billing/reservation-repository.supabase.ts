@@ -8,9 +8,8 @@ import type { ReservationRepository } from "@trancall/billing";
 import { UsageReservation } from "@trancall/billing";
 import type { UsageReservationType } from "@trancall/billing";
 import { type Result, type UserId, type TranslationSessionId, err, ok } from "@trancall/shared-kernel";
-import type { AppError } from "@trancall/shared-kernel";
 
-function parseRow(row: Record<string, unknown>): Result<UsageReservationType, AppError> {
+function parseRow(row: Record<string, unknown>): Result<UsageReservationType> {
   const parsed = UsageReservation.safeParse({
     id: row["id"],
     userId: row["user_id"],
@@ -35,7 +34,7 @@ export function createReservationRepository(
       userId: UserId,
       sessionId: TranslationSessionId,
       reservedMinutes: number,
-    ): Promise<Result<UsageReservationType, AppError>> {
+    ): Promise<Result<UsageReservationType>> {
       const { data, error } = await supabase
         .schema("trancall_billing")
         .from("usage_reservations")
@@ -60,7 +59,7 @@ export function createReservationRepository(
 
     async findActiveBySessionId(
       sessionId: TranslationSessionId,
-    ): Promise<Result<UsageReservationType | null, AppError>> {
+    ): Promise<Result<UsageReservationType | null>> {
       const { data, error } = await supabase
         .schema("trancall_billing")
         .from("usage_reservations")
@@ -79,7 +78,7 @@ export function createReservationRepository(
     async reconcile(
       sessionId: TranslationSessionId,
       consumedMinutes: number,
-    ): Promise<Result<UsageReservationType, AppError>> {
+    ): Promise<Result<UsageReservationType>> {
       const { data, error } = await supabase
         .schema("trancall_billing")
         .from("usage_reservations")
@@ -101,7 +100,7 @@ export function createReservationRepository(
 
     async expire(
       sessionId: TranslationSessionId,
-    ): Promise<Result<UsageReservationType | null, AppError>> {
+    ): Promise<Result<UsageReservationType | null>> {
       const { data, error } = await supabase
         .schema("trancall_billing")
         .from("usage_reservations")

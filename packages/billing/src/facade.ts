@@ -8,7 +8,6 @@
 import { z } from "zod";
 import {
   type Result,
-  type AppError,
   type UserId,
   type TranslationSessionId,
   ok,
@@ -68,32 +67,32 @@ export interface BillingFacadeDeps {
 // =============================================================================
 
 export interface BillingFacade {
-  getSubscription(userId: UserId): Promise<Result<SubscriptionState, AppError>>;
+  getSubscription(userId: UserId): Promise<Result<SubscriptionState>>;
   recordUsage(
     cmd: RecordUsageCommand,
-  ): Promise<Result<SubscriptionState, AppError>>;
-  canStartCall(userId: UserId): Promise<Result<true, AppError>>;
-  reserveMinutes(userId: UserId, sessionId: TranslationSessionId, minutes: number): Promise<Result<true, AppError>>;
+  ): Promise<Result<SubscriptionState>>;
+  canStartCall(userId: UserId): Promise<Result<true>>;
+  reserveMinutes(userId: UserId, sessionId: TranslationSessionId, minutes: number): Promise<Result<true>>;
   reconcile(
     userId: UserId,
     sessionId: TranslationSessionId,
-  ): Promise<Result<SubscriptionState, AppError>>;
-  refundMinutes(sessionId: TranslationSessionId): Promise<Result<true, AppError>>;
+  ): Promise<Result<SubscriptionState>>;
+  refundMinutes(sessionId: TranslationSessionId): Promise<Result<true>>;
   createCheckoutSession(
     userId: UserId,
     tier: PlanTier,
     channel: "stripe_web" | "storekit_external",
-  ): Promise<Result<{ url: string }, AppError>>;
+  ): Promise<Result<{ url: string }>>;
   handleStripeWebhook(
     rawBody: string,
     signature: string,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
   handleAppleIapWebhook(
     payload: unknown,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
   handleGoogleIapWebhook(
     payload: unknown,
-  ): Promise<Result<true, AppError>>;
+  ): Promise<Result<true>>;
 }
 
 // =============================================================================
@@ -128,7 +127,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     // =========================================================================
     async getSubscription(
       userId: UserId,
-    ): Promise<Result<SubscriptionState, AppError>> {
+    ): Promise<Result<SubscriptionState>> {
       return subscriptionService.getSubscription(userId);
     },
 
@@ -137,7 +136,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     // =========================================================================
     async recordUsage(
       cmd: RecordUsageCommand,
-    ): Promise<Result<SubscriptionState, AppError>> {
+    ): Promise<Result<SubscriptionState>> {
       // 境界バリデーション
       const validated = validate(RecordUsageCommandSchema, cmd);
       if (!validated.ok) return validated;
@@ -150,7 +149,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     // =========================================================================
     // 通話開始前チェック
     // =========================================================================
-    async canStartCall(userId: UserId): Promise<Result<true, AppError>> {
+    async canStartCall(userId: UserId): Promise<Result<true>> {
       return subscriptionService.canStartCall(userId);
     },
 
@@ -161,7 +160,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       userId: UserId,
       sessionId: TranslationSessionId,
       minutes: number,
-    ): Promise<Result<true, AppError>> {
+    ): Promise<Result<true>> {
       return reservationService.reserveMinutesWithSession(userId, sessionId, minutes);
     },
 
@@ -171,7 +170,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     async reconcile(
       userId: UserId,
       sessionId: TranslationSessionId,
-    ): Promise<Result<SubscriptionState, AppError>> {
+    ): Promise<Result<SubscriptionState>> {
       return reservationService.reconcile(userId, sessionId);
     },
 
@@ -180,7 +179,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     // =========================================================================
     async refundMinutes(
       sessionId: TranslationSessionId,
-    ): Promise<Result<true, AppError>> {
+    ): Promise<Result<true>> {
       return reservationService.refundMinutes(sessionId);
     },
 
@@ -191,7 +190,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       userId: UserId,
       tier: PlanTier,
       channel: "stripe_web" | "storekit_external",
-    ): Promise<Result<{ url: string }, AppError>> {
+    ): Promise<Result<{ url: string }>> {
       const result = await stripeAdapter.createCheckoutSession({
         userId,
         tier,
@@ -207,7 +206,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     async handleStripeWebhook(
       rawBody: string,
       signature: string,
-    ): Promise<Result<true, AppError>> {
+    ): Promise<Result<true>> {
       // 1. 署名検証
       const eventResult = await stripeAdapter.verifyWebhook(rawBody, signature);
       if (!eventResult.ok) return eventResult;
@@ -291,7 +290,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     // =========================================================================
     async handleAppleIapWebhook(
       payload: unknown,
-    ): Promise<Result<true, AppError>> {
+    ): Promise<Result<true>> {
       // 1. ペイロード解析
       const parsed = appleIapAdapter.parseWebhookPayload(payload);
       if (!parsed.ok) return parsed;
@@ -339,7 +338,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     // =========================================================================
     async handleGoogleIapWebhook(
       payload: unknown,
-    ): Promise<Result<true, AppError>> {
+    ): Promise<Result<true>> {
       // 1. ペイロード解析
       const parsed = googlePlayAdapter.parseWebhookPayload(payload);
       if (!parsed.ok) {

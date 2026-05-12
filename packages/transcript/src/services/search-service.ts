@@ -7,7 +7,7 @@
  */
 
 import { type Result, err } from "@trancall/shared-kernel";
-import type { AppError, RoomId, UserId } from "@trancall/shared-kernel";
+import type { RoomId, UserId } from "@trancall/shared-kernel";
 import type { TranscriptSegment } from "../schemas.js";
 import type { SegmentRepository } from "../repositories/segment-repository.js";
 import type { AccessRepository } from "../repositories/access-repository.js";
@@ -22,7 +22,7 @@ export interface SearchService {
     roomId: RoomId,
     userId: UserId,
     query: string,
-  ): Promise<Result<TranscriptSegment[], AppError>>;
+  ): Promise<Result<TranscriptSegment[]>>;
 }
 
 /**

@@ -2,11 +2,11 @@ import { z } from "zod";
 
 // --- Branded Type Schemas ---
 
-export const UserIdSchema = z.string().uuid().brand("UserId");
-export const RoomIdSchema = z.string().uuid().brand("RoomId");
-export const TrackIdSchema = z.string().uuid().brand("TrackId");
-export const ParticipantIdSchema = z.string().uuid().brand("ParticipantId");
-export const TranslationSessionIdSchema = z.string().uuid().brand("TranslationSessionId");
+export const UserIdSchema = z.uuid().brand("UserId");
+export const RoomIdSchema = z.uuid().brand("RoomId");
+export const TrackIdSchema = z.uuid().brand("TrackId");
+export const ParticipantIdSchema = z.uuid().brand("ParticipantId");
+export const TranslationSessionIdSchema = z.uuid().brand("TranslationSessionId");
 export const LiveKitTrackSidSchema = z.string().min(1).brand("LiveKitTrackSid");
 export const OpenAISessionIdSchema = z.string().min(1).brand("OpenAISessionId");
 
