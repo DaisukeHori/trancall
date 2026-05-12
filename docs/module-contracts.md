@@ -47,9 +47,9 @@
 | モジュール | 責務 (1 行) | 所有 DB schema/table | 発行 DomainEvent | 購読 DomainEvent | 公開 Facade | 依存先 |
 |---|---|---|---|---|---|---|
 | `@trancall/shared-kernel` | Branded Type / Result / Zod ヘルパー / DomainEventBase | — | — | — | (個別関数 export) | (なし、依存される側) |
-| `@trancall/auth` | Supabase Auth ラップ・プロフィール管理 | `trancall_auth.profiles`, `trancall_auth.consent_versions` | `auth.user_registered` | — | `AuthFacade` | shared-kernel |
+| `@trancall/auth` | Supabase Auth ラップ・プロフィール管理・**[Sprint 2 D7]** 同意管理 | `trancall_auth.profiles`, `trancall_auth.consent_versions`, **[D7]** `trancall_auth.user_consents` | `auth.user_registered`, **[D7]** `auth.consent_recorded`, `auth.consent_revoked` | — | `AuthFacade` | shared-kernel |
 | `@trancall/media` | LiveKit Room CRUD / Token 発行 / Track 命名 (C-005) | (LiveKit Cloud 側) | — | — | `MediaFacade` | shared-kernel, **auth** (Profile lookup) |
-| `@trancall/billing` | サブスク / heartbeat 課金 / 3 チャネル決済 | `trancall_billing.subscriptions`, `trancall_billing.usage_windows`, `trancall_billing.usage_reservations`, `trancall_billing.webhook_events` | — (将来 `billing.balance_low`) | (将来 `translation.ended`) | `BillingFacade` | shared-kernel |
+| `@trancall/billing` | サブスク / heartbeat 課金 / 4 チャネル決済 (stripe_web / iap_apple / iap_google / **[D5]** storekit_external) | `trancall_billing.subscriptions`, `trancall_billing.usage_windows`, `trancall_billing.usage_reservations`, `trancall_billing.webhook_events`, **[D5]** `trancall_billing.external_purchase_tokens` | **[D5]** `billing.subscription_upgraded`, `billing.subscription_canceled` (将来 `billing.balance_low`) | (将来 `translation.ended`) | `BillingFacade` | shared-kernel |
 | `@trancall/contact` | 連絡先 / ブロック / 通報 / 招待 | `trancall_contact.contacts`, `trancall_contact.block_list`, `trancall_contact.report_events`, `trancall_contact.invite_links` | — | — | `ContactFacade` | shared-kernel |
 | `@trancall/notification` | APNs VoIP Push / FCM 配信 | `trancall_notification.device_tokens`, `trancall_notification.push_logs` | — | (将来 `room.created`) | `NotificationFacade` | shared-kernel |
 | `@trancall/transcript` | 字幕 final segment 永続化 / FTS / Export skeleton | `trancall_transcript.segments`, `trancall_transcript.transcript_access` | — | (将来 `translation.ended`) | `TranscriptFacade` | shared-kernel |
@@ -116,16 +116,16 @@ export interface ProfileRepository {
   findByUserId: (userId: UserId) => Promise<Result<Profile, AppError>>;
 }
 
-// [Sprint 2 D7 拡張]
+// [Sprint 2 D7 拡張] — canonical 定義は docs/legal-and-consent.md v1.1 §4.2 / §4.3
 export interface ConsentRepository {
-  recordConsent(consent: ConsentRecord): Promise<Result<ConsentRecord, AppError>>;
-  findActiveConsent(userId: UserId, scope: ConsentScope): Promise<Result<ConsentRecord | null, AppError>>;
-  revokeConsent(userId: UserId, scope: ConsentScope): Promise<Result<true, AppError>>;
+  upsert(record: Omit<ConsentRecord, "id">): Promise<Result<ConsentRecord, AppError>>;
+  findActive(userId: UserId, scope: ConsentScope): Promise<Result<ConsentRecord | null, AppError>>;
+  revoke(userId: UserId, scope: ConsentScope): Promise<Result<true, AppError>>;
 }
 
 export interface LegalDocumentVersionRepository {
   findLatest(scope: ConsentScope): Promise<Result<LegalDocumentVersion, AppError>>;
-  listAll(scope: ConsentScope): Promise<Result<LegalDocumentVersion[], AppError>>;
+  findAllLatest(): Promise<Result<LegalDocumentVersion[], AppError>>;  // 全 scope 一括取得
 }
 ```
 
@@ -581,7 +581,7 @@ mobile 側 (`apps/mobile/src/lib/livekit/subtitles.ts`) は同 schema で **Zod 
 | `BILLING_CHANNEL_NOT_AVAILABLE` | billing | 400 | false | 「この地域では選択された購入チャネルを利用できません」 |
 | `BILLING_IAP_RECEIPT_INVALID` | **[Sprint 2 D5]** billing | 400 | false | 「レシート検証エラー、購入を復元」 |
 | `BILLING_UPGRADE_PREVIEW_FAILED` | **[Sprint 2 D5]** billing | 503 | true | 「見積取得失敗、再試行」 |
-| `BILLING_RESTORE_NO_PURCHASE` | **[Sprint 2 D5]** billing | 404 | false | 「復元できる購入がありません」 |
+| `BILLING_RESTORE_NO_PURCHASE` | **[Sprint 2 D5]** billing | (UI 文言のみ、HTTP は 200 正常系で `restoredCount=0` を返す) | false | 「復元できる購入がありません」 |
 | `BILLING_INVALID_PLAN_CHANGE` | **[Sprint 2 D5]** billing | 400 | false | 「このプラン変更は実行できません」 |
 | `TRANSLATION_PROVIDER_ERROR` | translation | 502 | true | 「翻訳サービスに接続できません」 |
 | `TRANSLATION_RATE_LIMITED` | translation | 429 | true | 翻訳一時停止 |
