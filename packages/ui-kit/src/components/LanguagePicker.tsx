@@ -65,7 +65,7 @@ export function LanguagePicker({
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
         accessibilityHint="Double tap to open language picker"
-        onPress={() => setOpen(true)}
+        onPress={() => { setOpen(true); }}
         style={[
           styles.trigger,
           {
@@ -87,12 +87,12 @@ export function LanguagePicker({
         visible={open}
         transparent
         animationType="slide"
-        onRequestClose={() => setOpen(false)}
+        onRequestClose={() => { setOpen(false); }}
         accessibilityViewIsModal
       >
         <Pressable
           style={styles.backdrop}
-          onPress={() => setOpen(false)}
+          onPress={() => { setOpen(false); }}
           accessibilityLabel="Close language picker"
         />
         <View
