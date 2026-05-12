@@ -1,17 +1,14 @@
 {
   "version": 2,
+  "framework": null,
   "buildCommand": "pnpm --filter @trancall/app-server build",
   "installCommand": "corepack enable && pnpm install --frozen-lockfile",
-  "outputDirectory": ".vercel/output",
-  "framework": null,
+  "outputDirectory": "public",
   "functions": {
     "api/index.ts": {
       "maxDuration": 30,
-      "includeFiles": "../../packages/transcript/fonts/**"
+      "includeFiles": "packages/transcript/fonts/**"
     }
   },
-  "regions": ["hnd1"],
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index.ts" }
-  ]
+  "regions": ["hnd1"]
 }
