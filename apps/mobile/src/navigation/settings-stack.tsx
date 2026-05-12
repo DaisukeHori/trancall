@@ -4,12 +4,14 @@ import { useTheme } from "@trancall/ui-kit";
 import { SettingsScreen } from "../screens/settings-screen.js";
 import { FaqScreen } from "../screens/faq-screen.js";
 import { OssLicensesScreen } from "../screens/oss-licenses-screen.js";
+import { AccountDeletionScreen } from "../screens/account-deletion-screen.js";
 import { useTranslation } from "../i18n/index.js";
 
 export type SettingsStackParamList = {
   SettingsMain: undefined;
   Faq: undefined;
   OssLicenses: undefined;
+  AccountDeletion: undefined;
 };
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
@@ -34,6 +36,7 @@ export function SettingsStack() {
           headerTitleStyle: { color: c.textPrimary },
         }}
       />
+      <Stack.Screen name="AccountDeletion" component={AccountDeletionScreen} />
     </Stack.Navigator>
   );
 }
