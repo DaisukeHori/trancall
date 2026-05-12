@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.5 (2026-05-12) |
+| Status | Draft v1.7 (2026-05-12) |
 | Owner | DevOps / バックエンド |
 | 目的 | Sprint 2 P0 (Gate Check 実走) の前提として、translation-agent / apps/server / Supabase を Render + Vercel + Supabase Cloud にスムーズに上げる |
 | 上位文書 | `docs/deploy.md` (インフラ全体設計、canonical)、`docs/translation-pipeline-design.md` (D1) |
@@ -352,7 +352,7 @@ supabase db push --linked --include-all
 # 5b. staging で migration を適用 — 2 回目以降 (seed 既適用前提)
 supabase db push --linked
 
-# 上記 5a / 5b はどちらか一方のみ実行する。staging 初回かどうかは Supabase Dashboard → SQL Editor で seed 由来テーブル (例: 任意の master データ) が存在するかで判別する。
+# 上記 5a / 5b はどちらか一方のみ実行する。staging 初回かどうかは `supabase migration list --linked` でリモート側 Applied 件数を確認して判別する (Applied = 0 件 → 5a を実行、Applied >= 1 件 → 5b を実行)。
 
 # 6. staging で RLS テスト + アプリ疎通確認 (§9.2 参照)
 
@@ -366,7 +366,7 @@ cat .supabase/config.toml | grep project_id
 supabase db push --linked --include-all
 # `--include-all`: staging push (step 5b) では CI/手動で seed ファイルが既に適用済を前提とするため不要。
 # production 初回投入時は seed ファイルが未適用のため --include-all で seed も含めて適用する。
-# step 5a/5b に --include-all を付けるべきでは? という疑問: staging 初回 (5a) は --include-all 付き、2 回目以降 (5b) は不要。本番初回のみ有効。
+# 補足: staging 初回 (5a) は --include-all 付き、2 回目以降 (5b) は不要。production 初回 (本ステップ) のみ本フラグが必須。
 
 # 8. push 後の確認
 supabase migration list --linked
@@ -704,3 +704,4 @@ Phase 1b で Sentry または Datadog Logs に集約予定。
 - v1.4 (2026-05-12): Round 4 残存 Minor 4 件反映 — §13 #5 mitigation 数値を 5,000 participant-min/月の 50% (= 2,500) に修正、§13 #10 mitigation 追加で全 11 リスク mitigation 完備、§5.2 step 7 `--include-all` フラグ意図のインラインコメント、§9.4 agent_metrics JSONB 構造例追加
 - v1.5 (2026-05-12): Round 5 残存 Minor 2 件反映 — §13 #11 に Mitigation: ラベル付与で全 11 リスクの形式統一達成、§5.2 step 5 に staging 初回セットアップ時の `--include-all` 付与条件をインラインコメントで補足
 - v1.6 (2026-05-12): Round 6 残存 Minor 1 件反映 — §5.2 step 5 を 5a (staging 初回 seed 未適用、`--include-all`) / 5b (2 回目以降) の条件分岐構造に再構成し operator のコピーペースト誤操作リスクを排除
+- v1.7 (2026-05-12): Round 8 残存 Minor 3 件反映 — ヘッダー Status を v1.5 から v1.7 に同期、§5.2 step 5a/5b 判別方法を `supabase migration list --linked` の Applied 件数判定に置換し機械判別可能化、§5.2 step 7 注記の疑問文形式を補足言い切りに整理
