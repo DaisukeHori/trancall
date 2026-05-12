@@ -49,11 +49,13 @@ export const TranslationSessionEndedSchema = z.object({
   durationMs: z.number().int().nonnegative(),
   /** OpenAI 課金単位（秒）。billing モジュールが Stripe/IAP に転送する */
   billableSeconds: z.number().int().nonnegative(),
+  // T8: agent_publish_failed を v1.1.0 で追加 (module-contracts.md §7.4.2 に同期)
   reason: z.enum([
     "participant_left",
     "agent_shutdown",
     "openai_fatal_error",
     "client_requested",
+    "agent_publish_failed",
   ]),
 });
 export type TranslationSessionEndedEvent = z.infer<typeof TranslationSessionEndedSchema>;

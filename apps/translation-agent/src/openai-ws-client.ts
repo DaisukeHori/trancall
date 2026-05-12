@@ -1,20 +1,23 @@
 /**
  * OpenAI GPT-Realtime-Translate WebSocket クライアント
  *
- * docs/agent-flow.md の "Translation Pipeline" 節を参照。
+ * docs/translation-pipeline-design.md §4 準拠。
  *
  * 役割:
  * - wss://api.openai.com/v1/realtime/translations への接続管理
  * - session.update で出力言語を指定（入力言語は自動検出）
- * - input_audio_buffer.append で PCM16 24kHz を Base64 で送信
- * - response.audio.delta / response.audio.done を受信して呼び出し元に流す
+ * - session.input_audio_buffer.append で PCM16 24kHz を Base64 で送信 (T1: 公式仕様)
+ * - session.output_audio.delta / session.output_transcript.delta を受信して呼び出し元に流す (T1)
+ * - session.close で pending input audio をフラッシュ (T7: Translation API は commit イベントなし)
  * - 切断時の自動再接続（exponential backoff, 最大60秒）
  * - heartbeat（30秒ごとの ping）
  *
- * 注意:
- * - 設計書では PCM 24kHz 24kbps 想定だが、OpenAI 側仕様確認のため
- *   実装は 16kHz / 24kHz の両対応とする（config で切替可能）
- * - 同一言語発話時（例: 日本語→日本語）の API 挙動は Gate Check で確認
+ * T1 対応: OpenAI Translation API 公式仕様のイベント名に移行
+ *   - input_audio_buffer.append → session.input_audio_buffer.append
+ *   - response.audio.delta → session.output_audio.delta
+ *   - response.audio_transcript.delta → session.output_transcript.delta
+ *   - input_audio_buffer.commit は Translation API に存在しない (session.close で代替)
+ * T2 対応: session.update payload を audio.output.language のみに簡略化
  */
 
 import { EventEmitter } from "node:events";
@@ -25,29 +28,43 @@ import { type OutputLanguage } from "@trancall/shared-kernel";
 
 import { type Logger } from "./logger.js";
 
-// --- OpenAI Realtime API メッセージスキーマ ---
+// --- OpenAI Realtime Translation API メッセージスキーマ (T1: 公式仕様イベント名) ---
 
-const AudioDeltaMessageSchema = z.object({
-  type: z.literal("response.audio.delta"),
-  delta: z.string(),
+const SessionCreatedMessageSchema = z.object({
+  type: z.literal("session.created"),
+  session: z.object({ id: z.string() }).passthrough(),
 });
 
-const AudioDoneMessageSchema = z.object({
-  type: z.literal("response.audio.done"),
+const SessionUpdatedMessageSchema = z.object({
+  type: z.literal("session.updated"),
+});
+
+const AudioDeltaMessageSchema = z.object({
+  // T1: session.output_audio.delta (公式仕様)
+  type: z.literal("session.output_audio.delta"),
+  delta: z.string(),
+  sample_rate: z.number().int().positive().optional(),
+  channels: z.number().int().positive().optional(),
+  elapsed_ms: z.number().int().nonnegative().optional(),
 });
 
 const TranscriptDeltaMessageSchema = z.object({
-  type: z.literal("response.audio_transcript.delta"),
+  // T1: session.output_transcript.delta (公式仕様)
+  type: z.literal("session.output_transcript.delta"),
+  delta: z.string(),
+  elapsed_ms: z.number().int().nonnegative().optional(),
+});
+
+// session.input_transcript.delta は当面 log のみ
+const InputTranscriptDeltaMessageSchema = z.object({
+  type: z.literal("session.input_transcript.delta"),
   delta: z.string(),
 });
 
-const TranscriptDoneMessageSchema = z.object({
-  type: z.literal("response.audio_transcript.done"),
-  transcript: z.string(),
-});
-
 const ErrorDetailSchema = z.object({
+  type: z.string().optional(),
   message: z.string(),
+  code: z.string().optional(),
 });
 
 const ErrorMessageSchema = z.object({
@@ -56,10 +73,11 @@ const ErrorMessageSchema = z.object({
 });
 
 const OpenAIMessageSchema = z.discriminatedUnion("type", [
+  SessionCreatedMessageSchema,
+  SessionUpdatedMessageSchema,
   AudioDeltaMessageSchema,
-  AudioDoneMessageSchema,
   TranscriptDeltaMessageSchema,
-  TranscriptDoneMessageSchema,
+  InputTranscriptDeltaMessageSchema,
   ErrorMessageSchema,
 ]);
 
@@ -92,12 +110,16 @@ export interface AudioDeltaEvent {
   audioBase64: string;
   /** delta 受信時刻 (ms epoch) */
   receivedAt: number;
+  sampleRate?: number;
+  channels?: number;
+  elapsedMs?: number;
 }
 
 export interface TranscriptDeltaEvent {
   text: string;
   isFinal: boolean;
   receivedAt: number;
+  elapsedMs?: number;
 }
 
 export interface OpenAIWsEvents {
@@ -128,8 +150,10 @@ export interface TypedEventEmitter<Events> {
 /**
  * OpenAI Realtime Translation WebSocket クライアント。
  *
- * Phase 1a Sprint 0 では「接続して session.update を送る」までを実装。
- * 音声送受信の本格動作は Sprint 1 で gate-check.ts と並行して詰める。
+ * translation-pipeline-design.md §4 (T1/T2/T7) 準拠。
+ * - event 名を公式仕様 (session.* prefix) に移行
+ * - session.update は audio.output.language のみ送信
+ * - session.close で pending input audio をフラッシュ
  */
 export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<OpenAIWsEvents> {
   private ws: WebSocket | null = null;
@@ -197,7 +221,7 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
         return;
       }
 
-      // 4001/4003/4004 系は認証/権限エラー → 再接続しない
+      // 4000-4999 系は致命的エラー → 再接続しない (D1 §4.2)
       if (code >= 4000 && code < 5000) {
         this.state = "fatal";
         this.config.logger.error("OpenAI WS: 致命的エラー、再接続停止", { code });
@@ -211,31 +235,35 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
 
   /**
    * PCM16 音声フレームを送信する。
+   * T1: session.input_audio_buffer.append (公式仕様)
    *
-   * @param pcm16Base64 PCM16 (little-endian, mono, sampleRateHz) を Base64 で
+   * @param pcm16Base64 PCM16 (little-endian, mono, 24kHz) を Base64 で
    */
   sendAudioFrame(pcm16Base64: string): void {
     if (!this.ws || this.state !== "open") {
       this.config.logger.debug("OpenAI WS: 未接続のためフレームをドロップ");
       return;
     }
+    // T1: session.input_audio_buffer.append (公式仕様、旧 input_audio_buffer.append から修正)
     this.ws.send(
       JSON.stringify({
-        type: "input_audio_buffer.append",
+        type: "session.input_audio_buffer.append",
         audio: pcm16Base64,
       }),
     );
   }
 
   /**
-   * ターン終了を OpenAI に通知し、translation response の生成を促す。
-   * VAD ベースで自動的にトリガーされるが、明示的にコミットしたい場合に使う。
+   * T7: session.close を送信して pending input audio をフラッシュする。
+   * Translation API には input_audio_buffer.commit は存在しない (D1 §4.1 §4.5)。
+   * サーバが pending input audio をフラッシュして残りの翻訳出力を emit してから close する。
    */
-  commitInputBuffer(): void {
+  sendSessionClose(): void {
     if (!this.ws || this.state !== "open") {
       return;
     }
-    this.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
+    this.config.logger.info("OpenAI WS: session.close 送信 (pending buffer フラッシュ)");
+    this.ws.send(JSON.stringify({ type: "session.close" }));
   }
 
   async close(): Promise<void> {
@@ -256,23 +284,20 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
 
   // --- 内部実装 ---
 
+  /**
+   * T2: session.update payload を audio.output.language のみに簡略化。
+   * 公式ガイドが明示するのは audio.output.language のみ (D1 §4.3)。
+   */
   private sendSessionUpdate(): void {
     if (!this.ws) return;
 
-    // OpenAI Realtime Translation API session.update
-    // 入力言語は自動検出、出力言語のみ指定
+    // T2: audio.output.language のみ送信 (旧実装の audio.input/output.format/sample_rate_hz は削除)
     this.ws.send(
       JSON.stringify({
         type: "session.update",
         session: {
           audio: {
-            input: {
-              format: "pcm16",
-              sample_rate_hz: this.config.sampleRateHz,
-            },
             output: {
-              format: "pcm16",
-              sample_rate_hz: this.config.sampleRateHz,
               language: this.config.outputLanguage,
             },
           },
@@ -317,19 +342,42 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
     const msg = parseResult.data;
 
     switch (msg.type) {
-      case "response.audio.delta":
-        this.emit("audio.delta", { audioBase64: msg.delta, receivedAt: now });
+      case "session.created":
+        this.config.logger.info("OpenAI WS: session.created", { sessionId: msg.session.id });
         break;
-      case "response.audio.done":
-        this.emit("audio.done");
+      case "session.updated":
+        this.config.logger.debug("OpenAI WS: session.updated");
         break;
-      case "response.audio_transcript.delta":
-        this.emit("transcript.delta", { text: msg.delta, isFinal: false, receivedAt: now });
+      // T1: session.output_audio.delta (公式仕様、旧 response.audio.delta から修正)
+      case "session.output_audio.delta":
+        this.emit("audio.delta", {
+          audioBase64: msg.delta,
+          receivedAt: now,
+          sampleRate: msg.sample_rate,
+          channels: msg.channels,
+          elapsedMs: msg.elapsed_ms,
+        });
         break;
-      case "response.audio_transcript.done":
-        this.emit("transcript.done", { text: msg.transcript, isFinal: true, receivedAt: now });
+      // T1: session.output_transcript.delta (公式仕様、旧 response.audio_transcript.delta から修正)
+      case "session.output_transcript.delta":
+        this.emit("transcript.delta", {
+          text: msg.delta,
+          isFinal: false,
+          receivedAt: now,
+          elapsedMs: msg.elapsed_ms,
+        });
+        break;
+      case "session.input_transcript.delta":
+        // 原文字幕 (TranCall では当面 log のみ、将来 transcript 連携)
+        this.config.logger.debug("OpenAI WS: 原文字幕受信", { delta: msg.delta });
         break;
       case "error":
+        // T9: error event → Error オブジェクト生成 (§10.1 準拠のマッピングは translation-session 側で処理)
+        this.config.logger.error("OpenAI WS: error イベント受信", {
+          type: msg.error.type,
+          code: msg.error.code,
+          message: msg.error.message,
+        });
         this.emit("error", new Error(msg.error.message));
         break;
     }
