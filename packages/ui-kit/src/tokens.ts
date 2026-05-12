@@ -16,6 +16,7 @@ export const colors = {
     bgPrimary: "#FFFFFF",
     bgSecondary: "#F5F5F5",
     bgTertiary: "#E8E8E8",
+    callBg: "#1C1C1E",
     textPrimary: "#1A1A1A",
     textSecondary: "#8E8E93",
     textTertiary: "#C7C7CC",
@@ -24,6 +25,10 @@ export const colors = {
     subtitleText: "#FFFFFF",
     subtitleOriginal: "#AAAAAA",
     subtitleTranslated: "#FFFFFF",
+    controlSurface: "rgba(255,255,255,0.12)",
+    controlSurfaceActive: "rgba(255,255,255,0.92)",
+    controlSurfaceBorder: "rgba(255,255,255,0.18)",
+    controlText: "rgba(255,255,255,0.92)",
   },
   dark: {
     primary: "#64B5F6",
@@ -39,6 +44,7 @@ export const colors = {
     bgPrimary: "#1C1C1E",
     bgSecondary: "#2C2C2E",
     bgTertiary: "#3A3A3C",
+    callBg: "#1C1C1E",
     textPrimary: "#F5F5F5",
     textSecondary: "#8E8E93",
     textTertiary: "#636366",
@@ -47,6 +53,10 @@ export const colors = {
     subtitleText: "#FFFFFF",
     subtitleOriginal: "#AAAAAA",
     subtitleTranslated: "#FFFFFF",
+    controlSurface: "rgba(255,255,255,0.12)",
+    controlSurfaceActive: "rgba(255,255,255,0.92)",
+    controlSurfaceBorder: "rgba(255,255,255,0.18)",
+    controlText: "rgba(255,255,255,0.92)",
   },
 } as const;
 

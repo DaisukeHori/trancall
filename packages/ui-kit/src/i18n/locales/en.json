@@ -285,6 +285,11 @@
     "INTERNAL_ERROR": "An error occurred. Please try again.",
     "NETWORK_ERROR": "Cannot connect. Please check your network."
   },
+  "callkit": {
+    "alertDescription": "Incoming call",
+    "cancelButton": "Decline",
+    "okButton": "Answer"
+  },
   "addContact": {
     "title": "Add Contact",
     "tab": {
