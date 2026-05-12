@@ -115,6 +115,13 @@
     "reconnecting": "Reconnecting translation...",
     "stopped": "Translation stopped",
     "recovered": "Translation recovered",
+    "degraded": "Translation quality degraded",
+    "recoveredShort": "Translation recovered",
+    "degradedReason": {
+      "openai_ws_reconnecting": "Reconnecting",
+      "high_latency": "High latency",
+      "output_silence": "No output"
+    },
     "switchToOriginal": "Switch to original",
     "switchToTranslated": "Switch to translated",
     "subtitles": "Subtitles",

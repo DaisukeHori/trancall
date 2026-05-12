@@ -115,6 +115,13 @@
     "reconnecting": "正在重新连接翻译...",
     "stopped": "翻译已停止",
     "recovered": "翻译已恢复",
+    "degraded": "翻译质量下降",
+    "recoveredShort": "翻译已恢复",
+    "degradedReason": {
+      "openai_ws_reconnecting": "重新连接中",
+      "high_latency": "高延迟",
+      "output_silence": "无输出"
+    },
     "switchToOriginal": "切换到原声",
     "switchToTranslated": "切换到翻译",
     "subtitles": "字幕",
