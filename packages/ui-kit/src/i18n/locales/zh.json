@@ -224,7 +224,8 @@
       "version": "版本",
       "terms": "服务条款",
       "privacy": "隐私政策",
-      "contact": "联系我们"
+      "contact": "联系我们",
+      "ossLicenses": "开源许可证"
     },
     "danger": {
       "sectionTitle": "账号",
@@ -348,6 +349,16 @@
   },
   "dev": {
     "notImplementedYet": "尚未实现 (Layer 4-B)"
+  },
+  "oss": {
+    "title": "开源许可证",
+    "search_placeholder": "搜索软件包...",
+    "license": "许可证",
+    "repository": "仓库",
+    "author": "作者",
+    "noResults": "未找到匹配的软件包",
+    "licenseTextTitle": "许可证全文",
+    "licenseTextUnavailable": "许可证全文不可用"
   },
   "language": {
     "en": "英语",

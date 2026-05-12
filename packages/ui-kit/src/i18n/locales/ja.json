@@ -224,7 +224,8 @@
       "version": "バージョン",
       "terms": "利用規約",
       "privacy": "プライバシーポリシー",
-      "contact": "お問い合わせ"
+      "contact": "お問い合わせ",
+      "ossLicenses": "オープンソースライセンス"
     },
     "danger": {
       "sectionTitle": "アカウント",
@@ -348,6 +349,16 @@
   },
   "dev": {
     "notImplementedYet": "実装予定 (Layer 4-B)"
+  },
+  "oss": {
+    "title": "オープンソースライセンス",
+    "search_placeholder": "パッケージ名を検索...",
+    "license": "ライセンス",
+    "repository": "リポジトリ",
+    "author": "作者",
+    "noResults": "一致するパッケージがありません",
+    "licenseTextTitle": "ライセンス全文",
+    "licenseTextUnavailable": "ライセンス本文がありません"
   },
   "language": {
     "en": "英語",

@@ -11,10 +11,12 @@ import {
   Text,
   View,
 } from "react-native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Avatar, PlanCard, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { useAuthStore } from "../stores/auth-store.js";
 import { deleteAccount as apiDeleteAccount } from "../api/auth-api.js";
+import type { SettingsStackParamList } from "../navigation/settings-stack.js";
 
 // expo-application for app version
 function extractNativeVersion(mod: unknown): string {
@@ -143,7 +145,9 @@ function SettingsGroup({ children }: { readonly children: React.ReactNode }) {
   );
 }
 
-export function SettingsScreen() {
+type Props = NativeStackScreenProps<SettingsStackParamList, "SettingsMain">;
+
+export function SettingsScreen({ navigation }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const c = theme.colors;
@@ -296,6 +300,12 @@ export function SettingsScreen() {
           <SettingsRow
             label={t("settings.aboutSection.contact")}
             chevron
+          />
+          <SettingsRow
+            label={t("settings.aboutSection.ossLicenses")}
+            chevron
+            onPress={() => { navigation.navigate("OssLicenses"); }}
+            accessibilityLabel={t("settings.aboutSection.ossLicenses")}
           />
         </SettingsGroup>
 

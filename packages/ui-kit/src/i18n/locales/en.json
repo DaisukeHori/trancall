@@ -224,7 +224,8 @@
       "version": "Version",
       "terms": "Terms of Service",
       "privacy": "Privacy Policy",
-      "contact": "Contact Us"
+      "contact": "Contact Us",
+      "ossLicenses": "Open Source Licenses"
     },
     "danger": {
       "sectionTitle": "Account",
@@ -348,6 +349,16 @@
   },
   "dev": {
     "notImplementedYet": "Not implemented yet (Layer 4-B)"
+  },
+  "oss": {
+    "title": "Open Source Licenses",
+    "search_placeholder": "Search packages...",
+    "license": "License",
+    "repository": "Repository",
+    "author": "Author",
+    "noResults": "No matching packages",
+    "licenseTextTitle": "License Text",
+    "licenseTextUnavailable": "License text not available"
   },
   "language": {
     "en": "English",
