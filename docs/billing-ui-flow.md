@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | ドキュメント ID | BILLING-UI-001 |
-| Status | Draft v1.0 (2026-05-12) |
+| Status | Draft v1.1 (2026-05-12) |
 | Sprint | Sprint 2 D5 |
 | 上位文書 | `docs/architecture.md` §7/§8 / `docs/module-contracts.md` v1.1.0 §2.3 / `docs/billing-detail.md` (canonical heartbeat 課金) |
 | 関連文書 | `docs/legal-and-consent.md` (D7 法務、別 PR で並行作成) / `docs/app-store-submission.md` (D6) / `docs/design/design-system.md` |
@@ -104,7 +104,12 @@ docs/app-store-submission.md  D6 審査提出手続き (別 PR 並行)
 | `standard` | ¥2,980 | 120 分 | ¥30 | 90 日 |
 | `business` | ¥9,800 | 500 分 | ¥25 | 365 日 |
 
-**注意**: `requirements.md` の超過料金 (Light: ¥40、Standard: ¥35、Business: ¥30) と実装値 (`packages/billing/src/schemas.ts`: Standard: ¥30、Business: ¥25) が乖離している。実装値を canonical とする。`requirements.md` は Sprint 3 開始前に修正すること (Sprint 3 タスク化)。
+**注意**: `requirements.md` の超過料金と実装値 (`packages/billing/src/schemas.ts` の PLAN_CONFIGS) の比較:
+- Light: ¥40 (一致、修正不要)
+- Standard: ¥35 (requirements.md) → ¥30 (実装、**乖離**)
+- Business: ¥30 (requirements.md) → ¥25 (実装、**乖離**)
+
+実装値 (Standard ¥30 / Business ¥25) を canonical とする。`requirements.md` は Sprint 3 開始前に Standard / Business 行を修正すること (Sprint 3 タスク化)。
 
 ### 2.3 非機能要件 (参照元: `docs/requirements.md` §4)
 
@@ -138,7 +143,7 @@ mobile クライアントが実行時に以下の順序でチャネルを判定�
 ```
 判定順序 (iOS):
 
-1. Locale.current.region が ExternalPurchase 対象国か？
+1. getLocales()[0].regionCode (`expo-localization`) が ExternalPurchase 対象国か？
    対象国: JP / EU 加盟国 (DE/FR/IT/ES 等) / KR / IN
      → YES: 「App Store 決済」と「外部リンク決済」の 2 択を UI に表示
      → NO : 「App Store 決済」のみ表示
@@ -343,7 +348,7 @@ billing モジュールが発行する新規 DomainEvent 2 種。発行元: `bil
 
 ```ts
 // packages/billing/src/schemas.ts (Sprint 3 拡張)
-// import { DomainEventBase } from "@trancall/shared-kernel/schemas/events";
+import { DomainEventBase } from "@trancall/shared-kernel/schemas/events.js";
 
 export const BillingSubscriptionUpgradedEventSchema = DomainEventBase.extend({
   type: z.literal("billing.subscription_upgraded"),
@@ -408,8 +413,11 @@ willExceedQuota  = expectedMinutes > remainingMinutes
 
 ### 5.1 拡張後インターフェース全体
 
+**型表記**: 本書では `Result<T>` を `Result<T, AppError>` (`module-contracts.md` §5.1 canonical 型) の省略形として使用する。すべての facade メソッドの error 型は `AppError` 固定。
+
 ```ts
 // packages/billing/src/facade.ts (Sprint 3 拡張)
+// 型表記注: 本書 §5.1 全体で Result<T> = Result<T, AppError> の省略
 export interface BillingFacade {
   // =========================================================================
   // 既存メソッド (docs/module-contracts.md §2.3 canonical)
@@ -624,7 +632,7 @@ mobile UI          apps/server         BillingFacade       StripeAdapter        
 
 | 失敗ケース | 発生タイミング | 対応 |
 |---|---|---|
-| `createCheckoutSession` タイムアウト | Step 2 | `BILLING_UPGRADE_PREVIEW_FAILED` で UI にエラー表示、`pendingTransaction = null` |
+| `createCheckoutSession` タイムアウト | Step 2 | `BILLING_PAYMENT_FAILED` で UI にエラー表示、`pendingTransaction = null` |
 | ユーザーがブラウザでキャンセル | Step 4 | `trancall://billing/stripe-cancel` deep link → `pendingTransaction = null`、通常 UI に戻る |
 | deep link 未受信 (ブラウザを閉じた) | Step 5 | アプリ前景復帰時に `billingStore.refreshSubscription()` を自動呼び出し |
 | Webhook 未着 (Stripe 側の遅延) | Step 6 | deep link で先に UI 反映済み。Webhook は後から到着して DB を確定更新 (冪等なので問題なし) |
@@ -741,10 +749,12 @@ Apple の **StoreKit External Link Entitlement** は国・地域によって利�
 | 地域 | 利用可否 | 手数料 | 備考 |
 |---|---|---|---|
 | 日本 | 可 (MSCA 対象) | 27% (Small Business: 12%) | Apple 月次レポート義務あり |
-| EU 加盟国 | 可 (DMA 対象) | 27% (Small Business: 12%) | 開示画面表示が法的義務 |
+| EU 加盟国 (27 カ国) | 可 (DMA 対象) | 27% (Small Business: 12%) | 開示画面表示が法的義務 |
 | 韓国 | 可 | 26% (Small Business: 11%) | |
 | インド | 可 | 27% (Small Business: 12%) | |
-| 米国 (一般) | 不可 | — | Reader App 限定、TranCall は該当しない |
+| オーストラリア | 可 (2025 年規制で解放) | 27% (Small Business: 12%) | 同等の開示要件 |
+| 米国 | 条件付き可 | 27% (Small Business: 12%) | 2024 Epic 判決後解放、2025 年に VoIP 等への拡大検討中。**Sprint 3 着手前に Apple External Link Entitlement の最新ガイドラインを再確認**し、TranCall (VoIP 翻訳通話アプリ) が対象に含まれるか確定すること |
+| その他の地域 | 不可 (現時点) | — | Sprint 3 着手時に Apple Developer ニュースで最新確認 |
 
 **重要**: External Purchase は IAP に比べて手続き・義務が複雑。以下を厳守すること:
 - Apple 規定の「開示シート」("`Apple との取引でなくなります`" 旨の警告) を表示してユーザーの同意を得てから外部リンクを開く
@@ -755,7 +765,7 @@ Apple の **StoreKit External Link Entitlement** は国・地域によって利�
 ```
 mobile UI            apps/server          BillingFacade       StripeAdapter    Apple ExtPurchase API
     |                     |                    |                    |                   |
-    |-- 対象国判定 (Locale.current.region) -->  |                    |                   |
+    |-- 対象国判定 (getLocales()[0].regionCode (`expo-localization`)) -->  |                    |                   |
     |<-- "外部リンク決済" ボタン表示            |                    |                   |
     |                     |                    |                    |                   |
     |-- タップ: 外部リンク決済 -->|              |                    |                   |
@@ -798,7 +808,7 @@ mobile UI            apps/server          BillingFacade       StripeAdapter    A
 ### 8.3 ステップ詳細
 
 **Step 1: 対象国判定**
-- `Locale.current.region` (例: `"JP"`) を確認
+- `getLocales()[0].regionCode (`expo-localization`)` (例: `"JP"`) を確認
 - 対象国リスト (`["JP", "DE", "FR", "IT", "ES", "KR", "IN", ...]`) に含まれる場合、「外部リンク決済」ボタンを表示
 - 非対象国では「App Store 決済」のみ表示
 
@@ -836,9 +846,9 @@ mobile UI            apps/server          BillingFacade       StripeAdapter    A
 | 失敗ケース | 対応 |
 |---|---|
 | ユーザーが開示ダイアログでキャンセル | 通常 UI に戻る、エラー表示なし |
-| `startExternalPurchase` 失敗 | `BILLING_UPGRADE_PREVIEW_FAILED`、再試行ボタン |
+| `startExternalPurchase` 失敗 | `BILLING_PAYMENT_FAILED`、再試行ボタン |
 | ユーザーが Safari で購入をキャンセル | deep link なし → アプリ前景復帰時に `refreshSubscription()` を実行 |
-| `redirectToken` の TTL 切れ | `BILLING_CHANNEL_NOT_AVAILABLE`、「もう一度お試しください」+ 再開始ボタン |
+| `redirectToken` の TTL 切れ | `BILLING_PAYMENT_FAILED`、「もう一度お試しください」+ 再開始ボタン |
 | deep link 未受信 | アプリ前景復帰時に `billingStore.refreshSubscription()` を自動呼び出し |
 
 ---
@@ -1087,12 +1097,12 @@ SCR-011 Call summary 画面でのコスト表示 (BILL-010 要件)。heartbeat �
 
 | エラーコード | 所有モジュール | HTTP | retryable |
 |---|---|---|---|
-| `BILLING_IAP_RECEIPT_INVALID` | billing | 400 | true |
+| `BILLING_IAP_RECEIPT_INVALID` | billing | 400 | false |
 | `BILLING_UPGRADE_PREVIEW_FAILED` | billing | 503 | true |
+| `BILLING_INVALID_PLAN_CHANGE` | billing | 400 | false |
 | `BILLING_RESTORE_NO_PURCHASE` | billing | 200 (正常系) | false |
-| `BILLING_CHANNEL_NOT_AVAILABLE` | billing | 400 | false |
 
-※ `BILLING_INSUFFICIENT_BALANCE` / `BILLING_PAYMENT_FAILED` / `BILLING_INVALID_RECEIPT` / `BILLING_CHANNEL_NOT_AVAILABLE` は `docs/module-contracts.md` §5 に既存定義あり。
+※ `BILLING_INSUFFICIENT_BALANCE` / `BILLING_PAYMENT_FAILED` / `BILLING_INVALID_RECEIPT` / `BILLING_CHANNEL_NOT_AVAILABLE` は `docs/module-contracts.md` §5 に既存定義あり (本書では §11.2 文言テーブルでのみ参照、新規 code 表からは除外)。新規追加は `BILLING_IAP_RECEIPT_INVALID` / `BILLING_UPGRADE_PREVIEW_FAILED` / `BILLING_RESTORE_NO_PURCHASE` / `BILLING_INVALID_PLAN_CHANGE` の 4 種。
 
 ### 11.2 BillingErrorViewModel テーブル (ja / en / zh)
 
@@ -1104,7 +1114,8 @@ i18n キー命名規則: `billing.error.{code}.{title|message|action}`
 | `BILLING_INSUFFICIENT_BALANCE` | 翻訳分数が足りません | プランの上限を超えています。アップグレードまたは購入で続けられます。 | アップグレード | false |
 | `BILLING_PAYMENT_FAILED` | 決済に失敗しました | カード情報をご確認ください。 | 再試行 | true |
 | `BILLING_INVALID_RECEIPT` | 購入情報の検証に失敗しました | 購入を復元してください。 | 復元 | false |
-| `BILLING_IAP_RECEIPT_INVALID` | レシート検証エラー | App Store での購入処理が完了していない可能性があります。 | 復元 | true |
+| `BILLING_IAP_RECEIPT_INVALID` | レシート検証エラー | App Store での購入処理が完了していない可能性があります。 | 復元 | false |
+| `BILLING_INVALID_PLAN_CHANGE` | このプラン変更は実行できません | 同じプラン、または変更できない遷移が指定されました。 | 閉じる | false |
 | `BILLING_UPGRADE_PREVIEW_FAILED` | 見積取得に失敗しました | 接続を確認して再試行してください。 | 再試行 | true |
 | `BILLING_RESTORE_NO_PURCHASE` | 復元できる購入がありません | このアカウントには有効な購入履歴がありません。 | 閉じる | false |
 | `BILLING_CHANNEL_NOT_AVAILABLE` | この地域では利用できません | お住まいの地域では選択された購入方法が利用できません。 | 別の方法を選ぶ | false |
@@ -1117,6 +1128,7 @@ i18n キー命名規則: `billing.error.{code}.{title|message|action}`
 | `BILLING_PAYMENT_FAILED` | Payment failed | Please check your payment details. | Try again |
 | `BILLING_INVALID_RECEIPT` | Purchase verification failed | Please restore your purchases. | Restore |
 | `BILLING_IAP_RECEIPT_INVALID` | Receipt verification error | Your App Store purchase may not have completed. | Restore |
+| `BILLING_INVALID_PLAN_CHANGE` | Plan change not allowed | The selected plan is the same or cannot be changed to. | Close |
 | `BILLING_UPGRADE_PREVIEW_FAILED` | Failed to load estimate | Check your connection and try again. | Try again |
 | `BILLING_RESTORE_NO_PURCHASE` | No purchases to restore | No active purchases found for this account. | Close |
 | `BILLING_CHANNEL_NOT_AVAILABLE` | Not available in your region | The selected payment method is not available in your region. | Choose another |
@@ -1129,6 +1141,7 @@ i18n キー命名規則: `billing.error.{code}.{title|message|action}`
 | `BILLING_PAYMENT_FAILED` | 支付失败 | 请检查您的支付信息。 | 重试 |
 | `BILLING_INVALID_RECEIPT` | 购买验证失败 | 请恢复您的购买记录。 | 恢复 |
 | `BILLING_IAP_RECEIPT_INVALID` | 收据验证错误 | App Store 的购买可能未完成。 | 恢复 |
+| `BILLING_INVALID_PLAN_CHANGE` | 无法更改套餐 | 选择的套餐相同或无法切换。 | 关闭 |
 | `BILLING_UPGRADE_PREVIEW_FAILED` | 获取估算失败 | 请检查网络连接后重试。 | 重试 |
 | `BILLING_RESTORE_NO_PURCHASE` | 无可恢复的购买 | 该账户没有有效的购买记录。 | 关闭 |
 | `BILLING_CHANNEL_NOT_AVAILABLE` | 此地区不可用 | 所选支付方式在您所在的地区不可用。 | 选择其他方式 |
@@ -1225,7 +1238,7 @@ mobile UI           iOS StoreKit 2       apps/server          BillingFacade     
 - `billingStore.subscription = subscription`
 - `billingStore.isRestoring = false`
 - toast 表示:
-  - `restoredCount > 0`: `"${restoredCount}件の購入を復元しました"` (ja) / `"${restoredCount} purchase(s) restored"` (en)
+  - `restoredCount > 0`: `"${restoredCount}件の購入を復元しました"` (ja) / `"${restoredCount} purchase(s) restored"` (en) / `"已恢复 ${restoredCount} 项购买"` (zh)
   - `restoredCount === 0` (subscription = null): `BILLING_RESTORE_NO_PURCHASE` エラー表示
 
 ### 12.4 注意事項
@@ -1389,7 +1402,7 @@ describe("BillingFacade integration", () => {
 
 **StoreKit External (日本地域設定)**:
 1. iPhone の言語・地域を「日本」に設定
-2. `Locale.current.region === "JP"` で「外部リンク決済」ボタンが表示されることを確認
+2. `getLocales()[0].regionCode (`expo-localization`) === "JP"` で「外部リンク決済」ボタンが表示されることを確認
 3. 開示ダイアログが表示され、同意後に Stripe Checkout (test mode) が開くことを確認
 4. deep link `trancall://billing/external-success?token=...` が受信されることを確認
 
@@ -1449,6 +1462,21 @@ CREATE TABLE trancall_billing.external_purchase_tokens (
 );
 CREATE INDEX ON trancall_billing.external_purchase_tokens (token);
 CREATE INDEX ON trancall_billing.external_purchase_tokens (expires_at) WHERE used = false;
+
+-- RLS (architecture.md §6.3「全テーブルに RLS を適用」方針に従う)
+ALTER TABLE trancall_billing.external_purchase_tokens ENABLE ROW LEVEL SECURITY;
+
+-- ユーザー自身の token のみ参照可 (service_role は bypass、anon は参照不可)
+CREATE POLICY external_purchase_tokens_self_select
+  ON trancall_billing.external_purchase_tokens
+  FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+
+-- INSERT / UPDATE / DELETE は server (service_role) 経由のみ。anon / authenticated は不可
+CREATE POLICY external_purchase_tokens_no_write
+  ON trancall_billing.external_purchase_tokens
+  FOR ALL TO authenticated
+  USING (false);
 ```
 
 ### 15.4 IAP originalTransactionId の重複防止
@@ -1506,3 +1534,4 @@ StoreKit External Purchase を使用する場合、Apple は取引開始・完�
 | Version | Date | Changes |
 |---------|------|---------|
 | v1.0 | 2026-05-12 | Sprint 2 D5 設計書 初版。Scope: Stripe Web / iOS IAP StoreKit 2 / StoreKit External Purchase / プラン管理 UI / Pre-call コスト見積 / Home 残量 / Restore Purchases / エラー文言 (ja/en/zh) / 状態遷移 / テスト戦略 / セキュリティ。新規 Zod スキーマ 9 種 (PlanComparisonView / UpgradePreview / CheckoutSessionViewModel / IapTransactionResult / StoreKitExternalRedirectResult / BillingScreenState / BillingErrorViewModel / PreCallCostEstimate / DomainEvent 2 種)、BillingFacade 拡張 7 メソッド、新規 error code 4 種 (BILLING_IAP_RECEIPT_INVALID / BILLING_UPGRADE_PREVIEW_FAILED / BILLING_RESTORE_NO_PURCHASE + 既存 BILLING_CHANNEL_NOT_AVAILABLE 再確認)、新規 DomainEvent 2 種 (billing.subscription_upgraded / billing.subscription_canceled)。PLAN_CONFIGS の実装値と requirements.md の乖離を記録 (Standard: ¥30/min、Business: ¥25/min が実装 canonical)。|
+| v1.1 | 2026-05-12 | Round 1 レビュー指摘 Critical 1 + Major 3 + Minor 5 を反映。(A C-1) §4.8 `DomainEventBase` の import コメントアウトを解除しコンパイル可能化。(A M-1) §8.1 StoreKit External Purchase 対象国表に AU 追加・米国を「条件付き可 (2024 Epic 判決後解放、VoIP 拡大検討中)」に修正、Sprint 3 着手前の再確認を明記。(A M-2) §11.1 から既存 code `BILLING_CHANNEL_NOT_AVAILABLE` を削除、`BILLING_IAP_RECEIPT_INVALID` の retryable を `true`→`false` に統一 (§11.1 / §11.2 ja 両方)、新規 code `BILLING_INVALID_PLAN_CHANGE` (400, false) を追加。(C M-1) §14.2 同一プラン誤適用 `BILLING_UPGRADE_PREVIEW_FAILED` を §6.4/§8.4 では `BILLING_PAYMENT_FAILED` (決済系)、§14.2 同一プラン case は `BILLING_INVALID_PLAN_CHANGE` (入力検証系) に分離。(A W-1 / B M-2) §15.3 `external_purchase_tokens` migration に RLS 有効化 + `external_purchase_tokens_self_select` policy を追記。(B M-1) §5.1 冒頭に `Result<T> = Result<T, AppError>` 省略形である旨を明記。(C m-1) §3.2 / §8.3 の `Locale.current.region` を `getLocales()[0].regionCode (expo-localization)` に置換。(C m-2) §12 Restore Purchases 成功 toast の zh 文言 `"已恢复 N 项购买"` を追記。(C m-3) §2.2 PLAN_CONFIGS 乖離説明を「Light=一致、Standard/Business=乖離」と差分明示。 |
