@@ -2,14 +2,33 @@
 
 | | |
 |---|---|
-| Status | Draft v1 (2026-05-12) |
+| Status | Draft v1.1 (2026-05-12) |
 | Owner | DevOps / バックエンド |
 | 目的 | Sprint 2 P0 (Gate Check 実走) の前提として、translation-agent / apps/server / Supabase を Render + Vercel + Supabase Cloud にスムーズに上げる |
 | 上位文書 | `docs/deploy.md` (インフラ全体設計、canonical)、`docs/translation-pipeline-design.md` (D1) |
-| 補助 | `docs/architecture.md` §10、`docs/review-responses-v12.md` §9 A4、`apps/translation-agent/Dockerfile` |
+| 補助 | `docs/architecture.md` §2 (システム全体構成図)、`docs/review-responses-v12.md` §9 A4、`apps/translation-agent/Dockerfile` |
 | 改訂条件 | Render/Vercel/Supabase の機能変更時 / dry-run の結果フィードバック反映時 |
 
 本書は **Sprint 2 着手時に環境構築で迷わない** ための具体的手順を canonical 化する。`docs/deploy.md` が「**なぜ何を選んだか**」を扱うのに対し、本書は「**どう構築・確認するか**」のオペレーション側を扱う。
+
+---
+
+## 目次
+
+1. スコープと位置付け
+2. 前提条件
+3. Render Background Worker
+4. Vercel Project (Fastify Serverless)
+5. Supabase Project + Migration
+6. LiveKit Cloud
+7. 環境変数配布マトリクス
+8. Staging vs Production
+9. dry-run チェックリスト
+10. ロールバック
+11. ログとアラート
+12. Phase 1b 以降への持ち越し
+13. 既知のリスク
+14. 改訂履歴
 
 ---
 
@@ -34,6 +53,12 @@
 - mobile アプリ (EAS Build / TestFlight) — `docs/eas-distribution.md` 等は別 PR
 - Stripe / IAP / APNs / FCM 連携の本番化 (Phase 1c)
 
+### 1.3 関連 Sprint 2 設計 PR との依存関係
+
+- **D1 (translation-pipeline-design.md)**: 本書は D1 の Translation Agent ライフサイクルを Render Worker 上で起動・監視する手段を提供する。Gate Check (§9.4) は D1 の Phase 1a 受け入れ基準と連動。
+- **D3 (module-contracts.md v1.1.0)**: 本書の HMAC 内部 API、env var 命名、ロールバック発動基準は D3 の facade/event/error code 契約と整合する必要がある。
+- **D4 (native call bridge, 後続 PR)**: 本書は APNs/FCM/CallKit 関連 env vars (APNS_*, FCM_SERVICE_ACCOUNT_JSON) の配布先を §7 で定義するが、これらは **D4 完了後に有効化** する。Sprint 2 中は optional のまま staging に空値で投入し、Notification モジュール実装完了後 (Phase 1b 想定) に本番値に切り替える。
+
 ---
 
 ## 2. 前提条件
@@ -55,7 +80,14 @@
 - `supabase/migrations/00001〜00006_*.sql` 6 ファイル存在
 
 ### 2.3 secrets 保管
-- 全 secrets は **1Password Vault `TranCall-Infra`** に保存 (Sprint 1 で運用合意済、`docs/deploy.md` §5)
+全 secrets は 1Password Vault `TranCall-Infra` に保存 (本書を 1Password 運用の canonical とする)。
+
+- Vault 名: `TranCall-Infra`
+- Item 命名規約: `<service>-<env>-<purpose>` (例: `render-prod-hmac-secret`, `vercel-staging-supabase-service-role`)
+- アクセス権限: オーナー (堀) のみ。Sprint 2 中はチーム共有なし
+- ローカル利用: `op run --env-file=./op.env -- <command>` でプロセス環境に注入し、`.env` ファイルへの書き出し禁止
+- シェルヒストリ漏洩防止: `HISTCONTROL=ignorespace` を `.zshrc` に設定し、シークレットを含むコマンドは行頭スペースで実行
+
 - secrets rotation は手動 (Phase 1b で自動化検討)
 
 ---
@@ -76,6 +108,8 @@
    - staging: `trancall-agent-staging`
    - production: `trancall-agent-prod`
 
+> **⚠️ 警告**: `autoDeploy: true` は `main` push が即 production に反映される。Sprint 2 dry-run 期間中は **一時的に `autoDeploy: false` に設定** し、Render/Vercel Dashboard から手動 promote で確認しながら進めることを推奨。Phase 1b で本番化する際に再度 `true` に戻す。
+
 ### 3.2 `render.yaml` (IaC、Sprint 2 で初版作成)
 
 ```yaml
@@ -92,6 +126,8 @@ services:
     autoDeploy: true
     envVars:
       - key: NODE_ENV
+        value: production
+      - key: ENVIRONMENT
         value: production
       - key: LOG_LEVEL
         value: info
@@ -110,6 +146,8 @@ services:
     autoDeploy: true
     envVars:
       - key: NODE_ENV
+        value: production
+      - key: ENVIRONMENT
         value: staging
       - key: LOG_LEVEL
         value: debug
@@ -164,7 +202,8 @@ envVarGroups:
 | `TRANCALL_SERVER_URL` | Vercel deployment URL | `https://api.trancall.app` |
 | `AGENT_NAME` | 固定 | `trancall-translation-agent` |
 | `LOG_LEVEL` | `info` (prod) / `debug` (staging) | |
-| `NODE_ENV` | `production` (prod) / `staging` (staging) | |
+| `NODE_ENV` | `production` (prod/staging 共通、Zod enum 制約) | |
+| `ENVIRONMENT` | `production` (prod) / `staging` (staging) | 論理環境識別用 |
 | `SENTRY_DSN` | Phase 1b 以降、未設定 | optional |
 
 ### 3.4 ヘルスチェック
@@ -183,6 +222,8 @@ Render は worker タイプでは HTTP ヘルスチェックを行わない。�
 
 ## 4. Vercel Project (apps/server)
 
+> **注**: `docs/deploy.md` §2.1 では API Server の説明で "Next.js" と表記されている箇所があるが、`apps/server` の実装は Fastify。`deploy.md` 側の表記揺れは別 PR で修正予定 (Sprint 2 docs cleanup タスク)。本書は Fastify 前提で手順を記述する。
+
 ### 4.1 プロジェクト作成
 1. Vercel Dashboard → New Project → Import `DaisukeHori/trancall`
 2. Project Name:
@@ -191,7 +232,7 @@ Render は worker タイプでは HTTP ヘルスチェックを行わない。�
 3. Root Directory: `apps/server`
 4. Framework: **Other** (Node.js raw、Next.js ではない)
 5. Build Command: `pnpm turbo run build --filter=@trancall/app-server`
-6. Output Directory: `dist`
+6. Output Directory: (空欄、Vercel 自動検出)
 7. Install Command: `corepack enable && pnpm install --frozen-lockfile`
 8. Node.js version: **22** (`engines.node` で固定)
 9. Region:
@@ -200,21 +241,31 @@ Render は worker タイプでは HTTP ヘルスチェックを行わない。�
 
 ### 4.2 `vercel.json` (Sprint 2 で初版作成)
 
+> **⚠️ 重要: 未確定雛形 (Sprint 2 Day 1 で動作検証)**
+>
+> 本節の `vercel.json` は素案。`apps/server` は Fastify で実装されており、Vercel Serverless Functions (Node.js Runtime) で動作させるには `fastify-serverless-http` 等の adapter 経由で `(req, res) => app.handle(req, res)` 形式に変換する必要がある。Sprint 2 Day 1 の Spike タスクで以下を確定する:
+>
+> 1. `apps/server/src/index.vercel.ts` (serverless エントリポイント) を新設
+> 2. `fastify-serverless-http` 等の adapter を `dependencies` に追加
+> 3. `vercel.json` の `functions` キーは `outputDirectory` 基準の相対パス (例: `index.js`) または Vercel 公式 Turborepo テンプレートに従い `apps/server/api/index.ts` 形式に切り替え
+> 4. ローカル `vercel dev` で 200 が返ることを確認
+>
+> §13 known risks #2 と連動。Spike で動かない場合は Render Web Service 等の代替を検討。
+
 ```json
 {
   "version": 2,
   "buildCommand": "pnpm turbo run build --filter=@trancall/app-server",
-  "outputDirectory": "apps/server/dist",
   "installCommand": "corepack enable && pnpm install --frozen-lockfile",
   "functions": {
-    "apps/server/dist/index.js": {
+    "api/index.ts": {
       "runtime": "nodejs22.x",
       "maxDuration": 30
     }
   },
   "regions": ["hnd1"],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/apps/server/dist/index.js" }
+    { "source": "/(.*)", "destination": "/api/index.ts" }
   ]
 }
 ```
@@ -227,7 +278,8 @@ Render は worker タイプでは HTTP ヘルスチェックを行わない。�
 | Key | Source | Production / Staging 共通? |
 |---|---|---|
 | `PORT` | Vercel が自動設定 | (Vercel デフォルト 3000 不要) |
-| `NODE_ENV` | `production` / `staging` | 各 |
+| `NODE_ENV` | `production` (prod/staging 共通、Zod enum 制約) | 共通 |
+| `ENVIRONMENT` | `production` / `staging` | 各 |
 | `SUPABASE_URL` | Supabase Dashboard | 各 (別 project) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API | 各 |
 | `LIVEKIT_URL` | LiveKit Cloud | 共通 (Free tier 1 project で OK) |
@@ -241,6 +293,8 @@ Render は worker タイプでは HTTP ヘルスチェックを行わない。�
 | `FCM_SERVICE_ACCOUNT_JSON` | Firebase Console | Phase 1b、optional |
 | `TRANCALL_AGENT_HMAC_SECRET` | 1Password (Render と同値) | 各 |
 | `INVITE_BASE_URL` | 固定 | 各 |
+
+> **注**: `SUPABASE_ANON_KEY` は Vercel (Server) には不要。Server は `SUPABASE_SERVICE_ROLE_KEY` のみ使用 (apps/server/src/config.ts 定義済)。Mobile (`EXPO_PUBLIC_SUPABASE_ANON_KEY`) のみで配布する。詳細は §7 配布マトリクス。
 
 設定方法: Vercel Dashboard → Settings → Environment Variables → Production / Preview / Development の 3 環境で分けて投入。
 
@@ -277,11 +331,24 @@ cd /Users/horidaisuke/trancall
 supabase link --project-ref <project-ref>
 # project-ref は Dashboard URL `https://supabase.com/dashboard/project/{ref}` の {ref} 部分
 
-# 2. migration を push (本番反映)
-supabase db push
+# 2. 現在の migration 状態を確認
+supabase migration list --linked
 
-# 3. 確認: 6 migrations が applied されたか
-supabase migration list
+# 3. ローカルとリモートの差分をプレビュー (dry-run 相当)
+supabase db diff --linked --schema public,trancall_room,trancall_billing,trancall_translation
+
+# 4. 差分を目視確認 (想定外の DROP/ALTER がないか)
+
+# 5. staging で先に push して動作確認
+SUPABASE_PROJECT_REF=<staging-project-ref> supabase db push --linked
+
+# 6. staging で RLS テスト + アプリ疎通確認 (§9.2 参照)
+
+# 7. production push (確認プロンプトに y で応答、または --include-all を併用)
+SUPABASE_PROJECT_REF=<prod-project-ref> supabase db push --linked --include-all
+
+# 8. push 後の確認
+supabase migration list --linked
 ```
 
 **注意**:
@@ -318,9 +385,10 @@ supabase migration list
 ### 6.2 Key 発行
 - Settings → Keys → Create API Key
 - 用途別に 2 つ:
-  - `trancall-server-prod` (Vercel に配布)
-  - `trancall-agent-prod` (Render に配布)
-- 両方が **同じ Project の Key** であること (異なる project だと Token 認証失敗)
+  - `trancall-server-prod` (Vercel に配布、Server からの Token 発行・Room CRUD 用)
+  - `trancall-agent-prod` (Render に配布、Agent からの Room join 用)
+
+> **注**: LiveKit Cloud の API Key は同一 Project 内では権限スコープを分離できない (全権キー)。キーを分ける目的は **漏洩時のローテーション範囲を限定** すること。Server 側キーが漏洩しても Agent を停止せず Server だけローテーション可能、その逆も同様。
 
 ### 6.3 URL 確認
 - `wss://trancall-xxxx.livekit.cloud` 形式で発行される
@@ -345,6 +413,7 @@ supabase migration list
 | `TRANCALL_SERVER_URL` | ✓ | - | (EXPO_PUBLIC_API_URL) | - | Agent → Server callback |
 | `APNS_*` | - | ✓ | (アプリ署名) | - | Phase 1b |
 | `FCM_SERVICE_ACCOUNT_JSON` | - | ✓ | - | - | Phase 1b |
+| `ENVIRONMENT` | ✓ | ✓ | - | - | 論理環境識別 (staging/production) |
 
 **鉄則**:
 - `SERVICE_ROLE_KEY` / `API_SECRET` / `SECRET_KEY` / `HMAC_SECRET` の付く変数は **絶対に mobile に置かない** (EAS Build に含めない)
@@ -369,6 +438,8 @@ supabase migration list
 - `main` → production deploy (Vercel + Render)
 - `develop` → staging deploy
 - `feat/*` / `fix/*` → Vercel Preview Deployment (ephemeral)
+
+> **⚠️ 警告**: `autoDeploy: true` は `main` push が即 production に反映される。Sprint 2 dry-run 期間中は **一時的に `autoDeploy: false` に設定** し、Render/Vercel Dashboard から手動 promote で確認しながら進めることを推奨。Phase 1b で本番化する際に再度 `true` に戻す。
 
 ### 8.3 secrets rotation 方針
 - Phase 1a: 手動 (1Password の "Last Rotated" メモを 90 日で更新)
@@ -398,12 +469,15 @@ supabase migration list
 - [ ] `SUPABASE_URL` が server と mobile で一致
 - [ ] Render Logs に Zod validation error (`config.parse failed`) なし
 - [ ] Vercel Logs に Zod validation error なし
+- [ ] `ENVIRONMENT` の値が `staging` または `production` のいずれかであることを確認 (Zod enum 外の値が入っていないか)
 
 ### 9.4 Gate Check 実行
 - [ ] `pnpm --filter @trancall/app-translation-agent gate-check` をローカルから staging に向けて実行
 - [ ] 30 分連続実行で WS 切断/再接続が記録される
 - [ ] PERF-002 初回計測値 (`latencyMs` p50/p95/p99) が `agent_metrics` テーブルに記録される
 - [ ] メモリ RSS が 450 MB 以下
+
+> 確認手順: Render Dashboard → 対象 Service → **Metrics** タブ → **Memory** グラフを 30 分間隔で表示。ピーク値が 450 MB 未満であることを確認。Render の Memory metrics は RSS 相当値を表示する (VSZ との区別は提供されない)。512 MB プラン上限の 88% 以下を維持できれば OK 判定。
 
 ### 9.5 観測確認
 - [ ] Render Dashboard で CPU / Memory グラフが取れる
@@ -413,7 +487,20 @@ supabase migration list
 
 ---
 
-## 10. ロールバック手順
+## 10. ロールバック
+
+### 10.0 ロールバック発動基準
+
+以下のいずれかを観測したら即座に rollback 判断:
+
+| 対象 | 基準 | 確認方法 |
+|------|------|----------|
+| Render Worker | デプロイ後 5 分以内に `/health` が 3 連続失敗、または "Crashed" 状態にマーク | Render Dashboard → Service → Events |
+| Vercel Server | 5 分間 5xx 率 > 5%、または `/health` が 3 連続失敗 | Vercel Dashboard → Logs |
+| Supabase Migration | `supabase db push` がエラー終了、または migration 後に既存 RLS テストが失敗 | `pnpm --filter @trancall/db test:rls` |
+| HMAC 認証 | Server → Agent の HMAC 401 が 1 分間に 5 件以上 | Render Logs `level: "error"` フィルタ |
+
+判断者: dry-run フェーズはオーケストレーター (堀)、本番フェーズはオンコール担当 (Phase 1b で確立)。
 
 ### 10.1 Render
 - Dashboard → Service → Deploys タブ → 直前の Deploy → "Rollback"
@@ -434,6 +521,15 @@ supabase migration list
 - 古い deploy が新しい HMAC secret を持つと内部 API が 401 を返す
 - 順序: secret を旧値に戻す → 両 deploy を同時にロールバック
 
+### 10.5 ロールバック後の再デプロイ手順
+
+1. ロールバック直後にインシデント記録 (GitHub Discussion `incidents/YYYY-MM-DD-<short>` に状況・rollback 範囲・暫定影響を記録)
+2. 修正方針が決まるまで `main` への merge を停止 (PR は draft に戻す)
+3. 修正コードは新しい feature branch で PR を作成、CI 緑 + reviewer 承認後 `main` merge
+4. 自動デプロイ (autoDeploy: true) で staging に流れる → §9 dry-run チェックリストを再実行
+5. staging で 30 分連続 OK を確認後、production に手動 promote (Render Dashboard / Vercel Dashboard)
+6. インシデント記録に rollback → 再デプロイの完了タイムスタンプを追記
+
 ---
 
 ## 11. ログとアラート初期設定
@@ -443,6 +539,8 @@ supabase migration list
 - Webhook 設定: Settings → Notifications → "Deploy failed" / "Service crashed" → Slack incoming webhook
 - 高度な log 集約は Phase 1b で Sentry / Datadog 追加
 
+> **Phase 1a の代替**: Sentry を導入しない期間中、Agent/Server のエラーは Render Logs / Vercel Logs の `level: "error"` 行を **dry-run 期間中は 1 日 1 回手動確認**。エラーが頻発する (1 日 10 件超) 場合は Sprint 2 内で Sentry 前倒し導入を判断する。
+
 ### 11.2 Vercel
 - Dashboard → Deployments → Runtime Logs (30 日)
 - Vercel Analytics は Hobby plan で 1000 events/日 (Phase 1a 上限内)
@@ -451,11 +549,22 @@ supabase migration list
 - Dashboard → Logs → Postgres / API / Auth 別ビュー
 - 高負荷時のスロークエリは Phase 1c で pg_stat_statements 拡張
 
-### 11.4 LiveKit Cloud
+### 11.4 Phase 1a の横断調査
+
+3 サービス (Render / Vercel / Supabase) のログは別々の Dashboard に分かれる。Phase 1a では **`correlation_id` を手がかりに各 Dashboard を個別検索** する手動運用とする:
+
+1. Mobile → Server リクエスト時に `correlation_id` (UUID v4) を生成し HTTP header に付与
+2. Server → Agent HMAC リクエストにも `correlation_id` を伝搬
+3. 各サービスのログには `{ "correlation_id": "...", ... }` を JSON Lines で出力
+4. インシデント調査時は Render Logs / Vercel Logs / Supabase Logs それぞれで `correlation_id` を検索
+
+Phase 1b で Sentry または Datadog Logs に集約予定。
+
+### 11.5 LiveKit Cloud
 - Dashboard → Rooms → 各通話の duration / participants 確認
 - Webhook (room_started / room_ended) は Phase 1b で実装
 
-### 11.5 Slack 通知
+### 11.6 Slack 通知
 - `#trancall-alerts` チャンネル新設
 - 初期: Render crash + Vercel deploy failed のみ
 - Phase 1b で latency p95 警告、Free tier 残量警告を追加 (`docs/deploy.md` §3.2 参照)
@@ -463,6 +572,8 @@ supabase migration list
 ---
 
 ## 12. Phase 1b 以降の改善 (deferred)
+
+> 各項目は Sprint 2 完了時点で **GitHub Issues (label: `phase-1b`)** に登録予定 (Sprint 2 振り返り MTG で issue 化)。
 
 - Sentry 統合 (Agent + Server、`SENTRY_DSN` 既に config.ts で optional 定義済)
 - CD 自動化 (`.github/workflows/deploy.yml` 追加、Render / Vercel への手動 promote を排除)
@@ -482,9 +593,13 @@ supabase migration list
 5. **LiveKit Cloud Free tier の消費**: Gate Check 30 分 × 複数回で残量 5,000 min を消費。Phase 1a で Build tier ($50) に上げる判断が必要かもしれない (Sprint 2 中盤)。
 6. **HMAC secret rotation 中の整合**: 本書 §8.3 で 同時更新を必須としたが、現状自動化なし。手順失敗で内部 API が止まるリスク。
 7. **Render Singapore リージョン**: Tokyo 未提供のため。LiveKit Cloud (Tokyo) との間で 50-80ms 程度のレイテンシ加算、PERF-002 への影響を Gate Check で計測。
+8. **OpenAI Realtime API rate limit**: beta access では RPM/TPM 制限が厳しい場合がある。Gate Check 中に 429 が頻発した場合は中断し OpenAI に quota 引き上げを申請する。
+9. **Supabase Free tier の制限**: バックアップ機能なし (誤 migration / データ誤削除は復元不可)、同時 DB 接続数 60 上限。Phase 1a の staging は使い捨て前提、production 切替前に必ず Pro plan に移行。
+10. **NODE_ENV と ENVIRONMENT の役割分離**: Render/Vercel に投入する `NODE_ENV` は config.ts Zod enum (development/test/production) 制約のため `production` 固定。staging/prod の論理的環境識別は別途 `ENVIRONMENT` 環境変数で行う。
 
 ---
 
 ## 14. 改訂履歴
 
 - v1 (2026-05-12) 初版。Sprint 2 D2 として `docs/deploy.md` (overall 設計) を補完する実行手順を canonical 化。`render.yaml` / `vercel.json` の雛形、env vars 配布マトリクス、Supabase migration 実行手順、dry-run チェックリスト、ロールバック手順を含む。
+- v1.1 (2026-05-12): NODE_ENV/ENVIRONMENT 役割分離、vercel.json adapter 注記、ロールバック発動基準、§13 risk 追加。
