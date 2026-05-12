@@ -18,7 +18,7 @@
 |--------|------|
 | Vitest | ユニットテスト + 統合テスト |
 | pgTAP or Vitest + Supabase local | RLSテスト |
-| Detox or Maestro | E2Eテスト（Phase 1b） |
+| Maestro | E2Eテスト（Phase 1b、詳細は `docs/e2e-test-design.md`） |
 | k6 | 負荷テスト（Phase 1c） |
 
 ## モジュール別テスト方針
