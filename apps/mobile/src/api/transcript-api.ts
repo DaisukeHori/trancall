@@ -143,7 +143,7 @@ export async function deleteAccess(
   accessToken: string,
 ): Promise<Result<true>> {
   const result = await apiFetch(
-    `/api/transcripts/${encodeURIComponent(roomId)}`,
+    `/api/transcripts/${encodeURIComponent(roomId)}/access`,
     DeleteResponseSchema,
     { method: "DELETE", accessToken },
   );

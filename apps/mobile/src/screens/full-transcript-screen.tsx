@@ -266,7 +266,7 @@ export function FullTranscriptScreen({ navigation, route }: Props) {
               <Text
                 style={[
                   styles.filterChipText,
-                  { color: isActive ? "#FFFFFF" : c.textSecondary },
+                  { color: isActive ? c.subtitleText : c.textSecondary },
                 ]}
               >
                 {opt.label}

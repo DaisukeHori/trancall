@@ -249,7 +249,7 @@ describe("deleteAccess()", () => {
     const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(callArgs[1].method).toBe("DELETE");
     const calledUrl = callArgs[0];
-    expect(calledUrl).toContain(`/api/transcripts/${ROOM_ID}`);
+    expect(calledUrl).toContain(`/api/transcripts/${ROOM_ID}/access`);
   });
 
   it("returns error on 404 Not Found", async () => {
