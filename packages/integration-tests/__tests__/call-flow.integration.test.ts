@@ -142,6 +142,8 @@ describe("シナリオ 1: 通話フロー", () => {
     // B に着信通知
     const notifResult = await facades.notification.sendIncomingCall(userB, {
       roomId,
+      uuid: crypto.randomUUID(),
+      callerId: userA,
       callerName: profileA.displayName ?? "UserA",
       callerAvatarUrl: null,
       callerTrancallId: profileA.trancallId,

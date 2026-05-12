@@ -23,6 +23,11 @@ export {
   WebhookEvent,
   CreateCheckoutSessionCommand,
   SubscriptionRow,
+  PlanComparisonViewSchema,
+  UpgradePreviewSchema,
+  IapTransactionResultSchema,
+  StoreKitExternalRedirectResultSchema,
+  ExternalPurchaseTokenRow,
 } from "./schemas.js";
 export type {
   PlanTier as PlanTierType,
@@ -36,6 +41,11 @@ export type {
   WebhookEvent as WebhookEventType,
   CreateCheckoutSessionCommand as CreateCheckoutSessionCommandType,
   SubscriptionRow as SubscriptionRowType,
+  PlanComparisonView,
+  UpgradePreview,
+  IapTransactionResult,
+  StoreKitExternalRedirectResult,
+  ExternalPurchaseTokenRow as ExternalPurchaseTokenRowType,
 } from "./schemas.js";
 
 // Repository interfaces（apps/server 側での実装用）
@@ -43,6 +53,7 @@ export type { SubscriptionRepository } from "./repositories/subscription-reposit
 export type { UsageRepository } from "./repositories/usage-repository.js";
 export type { ReservationRepository } from "./repositories/reservation-repository.js";
 export type { WebhookEventRepository } from "./repositories/webhook-event-repository.js";
+export type { ExternalPurchaseTokenRepository } from "./repositories/external-purchase-token-repository.js";
 
 // Adapter factories（apps/server 側での注入用）
 export {

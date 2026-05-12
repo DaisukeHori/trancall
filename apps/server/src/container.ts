@@ -39,11 +39,14 @@ import type { RoomFacade } from "@trancall/room";
 
 // Repositories — auth
 import { createProfileRepository } from "./adapters/repositories/auth/profile-repository.supabase.js";
+import { createConsentRepository } from "./adapters/repositories/auth/consent-repository.supabase.js";
+import { createLegalDocVersionRepository } from "./adapters/repositories/auth/legal-doc-version-repository.supabase.js";
 // Repositories — billing
 import { createSubscriptionRepository } from "./adapters/repositories/billing/subscription-repository.supabase.js";
 import { createUsageRepository } from "./adapters/repositories/billing/usage-repository.supabase.js";
 import { createReservationRepository } from "./adapters/repositories/billing/reservation-repository.supabase.js";
 import { createWebhookEventRepository } from "./adapters/repositories/billing/webhook-event-repository.supabase.js";
+import { createExternalPurchaseTokenRepository } from "./adapters/repositories/billing/external-purchase-token-repository.supabase.js";
 // Repositories — contact
 import { createContactRepository } from "./adapters/repositories/contact/contact-repository.supabase.js";
 import { createBlockRepository } from "./adapters/repositories/contact/block-repository.supabase.js";
@@ -101,11 +104,14 @@ export function buildContainer(config: Config): AppContainer {
   // ── Repositories ──────────────────────────────────────────────────────────
   // auth
   const profileRepo = createProfileRepository(supabase);
+  const consentRepo = createConsentRepository(supabase);
+  const legalDocRepo = createLegalDocVersionRepository(supabase);
   // billing
   const subscriptionRepo = createSubscriptionRepository(supabase);
   const usageRepo = createUsageRepository(supabase);
   const reservationRepo = createReservationRepository(supabase);
   const webhookEventRepo = createWebhookEventRepository(supabase);
+  const externalPurchaseTokenRepo = createExternalPurchaseTokenRepository(supabase);
   // contact
   const contactRepo = createContactRepository(supabase);
   const blockRepo = createBlockRepository(supabase);
@@ -128,13 +134,33 @@ export function buildContainer(config: Config): AppContainer {
   const participantRepo = createParticipantRepository(supabase);
 
   // ── Facades (依存順に構築) ─────────────────────────────────────────────────
-  const auth = createAuthFacade(profileRepo);
+  // auth (新形式: profileRepo + consentRepo + legalDocRepo + eventBus)
+  // AuthEventBus は EventBus の narrowed wrapper として注入する
+  const authEventBus = {
+    publish: async (event: { type: string; payload?: unknown }): Promise<void> => {
+      if (
+        event.type === "auth.consent_recorded" ||
+        event.type === "auth.consent_revoked"
+      ) {
+        // DomainEvent union に auth イベントを追加済みのため publish 可能
+        await eventBus.publish(
+          event as Parameters<typeof eventBus.publish>[0],
+        );
+      }
+    },
+  };
+  const auth = createAuthFacade({
+    profileRepo,
+    consentRepo,
+    legalDocRepo,
+    eventBus: authEventBus,
+  });
 
   // media (auth に依存)
   const liveKitAdapter = buildLiveKitAdapter(config, auth);
   const media = createMediaFacade(liveKitAdapter);
 
-  // billing
+  // billing (新形式: externalPurchaseTokenRepo + EventBus DI)
   const stripeAdapter = buildStripeAdapter(config);
   const appleIapAdapter = buildAppleIapAdapter();
   const googlePlayAdapter = buildGooglePlayAdapter();
@@ -143,6 +169,7 @@ export function buildContainer(config: Config): AppContainer {
     usageRepo,
     reservationRepo,
     webhookEventRepo,
+    externalPurchaseTokenRepo,
     stripeAdapter,
     appleIapAdapter,
     googlePlayAdapter,

@@ -118,6 +118,8 @@ export function createCallLifecycleService(
       const timestamp = new Date().toISOString();
       const incomingNotification: IncomingCallNotification = {
         roomId,
+        uuid: randomUUID(), // CallKit 用 UUID (roomId とは独立)
+        callerId: creatorId, // 発信者の内部ユーザー ID
         callerName: creatorId, // server 側で profile を引いて置換する想定
         callerAvatarUrl: null,
         callerTrancallId: creatorId,
