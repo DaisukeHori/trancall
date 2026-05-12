@@ -1,0 +1,27 @@
+{
+  "name": "@trancall/cron",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch quality-qa/index.ts",
+    "quality-qa": "tsx quality-qa/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trancall/shared-kernel": "workspace:*",
+    "@supabase/supabase-js": "^2.43.4",
+    "livekit-server-sdk": "^2.13.0",
+    "js-yaml": "^4.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.8"
+  }
+}

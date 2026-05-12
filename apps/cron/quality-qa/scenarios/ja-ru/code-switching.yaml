@@ -1,0 +1,60 @@
+scenario_id: TC-S5-ru
+scenario: S5
+name: Смешение языков / Code-Switching & Ambient Passthrough
+source_lang: ja
+target_lang: ru
+context: "10-turn conversation (ja→ru). Evaluates Russian case system (6 cases), aspect pairs, and Cyrillic output."
+audio_url: null
+expected_keywords: ["пожалуйста", "план запуска продукта", "цель по продажам", "дедлайн"]
+ambient_passthrough_check: true
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今日はお越しいただきありがとうございます。"
+    expected_translation: "Спасибо, что пришли сегодня."
+    eval_point: "通常の ja→ru 翻訳"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S5 turn 2 — Russian side)"
+    expected_translation: "(ja translation)"
+    eval_point: "格変化 (падежи) の正確さ"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S5 turn 3)"
+    expected_translation: "(Russian translation)"
+    eval_point: "動詞の体 (完了体/不完了体)"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S5 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "キリル文字の正確な出力"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S5 turn 5)"
+    expected_translation: "(Russian translation)"
+    eval_point: "数詞との格一致"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S5 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "前置詞の格選択"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S5 turn 7)"
+    expected_translation: "(Russian translation)"
+    eval_point: "固有名詞の格変化"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S5 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S5 turn 9)"
+    expected_translation: "(Russian translation)"
+    eval_point: "数値・日付の正確な翻訳"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S5 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

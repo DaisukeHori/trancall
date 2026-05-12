@@ -1,0 +1,64 @@
+scenario_id: TC-S5-zh
+scenario: S5
+name: 同一言語発話混入 / Code-Switching & Ambient Passthrough
+source_lang: ja
+target_lang: zh
+context: "10-turn conversation with Chinese phrases mixed into Japanese speech (ja→zh). Tests ambient passthrough."
+audio_url: null
+expected_keywords:
+  - "谢谢"
+  - "产品发布计划"
+  - "销售目标"
+  - "截止日期"
+ambient_passthrough_check: true
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今日はお越しいただきありがとうございます。"
+    expected_translation: "感谢您今天的到来。"
+    eval_point: "通常の ja→zh 翻訳"
+  - turn: 2
+    speaker: A
+    script_text: "まず、\"谢谢您的耐心\" とお伝えしたいです。"
+    expected_translation: "首先，我想说\"谢谢您的耐心\"。"
+    eval_point: "中国語フレーズ混入。ambient passthrough で原音が届くことを確認"
+  - turn: 3
+    speaker: B
+    script_text: "当然。请继续。"
+    expected_translation: "もちろんです。続けてください。"
+    eval_point: "前ターンの混入後も通常翻訳継続"
+  - turn: 4
+    speaker: A
+    script_text: "次のアジェンダは3点です。一つ目は \"产品发布计划\" について。"
+    expected_translation: "下一个议程有3点。第一点是关于\"产品发布计划\"。"
+    eval_point: "中国語固有名詞句の混入"
+  - turn: 5
+    speaker: A
+    script_text: "二つ目は Q2 の 销售目标、三つ目は 营销预算 の話です。"
+    expected_translation: "第二点是Q2的销售目标，第三点是营销预算。"
+    eval_point: "中国語キーワード複数混入の連続"
+  - turn: 6
+    speaker: B
+    script_text: "好的。我来做笔记吧？"
+    expected_translation: "了解です。メモを取りましょうか？"
+    eval_point: "通常の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "はい、お願いします。あと、\"截止日期\" は来週金曜日です。"
+    expected_translation: "好的，麻烦你了。另外，\"截止日期\"是下周五。"
+    eval_point: "中国語単語の混入処理"
+  - turn: 8
+    speaker: A
+    script_text: "\"OK\" と \"好的\" は同じ意味で使っています。"
+    expected_translation: "我把\"OK\"和\"好的\"当作同义词使用。"
+    eval_point: "単語の混在処理"
+  - turn: 9
+    speaker: B
+    script_text: "明白了。还有其他事项吗？"
+    expected_translation: "了解しました。他に何かありますか？"
+    eval_point: "通常の翻訳継続"
+  - turn: 10
+    speaker: A
+    script_text: "以上です。\"辛苦了\" でまとめましょう。"
+    expected_translation: "就这些。让我们以\"辛苦了\"结束吧。"
+    eval_point: "締めくくりの混入"

@@ -1,0 +1,64 @@
+scenario_id: TC-S5-ja-en
+scenario: S5
+name: 同一言語発話混入 / Code-Switching & Ambient Passthrough
+source_lang: en
+target_lang: ja
+context: "10-turn conversation with Japanese phrases mixed into English speech (en→ja). Tests ambient passthrough."
+audio_url: null
+expected_keywords:
+  - "ありがとう"
+  - "製品ローンチ計画"
+  - "sales target"
+  - "deadline"
+ambient_passthrough_check: true
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "Thank you for joining today's meeting."
+    expected_translation: "本日のミーティングにご参加いただきありがとうございます。"
+    eval_point: "通常の en→ja 翻訳"
+  - turn: 2
+    speaker: A
+    script_text: "First, I'd like to say \"ありがとうございます\" for the great report."
+    expected_translation: "まず、素晴らしいレポートに対して「ありがとうございます」と申し上げたいです。"
+    eval_point: "日本語フレーズ混入。ambient passthrough で原音が届くことを確認"
+  - turn: 3
+    speaker: B
+    script_text: "もちろんです。続けてください。"
+    expected_translation: "Of course. Please continue."
+    eval_point: "前ターンの混入後も通常翻訳が継続"
+  - turn: 4
+    speaker: A
+    script_text: "The next agenda covers 3 points. First is the \"製品ローンチ計画\"."
+    expected_translation: "次のアジェンダは3点です。一つ目は「製品ローンチ計画」について。"
+    eval_point: "日本語固有名詞句の混入"
+  - turn: 5
+    speaker: A
+    script_text: "Second is the Q2 売上目標, and third is the マーケティング予算."
+    expected_translation: "二つ目はQ2の売上目標、三つ目はマーケティング予算の話です。"
+    eval_point: "日本語キーワード複数混入の連続"
+  - turn: 6
+    speaker: B
+    script_text: "了解です。メモを取りましょうか？"
+    expected_translation: "Got it. Should I take notes?"
+    eval_point: "通常の翻訳 (B→A 方向)"
+  - turn: 7
+    speaker: A
+    script_text: "Yes, please. Also, the \"締め切り\" is next Friday."
+    expected_translation: "はい、お願いします。また、締め切りは来週金曜日です。"
+    eval_point: "日本語単語の混入処理"
+  - turn: 8
+    speaker: A
+    script_text: "I'm using \"OK\" and \"了解\" interchangeably."
+    expected_translation: "「OK」と「了解」は同じ意味で使っています。"
+    eval_point: "単語の混在処理"
+  - turn: 9
+    speaker: B
+    script_text: "了解しました。他に何かありますか？"
+    expected_translation: "Understood. Any other points?"
+    eval_point: "通常の翻訳継続"
+  - turn: 10
+    speaker: A
+    script_text: "That's all. Let's wrap up with \"お疲れ様でした\"."
+    expected_translation: "以上です。「お疲れ様でした」でまとめましょう。"
+    eval_point: "締めくくりの混入"

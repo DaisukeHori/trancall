@@ -1,0 +1,63 @@
+scenario_id: TC-S4-de
+scenario: S4
+name: Zahlen und Währung / Numbers & Currency
+source_lang: ja
+target_lang: de
+context: "10-turn conversation with numbers and currency (ja→de). Validates German number formatting with period as thousands separator."
+audio_url: null
+expected_keywords:
+  - "1.500 Yen"
+  - "200 Yen Rabatt"
+  - "155 Yen"
+  - "15. März"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "ランチのセットは1500円です。飲み物込みで1800円になります。"
+    expected_translation: "Das Mittagsmenü kostet 1.500 Yen. Mit einem Getränk sind es 1.800 Yen."
+    eval_point: "数値と通貨単位 (Yen) + ドイツ式千区切り"
+  - turn: 2
+    speaker: B
+    script_text: "Gibt es einen Rabatt bei Bestellung für 5 Personen?"
+    expected_translation: "5人分注文すると割引はありますか？"
+    eval_point: "人数の数値"
+  - turn: 3
+    speaker: A
+    script_text: "5名様以上のご利用でお一人様200円引きになります。合計で8,000円になります。"
+    expected_translation: "Ab 5 Personen gibt es 200 Yen Rabatt pro Person. Der Gesamtbetrag wäre 8.000 Yen."
+    eval_point: "条件付き割引と合計額"
+  - turn: 4
+    speaker: B
+    script_text: "Wir benötigen den Ort auch bis 15:30 Uhr. Ist das möglich?"
+    expected_translation: "午後3時半まで会場を使う必要があります。それは可能ですか？"
+    eval_point: "時刻のドイツ語表現 (24時間制)"
+  - turn: 5
+    speaker: A
+    script_text: "午後3時30分まででしたら、追加料金は1時間あたり3,500円になります。"
+    expected_translation: "Wenn es bis 15:30 Uhr ist, beträgt der Aufpreis 3.500 Yen pro Stunde."
+    eval_point: "時刻と時間単位の料金"
+  - turn: 6
+    speaker: B
+    script_text: "Wie ist der Wechselkurs? Wir würden in Dollar bezahlen."
+    expected_translation: "為替レートはどのくらいですか？ドルで支払う予定です。"
+    eval_point: "通貨変換への言及"
+  - turn: 7
+    speaker: A
+    script_text: "本日の換算ですと、1ドル約155円です。8,000円は約51ドル65セントです。"
+    expected_translation: "Zum heutigen Kurs sind es etwa 155 Yen pro Dollar. 8.000 Yen entsprechen etwa 51,65 Dollar."
+    eval_point: "為替レート・小数点込みドル表記"
+  - turn: 8
+    speaker: B
+    script_text: "Ich verstehe. Das wären dann etwa 50,20 Dollar pro Person."
+    expected_translation: "なるほど。では一人あたり約50ドル20セントになりますね。"
+    eval_point: "小数点2桁の通貨"
+  - turn: 9
+    speaker: A
+    script_text: "承りました。ご予約は3月15日午後12時から、10名様でよろしいでしょうか。"
+    expected_translation: "Verstanden. Die Reservierung ist am 15. März ab Mittag für 10 Personen – stimmt das?"
+    eval_point: "日付 (15. März) ・時刻・人数の複合"
+  - turn: 10
+    speaker: B
+    script_text: "Genau. Wir werden bis zum 10. März bestätigen."
+    expected_translation: "そうです。3月10日までに確認します。"
+    eval_point: "日付のデッドライン"

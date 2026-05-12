@@ -1,0 +1,65 @@
+scenario_id: TC-S3-ja-en
+scenario: S3
+name: 旅行・地名 / Travel & Place Names
+source_lang: en
+target_lang: ja
+context: "10-turn travel conversation (en→ja). Proper nouns should be preserved or have conventional Japanese translations."
+audio_url: null
+expected_keywords:
+  - "東京タワー"
+  - "新宿駅"
+  - "自由の女神"
+  - "タイムズスクエア"
+  - "凱旋門"
+  - "バリ"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "I'm planning to visit Tokyo Tower this weekend. I'm looking forward to the night view."
+    expected_translation: "今週末、東京タワーに行く予定です。夜景が楽しみです。"
+    eval_point: "Tokyo Tower → 東京タワー"
+  - turn: 2
+    speaker: B
+    script_text: "楽しそうですね！どうやって行くんですか？"
+    expected_translation: "Sounds fun! How will you get there?"
+    eval_point: "交通手段の語彙"
+  - turn: 3
+    speaker: A
+    script_text: "I'll take the Toei Oedo Line from Shinjuku Station and get off at Akabanebashi."
+    expected_translation: "新宿駅から都営大江戸線に乗って、赤羽橋駅で降ります。"
+    eval_point: "駅名・路線名の固有名詞保持"
+  - turn: 4
+    speaker: B
+    script_text: "私はニューヨークにいたとき自由の女神を訪れました。"
+    expected_translation: "I visited the Statue of Liberty when I was in New York."
+    eval_point: "自由の女神 → Statue of Liberty"
+  - turn: 5
+    speaker: A
+    script_text: "The Statue of Liberty is impressive. Have you been to Times Square?"
+    expected_translation: "自由の女神は迫力がありますよね。タイムズスクエアには行ったことがありますか？"
+    eval_point: "Times Square → タイムズスクエア"
+  - turn: 6
+    speaker: B
+    script_text: "パリには行ったことがありますか？凱旋門が素晴らしい。"
+    expected_translation: "Have you been to Paris? The Arc de Triomphe is stunning."
+    eval_point: "凱旋門 → Arc de Triomphe"
+  - turn: 7
+    speaker: A
+    script_text: "I haven't been to Paris yet. But I've visited Neuschwanstein Castle in Germany."
+    expected_translation: "パリはまだです。でもドイツのノイシュヴァンシュタイン城には行ったことがあります。"
+    eval_point: "Neuschwanstein → ノイシュヴァンシュタイン"
+  - turn: 8
+    speaker: B
+    script_text: "それはバケットリストに入っています！旅で一番よかった部分は何ですか？"
+    expected_translation: "That's on my bucket list! What was your favorite part of the trip?"
+    eval_point: "バケットリスト → bucket list"
+  - turn: 9
+    speaker: A
+    script_text: "The view of the castle from the lake was stunning. Especially at dusk."
+    expected_translation: "湖から見るお城の景色が最高でした。特に夕暮れ時は。"
+    eval_point: "情景描写の日本語化"
+  - turn: 10
+    speaker: B
+    script_text: "次の旅行はバリ島を考えています。おすすめのスポットはありますか？"
+    expected_translation: "I'm thinking of Bali for my next trip. Any recommended spots?"
+    eval_point: "バリ島 → Bali"

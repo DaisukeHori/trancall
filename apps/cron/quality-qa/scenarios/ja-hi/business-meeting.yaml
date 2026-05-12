@@ -1,0 +1,60 @@
+scenario_id: TC-S2-hi
+scenario: S2
+name: "व्यापारिक बातचीत / Business Conversation"
+source_lang: ja
+target_lang: hi
+context: "10-turn conversation (ja→hi). Evaluates Devanagari script, verb endings by gender/number, and आप/तुम register."
+audio_url: null
+expected_keywords: ["विशिष्टताएं", "डिलीवरी समय", "छूट", "रद्दीकरण खंड", "डिजिटल हस्ताक्षर", "वारंटी"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "本日はお時間をいただきありがとうございます。新製品についてご提案させていただきます。"
+    expected_translation: "आज अपना समय देने के लिए धन्यवाद। मैं हमारे नए उत्पाद के बारे में एक प्रस्ताव प्रस्तुत करना चाहता हूं।"
+    eval_point: "ビジネス敬語のヒンディー語化"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S2 turn 2)"
+    expected_translation: "(hi translation)"
+    eval_point: "デーヴァナーガリー文字の正確な出力"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S2 turn 3)"
+    expected_translation: "(hi translation)"
+    eval_point: "動詞語尾の性・数変化"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S2 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "आप (敬称) の使用"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S2 turn 5)"
+    expected_translation: "(hi translation)"
+    eval_point: "Hinglish 処理"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S2 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S2 turn 7)"
+    expected_translation: "(hi translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S2 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "数値の正確な翻訳"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S2 turn 9)"
+    expected_translation: "(hi translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S2 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

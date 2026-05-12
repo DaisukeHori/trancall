@@ -1,0 +1,60 @@
+scenario_id: TC-S2-vi
+scenario: S2
+name: "Hội thoại kinh doanh / Business Conversation"
+source_lang: ja
+target_lang: vi
+context: "10-turn conversation (ja→vi). Evaluates 6-tone system pronunciation quality and Sino-Vietnamese word usage."
+audio_url: null
+expected_keywords: ["thông số kỹ thuật", "thời gian giao hàng", "giảm giá", "điều khoản hủy bỏ", "chữ ký số", "bảo hành"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "本日はお時間をいただきありがとうございます。新製品についてご提案させていただきます。"
+    expected_translation: "Cảm ơn vì đã dành thời gian cho tôi hôm nay. Tôi muốn trình bày đề xuất về sản phẩm mới của chúng tôi."
+    eval_point: "ビジネス敬語のベトナム語化"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S2 turn 2)"
+    expected_translation: "(vi translation)"
+    eval_point: "声調 (6声調) の発音品質"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S2 turn 3)"
+    expected_translation: "(vi translation)"
+    eval_point: "漢字語 (Sino-Vietnamese) の適切な処理"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S2 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "南部 vs 北部方言差の許容"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S2 turn 5)"
+    expected_translation: "(vi translation)"
+    eval_point: "数値の正確な翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S2 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S2 turn 7)"
+    expected_translation: "(vi translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S2 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "丁寧語レベルの一貫性"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S2 turn 9)"
+    expected_translation: "(vi translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S2 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

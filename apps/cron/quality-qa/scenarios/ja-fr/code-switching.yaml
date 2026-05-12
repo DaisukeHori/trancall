@@ -1,0 +1,64 @@
+scenario_id: TC-S5-fr
+scenario: S5
+name: Mélange de langues / Code-Switching & Ambient Passthrough
+source_lang: ja
+target_lang: fr
+context: "10-turn conversation with French phrases mixed into Japanese speech (ja→fr). Tests ambient passthrough."
+audio_url: null
+expected_keywords:
+  - "merci"
+  - "plan de lancement"
+  - "objectif de ventes"
+  - "date limite"
+ambient_passthrough_check: true
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今日はお越しいただきありがとうございます。"
+    expected_translation: "Merci de votre visite aujourd'hui."
+    eval_point: "通常の ja→fr 翻訳"
+  - turn: 2
+    speaker: A
+    script_text: "まず、\"Merci pour votre patience\" とお伝えしたいです。"
+    expected_translation: "Je voudrais d'abord dire \"Merci pour votre patience\"."
+    eval_point: "フランス語フレーズ混入。ambient passthrough 確認"
+  - turn: 3
+    speaker: B
+    script_text: "Bien sûr. Veuillez continuer."
+    expected_translation: "もちろんです。続けてください。"
+    eval_point: "前ターンの混入後も通常翻訳継続"
+  - turn: 4
+    speaker: A
+    script_text: "次のアジェンダは3点です。一つ目は \"plan de lancement\" について。"
+    expected_translation: "Le prochain ordre du jour comprend 3 points. Premièrement, concernant le \"plan de lancement\"."
+    eval_point: "フランス語固有名詞句の混入"
+  - turn: 5
+    speaker: A
+    script_text: "二つ目は Q2 の objectif de ventes、三つ目は budget marketing の話です。"
+    expected_translation: "Deuxièmement, l'objectif de ventes du T2, et troisièmement, le budget marketing."
+    eval_point: "フランス語キーワード複数混入"
+  - turn: 6
+    speaker: B
+    script_text: "Entendu. Dois-je prendre des notes ?"
+    expected_translation: "了解です。メモを取りましょうか？"
+    eval_point: "通常の翻訳"
+  - turn: 7
+    speaker: A
+    script_text: "はい、お願いします。あと、\"date limite\" は来週金曜日です。"
+    expected_translation: "Oui, s'il vous plaît. De plus, la \"date limite\" est vendredi prochain."
+    eval_point: "フランス語単語の混入処理"
+  - turn: 8
+    speaker: A
+    script_text: "\"OK\" と \"d'accord\" は同じ意味で使っています。"
+    expected_translation: "J'utilise \"OK\" et \"d'accord\" de manière interchangeable."
+    eval_point: "単語の混在処理"
+  - turn: 9
+    speaker: B
+    script_text: "Compris. Y a-t-il d'autres points ?"
+    expected_translation: "了解しました。他に何かありますか？"
+    eval_point: "通常の翻訳継続"
+  - turn: 10
+    speaker: A
+    script_text: "以上です。\"Merci à tous !\" でまとめましょう。"
+    expected_translation: "C'est tout. Terminons par \"Merci à tous !\"."
+    eval_point: "締めくくりの混入"

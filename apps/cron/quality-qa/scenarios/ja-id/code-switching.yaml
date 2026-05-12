@@ -1,0 +1,60 @@
+scenario_id: TC-S5-id
+scenario: S5
+name: "Campuran Bahasa / Code-Switching & Ambient Passthrough"
+source_lang: ja
+target_lang: id
+context: "10-turn conversation (ja→id). Evaluates SVO word order, prefix-suffix (me-/-kan), and foreign word handling."
+audio_url: null
+expected_keywords: ["terima kasih", "rencana peluncuran produk", "target penjualan", "batas waktu"]
+ambient_passthrough_check: true
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今日はお越しいただきありがとうございます。"
+    expected_translation: "Terima kasih telah datang hari ini."
+    eval_point: "通常の ja→id 翻訳"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S5 turn 2)"
+    expected_translation: "(id translation)"
+    eval_point: "語順 (SVO) の正確さ"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S5 turn 3)"
+    expected_translation: "(id translation)"
+    eval_point: "接頭辞・接尾辞 (me-/-kan) の自然さ"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S5 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "外来語 (英語・オランダ語) の処理"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S5 turn 5)"
+    expected_translation: "(id translation)"
+    eval_point: "数値の正確な翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S5 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S5 turn 7)"
+    expected_translation: "(id translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S5 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "レジスターの一貫性"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S5 turn 9)"
+    expected_translation: "(id translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S5 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

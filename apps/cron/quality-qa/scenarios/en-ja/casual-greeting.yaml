@@ -1,0 +1,64 @@
+scenario_id: TC-S1-ja-en
+scenario: S1
+name: 日常会話 / Daily Conversation
+source_lang: en
+target_lang: ja
+context: "10-turn daily conversation covering self-introduction and hobbies (en→ja). Evaluates keigo level and subject omission."
+audio_url: null
+expected_keywords:
+  - "はじめまして"
+  - "シアトル"
+  - "ハイキング"
+  - "富士山"
+  - "Instagram"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "Hello! I'm John, calling from Seattle. Nice to meet you."
+    expected_translation: "こんにちは！シアトルからかけているジョンです。はじめまして。"
+    eval_point: "固有名詞 (Seattle, John) の保持・敬語レベル"
+  - turn: 2
+    speaker: B
+    script_text: "はじめまして、田中と申します。よろしくお願いします。"
+    expected_translation: "Nice to meet you. My name is Tanaka. I look forward to working with you."
+    eval_point: "謙譲表現の英語化"
+  - turn: 3
+    speaker: A
+    script_text: "I enjoy hiking. Have you ever visited any famous mountains in Japan?"
+    expected_translation: "私はハイキングが好きです。日本の有名な山に行ったことがありますか？"
+    eval_point: "疑問文の自然な翻訳・主語補完"
+  - turn: 4
+    speaker: B
+    script_text: "はい、富士山に3回登ったことがあります。"
+    expected_translation: "Yes, I've climbed Mt. Fuji three times."
+    eval_point: "固有名詞 (富士山) + 回数"
+  - turn: 5
+    speaker: A
+    script_text: "Wow, three times! The sunrise at the summit must be amazing."
+    expected_translation: "すごい、3回も！山頂での日の出は素晴らしいに違いありませんね。"
+    eval_point: "感嘆表現の自然な翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "はい、言葉にならないほど美しかったです。"
+    expected_translation: "Yes, it was so beautiful that words can't describe it."
+    eval_point: "情感表現の精度"
+  - turn: 7
+    speaker: A
+    script_text: "Do you share your photos online? Instagram or something?"
+    expected_translation: "写真はオンラインで公開していますか？Instagramとか？"
+    eval_point: "SNS 固有名詞 + 疑問文"
+  - turn: 8
+    speaker: B
+    script_text: "はい、Instagramに投稿しています。フォロワーが最近1000人を超えました。"
+    expected_translation: "Yes, I post on Instagram. My followers recently exceeded 1,000."
+    eval_point: "数値の正確な翻訳"
+  - turn: 9
+    speaker: A
+    script_text: "That's impressive! I'll make sure to follow you."
+    expected_translation: "それはすごい！フォローしますね。"
+    eval_point: "英語の感嘆 + 短文"
+  - turn: 10
+    speaker: B
+    script_text: "ありがとうございます。またご連絡しましょう。"
+    expected_translation: "Thank you. Let's keep in touch."
+    eval_point: "締めくくり表現の自然さ"

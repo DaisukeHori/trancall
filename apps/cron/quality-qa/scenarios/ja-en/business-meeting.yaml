@@ -1,0 +1,65 @@
+scenario_id: TC-S2-en
+scenario: S2
+name: ビジネス会話 / Business Conversation
+source_lang: ja
+target_lang: en
+context: "10-turn business negotiation with technical terminology. Evaluates accuracy and fluency."
+audio_url: null
+expected_keywords:
+  - "specifications"
+  - "lead time"
+  - "discount"
+  - "cancellation clause"
+  - "digital signatures"
+  - "warranty"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "本日はお時間をいただきありがとうございます。新製品についてご提案させていただきます。"
+    expected_translation: "Thank you for your time today. I'd like to present a proposal regarding our new product."
+    eval_point: "ビジネス敬語の自然な英語化"
+  - turn: 2
+    speaker: B
+    script_text: "Of course. Could you share the specifications and pricing?"
+    expected_translation: "もちろんです。仕様と価格について教えていただけますか？"
+    eval_point: "仕様・価格の専門用語"
+  - turn: 3
+    speaker: A
+    script_text: "はい。本製品の納期は発注から6週間、見積もり金額は税別で250万円になります。"
+    expected_translation: "Yes. The lead time for this product is 6 weeks from order, and the estimated cost is 2.5 million yen, excluding tax."
+    eval_point: "納期・税別・大きな数値"
+  - turn: 4
+    speaker: B
+    script_text: "I see. Can you negotiate on the price? We're working within a limited budget."
+    expected_translation: "なるほど。価格交渉は可能ですか？予算に限りがありまして。"
+    eval_point: "交渉・予算の語彙"
+  - turn: 5
+    speaker: A
+    script_text: "10台以上のご発注であれば、5%の割引が可能です。また、キャンセル条項については書面でご確認いただけます。"
+    expected_translation: "If you order 10 or more units, a 5% discount is possible. Also, you can review the cancellation clause in writing."
+    eval_point: "数量条件・キャンセル条項"
+  - turn: 6
+    speaker: B
+    script_text: "Understood. We'll need approval from our procurement team first."
+    expected_translation: "承知しました。まず購買チームの承認が必要になります。"
+    eval_point: "組織内手続きの語彙"
+  - turn: 7
+    speaker: A
+    script_text: "ご承認後、正式な契約書を作成いたします。デジタル署名での対応も可能です。"
+    expected_translation: "After approval, we'll prepare a formal contract. Digital signatures are also supported."
+    eval_point: "契約・デジタル署名"
+  - turn: 8
+    speaker: B
+    script_text: "Great. What is the warranty period for this product?"
+    expected_translation: "わかりました。この製品の保証期間はどのくらいですか？"
+    eval_point: "保証期間の語彙"
+  - turn: 9
+    speaker: A
+    script_text: "製品保証は1年間です。延長保証オプションも別途ご用意しています。"
+    expected_translation: "The product warranty is 1 year. We also offer an extended warranty option separately."
+    eval_point: "保証・オプション"
+  - turn: 10
+    speaker: B
+    script_text: "Thank you. We'll review the proposal and get back to you by the end of the week."
+    expected_translation: "ありがとうございます。提案書を確認し、週末までにご回答します。"
+    eval_point: "締めくくり + 期限"

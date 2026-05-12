@@ -1,0 +1,60 @@
+scenario_id: TC-S3-pt
+scenario: S3
+name: Viagem e lugares / Travel & Place Names
+source_lang: ja
+target_lang: pt
+context: "10-turn conversation (ja→pt). Uses Brazilian Portuguese (pt-BR). Evaluates nasal vowels and natural expression."
+audio_url: null
+expected_keywords: ["Torre de Tóquio", "Estação Shinjuku", "Estátua da Liberdade", "Times Square", "Arco do Triunfo", "Bali"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今週末、東京タワーに行く予定です。展望台からの夜景が楽しみです。"
+    expected_translation: "Estou planejando visitar a Torre de Tóquio neste fim de semana. Estou animado para ver a vista noturna do mirante."
+    eval_point: "東京タワー → Torre de Tóquio"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S3 turn 2)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "ser/estar の使い分け"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S3 turn 3)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "動詞活用の正確さ"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S3 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "nasal vowel (ã/ẽ) の発音品質"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S3 turn 5)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "数値・通貨表現"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S3 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "冠詞の性数一致"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S3 turn 7)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S3 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S3 turn 9)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S3 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

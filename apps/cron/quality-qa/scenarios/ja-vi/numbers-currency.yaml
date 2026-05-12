@@ -1,0 +1,60 @@
+scenario_id: TC-S4-vi
+scenario: S4
+name: "Số và tiền tệ / Numbers & Currency"
+source_lang: ja
+target_lang: vi
+context: "10-turn conversation (ja→vi). Evaluates 6-tone system pronunciation quality and Sino-Vietnamese word usage."
+audio_url: null
+expected_keywords: ["1.500 yên", "giảm 200 yên", "155 yên", "15 tháng 3"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "ランチのセットは1500円です。飲み物込みで1800円になります。"
+    expected_translation: "Bộ ăn trưa có giá 1.500 yên. Kèm đồ uống là 1.800 yên."
+    eval_point: "通貨単位 (yên) + 数値"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S4 turn 2)"
+    expected_translation: "(vi translation)"
+    eval_point: "声調 (6声調) の発音品質"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S4 turn 3)"
+    expected_translation: "(vi translation)"
+    eval_point: "漢字語 (Sino-Vietnamese) の適切な処理"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S4 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "南部 vs 北部方言差の許容"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S4 turn 5)"
+    expected_translation: "(vi translation)"
+    eval_point: "数値の正確な翻訳"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S4 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S4 turn 7)"
+    expected_translation: "(vi translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S4 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "丁寧語レベルの一貫性"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S4 turn 9)"
+    expected_translation: "(vi translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S4 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

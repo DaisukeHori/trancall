@@ -1,0 +1,64 @@
+scenario_id: TC-S1-fr
+scenario: S1
+name: Conversation quotidienne / Daily Conversation
+source_lang: ja
+target_lang: fr
+context: "10-turn daily conversation (ja→fr). Evaluates French liaison, elision, and natural expression."
+audio_url: null
+expected_keywords:
+  - "enchanté"
+  - "photographie"
+  - "Mont Fuji"
+  - "Instagram"
+  - "abonnés"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "はじめまして、田中と申します。よろしくお願いします。"
+    expected_translation: "Enchanté, je m'appelle Tanaka. Je suis ravi de faire votre connaissance."
+    eval_point: "謙譲表現の自然なフランス語化"
+  - turn: 2
+    speaker: B
+    script_text: "Bonjour ! Je suis Pierre, j'appelle depuis Paris. Enchanté également."
+    expected_translation: "こんにちは！パリからかけているピエールです。こちらこそよろしくお願いします。"
+    eval_point: "固有名詞 (Paris, Pierre) の保持"
+  - turn: 3
+    speaker: A
+    script_text: "趣味は写真撮影です。特に風景写真が好きで、週末は山や海に行きます。"
+    expected_translation: "Mon hobby est la photographie. J'aime particulièrement les photos de paysages, et le week-end je vais à la montagne ou à la mer."
+    eval_point: "複数趣味の正確な伝達・liaison"
+  - turn: 4
+    speaker: B
+    script_text: "Formidable ! J'aime aussi la randonnée. Avez-vous visité des montagnes célèbres au Japon ?"
+    expected_translation: "素晴らしいですね！私もハイキングが好きです。日本の有名な山に行ったことはありますか？"
+    eval_point: "疑問文の翻訳・丁寧な表現"
+  - turn: 5
+    speaker: A
+    script_text: "はい、富士山に3回登ったことがあります。とても達成感がありました。"
+    expected_translation: "Oui, j'ai gravi le Mont Fuji trois fois. C'était très gratifiant."
+    eval_point: "固有名詞 (Mont Fuji) + 回数"
+  - turn: 6
+    speaker: B
+    script_text: "Incroyable, trois fois ! Quelle était la partie la plus mémorable ?"
+    expected_translation: "すごい、3回も！一番印象に残った部分は何ですか？"
+    eval_point: "感嘆・疑問の組み合わせ"
+  - turn: 7
+    speaker: A
+    script_text: "山頂での日の出が最高でした。空が赤やオレンジに染まって、言葉にならないほど美しかったです。"
+    expected_translation: "Le lever du soleil au sommet était magnifique. Le ciel était teinté de rouge et d'orange, c'était d'une beauté indescriptible."
+    eval_point: "情景描写・être の活用"
+  - turn: 8
+    speaker: B
+    script_text: "Je l'imagine bien. Partagez-vous vos photos en ligne ?"
+    expected_translation: "想像できます。写真をオンラインで公開していますか？"
+    eval_point: "文脈保持"
+  - turn: 9
+    speaker: A
+    script_text: "はい、Instagramに投稿しています。フォロワーが最近1000人を超えました。"
+    expected_translation: "Oui, je publie sur Instagram. Mes abonnés ont récemment dépassé les 1 000."
+    eval_point: "SNS 固有名詞 + 数値"
+  - turn: 10
+    speaker: B
+    script_text: "Impressionnant ! Je m'abonnerai. Gardons le contact."
+    expected_translation: "それはすごい！フォローしますね。またご連絡しましょう。"
+    eval_point: "締めくくり表現"

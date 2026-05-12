@@ -1,0 +1,60 @@
+scenario_id: TC-S4-hi
+scenario: S4
+name: "संख्याएं और मुद्रा / Numbers & Currency"
+source_lang: ja
+target_lang: hi
+context: "10-turn conversation (ja→hi). Evaluates Devanagari script, verb endings by gender/number, and आप/तुम register."
+audio_url: null
+expected_keywords: ["1500 येन", "200 येन की छूट", "155 येन", "15 मार्च"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "ランチのセットは1500円です。飲み物込みで1800円になります。"
+    expected_translation: "दोपहर के भोजन का सेट 1500 येन है। पेय सहित 1800 येन होगा।"
+    eval_point: "通貨単位 (येन) + 数値"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S4 turn 2)"
+    expected_translation: "(hi translation)"
+    eval_point: "デーヴァナーガリー文字の正確な出力"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S4 turn 3)"
+    expected_translation: "(hi translation)"
+    eval_point: "動詞語尾の性・数変化"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S4 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "आप (敬称) の使用"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S4 turn 5)"
+    expected_translation: "(hi translation)"
+    eval_point: "Hinglish 処理"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S4 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S4 turn 7)"
+    expected_translation: "(hi translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S4 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "数値の正確な翻訳"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S4 turn 9)"
+    expected_translation: "(hi translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S4 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

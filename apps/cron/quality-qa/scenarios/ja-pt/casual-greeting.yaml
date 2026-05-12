@@ -1,0 +1,60 @@
+scenario_id: TC-S1-pt
+scenario: S1
+name: Conversa cotidiana / Daily Conversation
+source_lang: ja
+target_lang: pt
+context: "10-turn conversation (ja→pt). Uses Brazilian Portuguese (pt-BR). Evaluates nasal vowels and natural expression."
+audio_url: null
+expected_keywords: ["prazer", "fotografia", "Monte Fuji", "Instagram", "seguidores"]
+
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "はじめまして、田中と申します。よろしくお願いします。"
+    expected_translation: "Muito prazer, meu nome é Tanaka. Espero que possamos trabalhar bem juntos."
+    eval_point: "謙譲表現の自然なポルトガル語化"
+  - turn: 2
+    speaker: B
+    script_text: "(scenario S1 turn 2)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "ser/estar の使い分け"
+  - turn: 3
+    speaker: A
+    script_text: "(scenario S1 turn 3)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "動詞活用の正確さ"
+  - turn: 4
+    speaker: B
+    script_text: "(scenario S1 turn 4)"
+    expected_translation: "(ja translation)"
+    eval_point: "nasal vowel (ã/ẽ) の発音品質"
+  - turn: 5
+    speaker: A
+    script_text: "(scenario S1 turn 5)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "数値・通貨表現"
+  - turn: 6
+    speaker: B
+    script_text: "(scenario S1 turn 6)"
+    expected_translation: "(ja translation)"
+    eval_point: "冠詞の性数一致"
+  - turn: 7
+    speaker: A
+    script_text: "(scenario S1 turn 7)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "固有名詞の保持"
+  - turn: 8
+    speaker: B
+    script_text: "(scenario S1 turn 8)"
+    expected_translation: "(ja translation)"
+    eval_point: "文脈保持"
+  - turn: 9
+    speaker: A
+    script_text: "(scenario S1 turn 9)"
+    expected_translation: "(pt-BR translation)"
+    eval_point: "日付・時刻の表現"
+  - turn: 10
+    speaker: B
+    script_text: "(scenario S1 turn 10)"
+    expected_translation: "(ja translation)"
+    eval_point: "締めくくり表現"

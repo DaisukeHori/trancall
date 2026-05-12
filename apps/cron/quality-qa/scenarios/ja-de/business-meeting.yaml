@@ -1,0 +1,65 @@
+scenario_id: TC-S2-de
+scenario: S2
+name: Geschäftsgespräch / Business Conversation
+source_lang: ja
+target_lang: de
+context: "10-turn business negotiation (ja→de). Evaluates German business terminology and noun gender."
+audio_url: null
+expected_keywords:
+  - "Spezifikationen"
+  - "Lieferfrist"
+  - "Rabatt"
+  - "Stornierungsklausel"
+  - "digitale Signatur"
+  - "Garantie"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "本日はお時間をいただきありがとうございます。新製品についてご提案させていただきます。"
+    expected_translation: "Vielen Dank für Ihre Zeit heute. Ich möchte Ihnen einen Vorschlag zu unserem neuen Produkt unterbreiten."
+    eval_point: "ビジネス敬語のドイツ語化"
+  - turn: 2
+    speaker: B
+    script_text: "Natürlich. Könnten Sie die Spezifikationen und den Preis mitteilen?"
+    expected_translation: "もちろんです。仕様と価格について教えていただけますか？"
+    eval_point: "仕様・価格の専門用語・冠詞の格"
+  - turn: 3
+    speaker: A
+    script_text: "はい。本製品の納期は発注から6週間、見積もり金額は税別で250万円になります。"
+    expected_translation: "Ja. Die Lieferfrist beträgt 6 Wochen ab Bestellung, und der geschätzte Betrag liegt bei 2,5 Millionen Yen netto."
+    eval_point: "Lieferfrist (複合語) + 大きな数値"
+  - turn: 4
+    speaker: B
+    script_text: "Ich verstehe. Ist eine Preisverhandlung möglich? Unser Budget ist begrenzt."
+    expected_translation: "なるほど。価格交渉は可能ですか？予算に限りがありまして。"
+    eval_point: "交渉・予算の語彙"
+  - turn: 5
+    speaker: A
+    script_text: "10台以上のご発注であれば、5%の割引が可能です。キャンセル条項については書面でご確認いただけます。"
+    expected_translation: "Bei einer Bestellung von 10 oder mehr Einheiten ist ein Rabatt von 5 % möglich. Die Stornierungsklausel kann schriftlich geprüft werden."
+    eval_point: "数量条件・Stornierungsklausel (複合語)"
+  - turn: 6
+    speaker: B
+    script_text: "Verstanden. Wir benötigen zunächst die Genehmigung unseres Einkaufsteams."
+    expected_translation: "承知しました。まず購買チームの承認が必要になります。"
+    eval_point: "組織内手続きの語彙"
+  - turn: 7
+    speaker: A
+    script_text: "ご承認後、正式な契約書を作成いたします。デジタル署名での対応も可能です。"
+    expected_translation: "Nach der Genehmigung werden wir einen formellen Vertrag erstellen. Digitale Signaturen werden ebenfalls unterstützt."
+    eval_point: "Vertrag・digitale Signatur"
+  - turn: 8
+    speaker: B
+    script_text: "Gut. Wie lange ist die Garantiezeit für dieses Produkt?"
+    expected_translation: "わかりました。この製品の保証期間はどのくらいですか？"
+    eval_point: "Garantiezeit (複合語) の語彙"
+  - turn: 9
+    speaker: A
+    script_text: "製品保証は1年間です。延長保証オプションも別途ご用意しています。"
+    expected_translation: "Die Produktgarantie beträgt 1 Jahr. Eine erweiterte Garantieoption ist ebenfalls separat erhältlich."
+    eval_point: "Produktgarantie / erweiterte Garantie (複合語)"
+  - turn: 10
+    speaker: B
+    script_text: "Danke. Wir werden den Vorschlag prüfen und uns bis Ende der Woche melden."
+    expected_translation: "ありがとうございます。提案書を確認し、週末までにご回答します。"
+    eval_point: "締めくくり + 期限"

@@ -1,0 +1,65 @@
+scenario_id: TC-S3-fr
+scenario: S3
+name: Voyage et lieux / Travel & Place Names
+source_lang: ja
+target_lang: fr
+context: "10-turn travel conversation (ja→fr). Proper nouns should use French conventional translations."
+audio_url: null
+expected_keywords:
+  - "Tour de Tokyo"
+  - "Gare de Shinjuku"
+  - "Statue de la Liberté"
+  - "Times Square"
+  - "Arc de Triomphe"
+  - "Bali"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "今週末、東京タワーに行く予定です。展望台からの夜景が楽しみです。"
+    expected_translation: "Je prévois de visiter la Tour de Tokyo ce week-end. J'ai hâte de voir la vue nocturne depuis la plateforme d'observation."
+    eval_point: "東京タワー → Tour de Tokyo"
+  - turn: 2
+    speaker: B
+    script_text: "Ça a l'air amusant ! Comment allez-vous y aller ? En métro ?"
+    expected_translation: "楽しそうですね！どうやって行くんですか？地下鉄で？"
+    eval_point: "交通手段の語彙"
+  - turn: 3
+    speaker: A
+    script_text: "新宿駅から都営大江戸線に乗って、赤羽橋駅で降ります。徒歩10分くらいです。"
+    expected_translation: "Je prends la ligne Toei Oedo depuis la Gare de Shinjuku et descends à la Gare d'Akabanebashi. C'est à environ 10 minutes à pied."
+    eval_point: "駅名・路線名の固有名詞保持"
+  - turn: 4
+    speaker: B
+    script_text: "J'ai visité la Statue de la Liberté quand j'étais à New York. C'était à couper le souffle."
+    expected_translation: "私はニューヨークにいたとき自由の女神を訪れました。圧倒されました。"
+    eval_point: "Statue de la Liberté の翻訳"
+  - turn: 5
+    speaker: A
+    script_text: "自由の女神は迫力がありますよね。タイムズスクエアも見たいです。"
+    expected_translation: "La Statue de la Liberté est vraiment impressionnante. J'aimerais aussi voir Times Square."
+    eval_point: "Times Square の保持"
+  - turn: 6
+    speaker: B
+    script_text: "Times Square est incroyable la nuit. Êtes-vous allé à Paris ? L'Arc de Triomphe est magnifique."
+    expected_translation: "タイムズスクエアは夜すごいですよ。パリには行ったことがありますか？凱旋門が素晴らしい。"
+    eval_point: "Arc de Triomphe の保持"
+  - turn: 7
+    speaker: A
+    script_text: "パリはまだです。でもドイツのノイシュヴァンシュタイン城には行ったことがあります。"
+    expected_translation: "Je ne suis pas encore allé à Paris. Mais j'ai visité le Château de Neuschwanstein en Allemagne."
+    eval_point: "Neuschwanstein の固有名詞保持"
+  - turn: 8
+    speaker: B
+    script_text: "C'est sur ma liste de rêves ! Quelle était votre partie préférée du voyage ?"
+    expected_translation: "それはバケットリストに入っています！旅で一番よかった部分は何ですか？"
+    eval_point: "liste de rêves (bucket list)"
+  - turn: 9
+    speaker: A
+    script_text: "湖から見るお城の景色が最高でした。特に夕暮れ時は絵のようでした。"
+    expected_translation: "La vue du château depuis le lac était magnifique. Surtout au crépuscule, c'était comme une peinture."
+    eval_point: "情景描写"
+  - turn: 10
+    speaker: A
+    script_text: "次の旅行はバリ島を考えています。おすすめのスポットはありますか？"
+    expected_translation: "Je pense à Bali pour mon prochain voyage. Avez-vous des endroits recommandés ?"
+    eval_point: "バリ島 → Bali"

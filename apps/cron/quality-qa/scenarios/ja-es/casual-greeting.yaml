@@ -1,0 +1,64 @@
+scenario_id: TC-S1-es
+scenario: S1
+name: Conversación cotidiana / Daily Conversation
+source_lang: ja
+target_lang: es
+context: "10-turn daily conversation (ja→es). Evaluates verb conjugation and natural Spanish expression."
+audio_url: null
+expected_keywords:
+  - "mucho gusto"
+  - "fotografía"
+  - "Monte Fuji"
+  - "Instagram"
+  - "seguidores"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "はじめまして、田中と申します。よろしくお願いします。"
+    expected_translation: "Mucho gusto, me llamo Tanaka. Espero que trabajemos bien juntos."
+    eval_point: "謙譲表現の自然なスペイン語化"
+  - turn: 2
+    speaker: B
+    script_text: "¡Hola! Soy Juan, llamo desde Madrid. Igualmente."
+    expected_translation: "こんにちは！マドリードからかけているフアンです。こちらこそよろしくお願いします。"
+    eval_point: "固有名詞 (Madrid, Juan) の保持"
+  - turn: 3
+    speaker: A
+    script_text: "趣味は写真撮影です。特に風景写真が好きで、週末は山や海に行きます。"
+    expected_translation: "Mi pasatiempo es la fotografía. Me gustan especialmente las fotos de paisajes, y los fines de semana voy a las montañas o al mar."
+    eval_point: "複数趣味の正確な伝達"
+  - turn: 4
+    speaker: B
+    script_text: "¡Genial! A mí también me gusta el senderismo. ¿Has visitado alguna montaña famosa de Japón?"
+    expected_translation: "素晴らしいですね！私もハイキングが好きです。日本の有名な山に行ったことはありますか？"
+    eval_point: "疑問文の翻訳"
+  - turn: 5
+    speaker: A
+    script_text: "はい、富士山に3回登ったことがあります。とても達成感がありました。"
+    expected_translation: "Sí, he escalado el Monte Fuji tres veces. Fue muy gratificante."
+    eval_point: "固有名詞 + 回数 + 完了形"
+  - turn: 6
+    speaker: B
+    script_text: "¡Vaya, tres veces! ¿Cuál fue la parte más memorable?"
+    expected_translation: "すごい、3回も！一番印象に残った部分は何ですか？"
+    eval_point: "感嘆・疑問の組み合わせ"
+  - turn: 7
+    speaker: A
+    script_text: "山頂での日の出が最高でした。空が赤やオレンジに染まって、言葉にならないほど美しかったです。"
+    expected_translation: "El amanecer desde la cima fue lo mejor. El cielo se tiñó de rojo y naranja, era tan hermoso que no tenía palabras."
+    eval_point: "情景描写・ser/estar の使い分け"
+  - turn: 8
+    speaker: B
+    script_text: "Me lo puedo imaginar. ¿Compartes tus fotos en línea?"
+    expected_translation: "想像できます。写真をオンラインで公開していますか？"
+    eval_point: "文脈保持"
+  - turn: 9
+    speaker: A
+    script_text: "はい、Instagramに投稿しています。フォロワーが最近1000人を超えました。"
+    expected_translation: "Sí, publico en Instagram. Mis seguidores recientemente superaron los 1.000."
+    eval_point: "SNS 固有名詞 + 数値"
+  - turn: 10
+    speaker: B
+    script_text: "¡Impresionante! Me aseguraré de seguirte. Mantengámonos en contacto."
+    expected_translation: "それはすごい！フォローしますね。またご連絡しましょう。"
+    eval_point: "締めくくり表現"

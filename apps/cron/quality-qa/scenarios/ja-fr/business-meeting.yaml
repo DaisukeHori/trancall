@@ -1,0 +1,65 @@
+scenario_id: TC-S2-fr
+scenario: S2
+name: Conversation d'affaires / Business Conversation
+source_lang: ja
+target_lang: fr
+context: "10-turn business negotiation (ja→fr). Evaluates French business terminology and formal register."
+audio_url: null
+expected_keywords:
+  - "spécifications"
+  - "délai de livraison"
+  - "remise"
+  - "clause de résiliation"
+  - "signature numérique"
+  - "garantie"
+turns:
+  - turn: 1
+    speaker: A
+    script_text: "本日はお時間をいただきありがとうございます。新製品についてご提案させていただきます。"
+    expected_translation: "Merci de m'accorder de votre temps aujourd'hui. Je souhaite vous présenter une proposition concernant notre nouveau produit."
+    eval_point: "ビジネス敬語のフランス語化"
+  - turn: 2
+    speaker: B
+    script_text: "Bien sûr. Pourriez-vous partager les spécifications et le prix ?"
+    expected_translation: "もちろんです。仕様と価格について教えていただけますか？"
+    eval_point: "仕様・価格の専門用語"
+  - turn: 3
+    speaker: A
+    script_text: "はい。本製品の納期は発注から6週間、見積もり金額は税別で250万円になります。"
+    expected_translation: "Oui. Le délai de livraison est de 6 semaines à compter de la commande, et le montant estimé est de 2,5 millions de yens hors taxes."
+    eval_point: "納期・大きな数値の翻訳"
+  - turn: 4
+    speaker: B
+    script_text: "Je vois. Peut-on négocier le prix ? Notre budget est limité."
+    expected_translation: "なるほど。価格交渉は可能ですか？予算に限りがありまして。"
+    eval_point: "交渉・予算の語彙"
+  - turn: 5
+    speaker: A
+    script_text: "10台以上のご発注であれば、5%の割引が可能です。キャンセル条項については書面でご確認いただけます。"
+    expected_translation: "Pour une commande de 10 unités ou plus, une remise de 5 % est possible. La clause de résiliation peut être vérifiée par écrit."
+    eval_point: "数量条件・キャンセル条項"
+  - turn: 6
+    speaker: B
+    script_text: "Entendu. Nous devons d'abord obtenir l'approbation de notre service des achats."
+    expected_translation: "承知しました。まず購買チームの承認が必要になります。"
+    eval_point: "組織内手続きの語彙"
+  - turn: 7
+    speaker: A
+    script_text: "ご承認後、正式な契約書を作成いたします。デジタル署名での対応も可能です。"
+    expected_translation: "Après approbation, nous préparerons un contrat officiel. La signature numérique est également prise en charge."
+    eval_point: "契約・デジタル署名"
+  - turn: 8
+    speaker: B
+    script_text: "Très bien. Quelle est la période de garantie de ce produit ?"
+    expected_translation: "わかりました。この製品の保証期間はどのくらいですか？"
+    eval_point: "保証期間の語彙"
+  - turn: 9
+    speaker: A
+    script_text: "製品保証は1年間です。延長保証オプションも別途ご用意しています。"
+    expected_translation: "La garantie du produit est d'un an. Nous proposons également une option de garantie prolongée séparément."
+    eval_point: "保証・オプション"
+  - turn: 10
+    speaker: B
+    script_text: "Merci. Nous examinerons la proposition et vous répondrons avant la fin de la semaine."
+    expected_translation: "ありがとうございます。提案書を確認し、週末までにご回答します。"
+    eval_point: "締めくくり + 期限"
