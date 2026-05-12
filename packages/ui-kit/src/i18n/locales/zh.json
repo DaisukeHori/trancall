@@ -209,10 +209,13 @@
       "other": "对方发言"
     },
     "export": {
+      "button": "导出",
       "pdf": "导出为 PDF",
       "txt": "导出为 TXT",
+      "share": "分享文字记录",
       "success": "导出完成",
-      "failed": "导出失败"
+      "failed": "导出失败",
+      "error": "导出失败，请稍后再试"
     }
   },
   "billing": {
