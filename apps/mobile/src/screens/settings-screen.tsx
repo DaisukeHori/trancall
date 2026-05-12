@@ -11,10 +11,15 @@ import {
   Text,
   View,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Avatar, PlanCard, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { useAuthStore } from "../stores/auth-store.js";
 import { deleteAccount as apiDeleteAccount } from "../api/auth-api.js";
+import type { SettingsStackParamList } from "../navigation/settings-stack.js";
+
+type SettingsNavigationProp = NativeStackNavigationProp<SettingsStackParamList, "SettingsMain">;
 
 // expo-application for app version
 function extractNativeVersion(mod: unknown): string {
@@ -148,6 +153,7 @@ export function SettingsScreen() {
   const theme = useTheme();
   const c = theme.colors;
   const s = theme.spacing;
+  const navigation = useNavigation<SettingsNavigationProp>();
 
   const profile = useAuthStore((state) => state.profile);
   const session = useAuthStore((state) => state.session);
@@ -296,6 +302,12 @@ export function SettingsScreen() {
           <SettingsRow
             label={t("settings.aboutSection.contact")}
             chevron
+          />
+          <SettingsRow
+            label={t("faq.title")}
+            chevron
+            onPress={() => { navigation.navigate("Faq"); }}
+            accessibilityLabel={t("faq.title")}
           />
         </SettingsGroup>
 

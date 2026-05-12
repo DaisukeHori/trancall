@@ -454,6 +454,16 @@
     "reportConfirmTitle": "通報",
     "reportConfirmMessage": "{{name}} を通報しますか？"
   },
+  "faq": {
+    "title": "よくある質問",
+    "category": {
+      "account": "アカウント",
+      "call": "通話",
+      "translation": "翻訳品質",
+      "billing": "課金",
+      "privacy": "プライバシー"
+    }
+  },
   "dev": {
     "notImplementedYet": "実装予定 (Layer 4-B)"
   },

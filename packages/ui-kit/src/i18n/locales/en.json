@@ -454,6 +454,16 @@
     "reportConfirmTitle": "Report",
     "reportConfirmMessage": "Report {{name}}?"
   },
+  "faq": {
+    "title": "FAQ",
+    "category": {
+      "account": "Account",
+      "call": "Calls",
+      "translation": "Translation Quality",
+      "billing": "Billing",
+      "privacy": "Privacy"
+    }
+  },
   "dev": {
     "notImplementedYet": "Not implemented yet (Layer 4-B)"
   },

@@ -454,6 +454,16 @@
     "reportConfirmTitle": "举报",
     "reportConfirmMessage": "举报 {{name}}？"
   },
+  "faq": {
+    "title": "常见问题",
+    "category": {
+      "account": "账号",
+      "call": "通话",
+      "translation": "翻译质量",
+      "billing": "计费",
+      "privacy": "隐私"
+    }
+  },
   "dev": {
     "notImplementedYet": "尚未实现 (Layer 4-B)"
   },
