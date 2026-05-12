@@ -187,7 +187,108 @@
     "remaining": "残り{{minutes}}分",
     "insufficientBalance": "翻訳分数が不足しています",
     "upgradeToContinue": "プランをアップグレードして翻訳を続けますか？",
-    "continueWithoutTranslation": "翻訳なしで通話を続ける"
+    "continueWithoutTranslation": "翻訳なしで通話を続ける",
+    "balance": {
+      "remaining": "残り {{minutes}} 分（{{plan}}プラン）",
+      "nextBilling": "次回更新: {{date}}",
+      "managePlan": "プラン管理",
+      "depleted": "残 0 分（超過 {{overageRate}}円/分）",
+      "expired": "期限切れ、アップグレード必要",
+      "free": "Free プラン",
+      "light": "Lightプラン（¥980/月）",
+      "standard": "Standardプラン（¥2,980/月）",
+      "business": "Businessプラン（¥9,800/月）"
+    },
+    "plans": {
+      "free": {
+        "label": "Free",
+        "name": "Freeプラン"
+      },
+      "light": {
+        "label": "Light",
+        "name": "Lightプラン"
+      },
+      "standard": {
+        "label": "Standard",
+        "name": "Standardプラン"
+      },
+      "business": {
+        "label": "Business",
+        "name": "Businessプラン"
+      }
+    },
+    "subscription": {
+      "title": "プラン管理",
+      "currentPlan": "現在のプラン",
+      "upgrade": "アップグレード",
+      "downgrade": "ダウングレード",
+      "cancel": "サブスクリプションをキャンセル",
+      "restore": "購入を復元",
+      "recommended": "おすすめ",
+      "perMonth": "月額",
+      "includedMinutes": "{{minutes}}分/月",
+      "overageRate": "超過{{rate}}円/分",
+      "transcriptRetention": "通話記録{{days}}日保存",
+      "upgradeButton": "このプランにアップグレード",
+      "currentPlanBadge": "現在のプラン",
+      "confirmUpgrade": "アップグレードの確認",
+      "confirmCancel": "キャンセルの確認",
+      "cancelAtPeriodEnd": "次回更新日にキャンセルされます",
+      "restoring": "購入を復元中...",
+      "restoredCount": "{{count}}件の購入を復元しました"
+    },
+    "error": {
+      "BILLING_INSUFFICIENT_BALANCE": {
+        "title": "翻訳分数が足りません",
+        "message": "プランの上限を超えています。アップグレードまたは購入で続けられます。",
+        "action": "アップグレード"
+      },
+      "BILLING_PAYMENT_FAILED": {
+        "title": "決済に失敗しました",
+        "message": "カード情報をご確認ください。",
+        "action": "再試行"
+      },
+      "BILLING_INVALID_RECEIPT": {
+        "title": "購入情報の検証に失敗しました",
+        "message": "購入を復元してください。",
+        "action": "復元"
+      },
+      "BILLING_IAP_RECEIPT_INVALID": {
+        "title": "レシート検証エラー",
+        "message": "App Storeでの購入処理が完了していない可能性があります。",
+        "action": "復元"
+      },
+      "BILLING_INVALID_PLAN_CHANGE": {
+        "title": "このプラン変更は実行できません",
+        "message": "同じプラン、または変更できない遷移が指定されました。",
+        "action": "閉じる"
+      },
+      "BILLING_UPGRADE_PREVIEW_FAILED": {
+        "title": "見積取得に失敗しました",
+        "message": "接続を確認して再試行してください。",
+        "action": "再試行"
+      },
+      "BILLING_RESTORE_NO_PURCHASE": {
+        "title": "復元できる購入がありません",
+        "message": "このアカウントには有効な購入履歴がありません。",
+        "action": "閉じる"
+      },
+      "BILLING_CHANNEL_NOT_AVAILABLE": {
+        "title": "この地域では利用できません",
+        "message": "お住まいの地域では選択された購入方法が利用できません。",
+        "action": "別の方法を選ぶ"
+      },
+      "NETWORK_ERROR": {
+        "title": "接続できません",
+        "message": "ネットワークを確認してください。",
+        "action": "再試行"
+      },
+      "INTERNAL_ERROR": {
+        "title": "エラーが発生しました",
+        "message": "時間をおいて再試行してください。",
+        "action": "再試行"
+      }
+    }
   },
   "settings": {
     "title": "設定",

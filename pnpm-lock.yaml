@@ -44,6 +44,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.80.0
         version: 5.100.10(react@19.0.0)
+      '@trancall/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
       '@trancall/shared-kernel':
         specifier: workspace:*
         version: link:../../packages/shared-kernel
