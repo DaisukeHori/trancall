@@ -19,7 +19,6 @@ import type {
 import { Avatar, PlanCard, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { useAuthStore } from "../stores/auth-store.js";
-import { deleteAccount as apiDeleteAccount } from "../api/auth-api.js";
 import type { SettingsStackParamList } from "../navigation/settings-stack.js";
 
 type SettingsNavigationProp = NativeStackNavigationProp<SettingsStackParamList, "SettingsMain">;
@@ -183,25 +182,7 @@ export function SettingsScreen(_props: Props) {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      t("settings.danger.deleteConfirmTitle"),
-      t("settings.danger.deleteConfirmMessage"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.delete"),
-          style: "destructive",
-          onPress: () => {
-            if (session == null) return;
-            void apiDeleteAccount(session.accessToken).then((result) => {
-              if (result.ok) {
-                void logout();
-              }
-            });
-          },
-        },
-      ],
-    );
+    navigation.navigate("AccountDeletion");
   };
 
   const displayName = profile?.display_name ?? t("common.unknown");

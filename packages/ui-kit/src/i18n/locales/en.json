@@ -566,6 +566,40 @@
     "licenseTextTitle": "License Text",
     "licenseTextUnavailable": "License text not available"
   },
+  "account_deletion": {
+    "title": "Delete Account",
+    "reason": {
+      "title": "Reason for leaving (optional)",
+      "subtitle": "Your feedback helps us improve TranCall.",
+      "not_using": "I don't use it anymore",
+      "privacy": "Privacy concerns",
+      "too_expensive": "Too expensive",
+      "found_alternative": "Found a better alternative",
+      "other": "Other"
+    },
+    "warning": {
+      "title": "Before you delete your account",
+      "subtitle": "Please review the following carefully before proceeding.",
+      "grace_period": "Your account and data will be permanently deleted 30 days after your request. You can cancel by logging in again within 30 days.",
+      "subscription_cancel": "Any active subscription will be cancelled immediately (no pro-rated refund).",
+      "data_irrecoverable": "Deleted data cannot be recovered. All call history and transcripts will be erased.",
+      "iap_note": "App Store / Google Play subscriptions must be cancelled separately in your device's settings.",
+      "proceed": "Continue to delete account"
+    },
+    "confirm": {
+      "title": "Verify your identity",
+      "subtitle": "Please enter your password to confirm your identity before proceeding.",
+      "submit": "Delete my account",
+      "auth_error": "Password is incorrect. Please try again."
+    },
+    "grace_period": {
+      "title": "Deletion request received",
+      "body": "Your account and data will be permanently deleted after 30 days. You can cancel by logging in again within 30 days.",
+      "cancellable": "To cancel, simply log in to TranCall within the next 30 days.",
+      "email_sent": "A confirmation email has been sent to your email address.",
+      "days_label": "days to deletion"
+    }
+  },
   "language": {
     "en": "English",
     "es": "Spanish",
