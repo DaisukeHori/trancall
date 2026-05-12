@@ -281,7 +281,7 @@ export interface TranscriptFacade {
     roomId: RoomId,
     userId: UserId,
     format: "pdf" | "txt",
-  ): Promise<Result<{ contentBase64: string; mime: string }, AppError>>;
+  ): Promise<Result<{ contentBase64: string; mime: string; filename: string }, AppError>>;
   validateLiveDelta(rawDelta: unknown): Result<LiveSubtitleDelta, AppError>;
 }
 ```
@@ -291,7 +291,7 @@ export interface TranscriptFacade {
 - `appendFinalSegment` は `UNIQUE(room_id, participant_id, sequence_no)` 制約に従い冪等
 - `getTranscript` / `searchSegments` は `transcript_access.can_view=true AND deleted_at IS NULL` でフィルタ
 - `deleteAccess` は呼び出し元 user の access 行のみ論理削除、相手の access は維持
-- `exportTranscript` は Sprint 2 で実装、Sprint 1 では常に `TRANSCRIPT_EXPORT_NOT_IMPLEMENTED` を返す stub
+- `exportTranscript` は Sprint 3 T-9 で実装完了。戻り型に `filename` を追加 (canonical: `transcript-export-spec.md §2.1`、命名規則 `trancall-transcript-YYYYMMDD-HHmm-XXXXXXXX.{pdf|txt}`)。v1.3.0 では `{contentBase64, mime}` のみだったが v1.4.0 で `filename` 追加
 - `validateLiveDelta` は mobile 側の LiveKit Data Channel 受信時バリデーション用 (DB 書込みなし)
 - 旧 `docs/schemas.ts` 定義の `getLiveSubtitles(roomId): AsyncIterable<LiveSubtitleDelta>` は廃止 (LiveKit Data Channel 配信なので facade 側に AsyncIterable は不要)
 

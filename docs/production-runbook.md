@@ -151,39 +151,41 @@ staging の詳細は D2 §8 を参照。本書では production 固有の相違�
 
 Fastify を Vercel Serverless Function (Node.js runtime) で動かすための serverless adapter entrypoint。
 
-**重要**: `apps/server/src/app.ts` は Sprint 1 (#20) で **`buildApp` 関数** を export する。`apps/server/package.json` は `fastify: "^4.28.1"` を採用しており、**Fastify v4 は `app.handle(req: Request): Promise<Response>` を持たない** (v5 で導入)。よって本書は `@fastify/aws-lambda` 系の serverless adapter ではなく、Vercel が Fastify v4 に推奨する **`serverless-http` ラッパ** 方式を採用する。
+**実装方式 (v1.3 で確定)**: `apps/server/src/app.ts` の `buildApp(container, config)` で構築した Fastify instance をモジュールスコープにキャッシュし、`cachedApp.ready()` 完了後に `cachedApp.server.emit("request", req, res)` で Vercel Node.js runtime から直接受け付けた `(IncomingMessage, ServerResponse)` を処理する。
+
+**重要な T-1 修正 (v1.2 旧記述からの canonical 更新)**: 旧 v1.2 では `serverless-http` ラッパ + `provider: "vercel"` を採用していたが、**`serverless-http` v3 系は `aws` / `azure` プロバイダーのみサポート**で `provider: "vercel"` を渡すと `Unsupported provider vercel` runtime エラーとなる。Vercel Node.js runtime は Lambda 形式 `(event, context)` ではなく素の Node HTTP 形式 `(req: IncomingMessage, res: ServerResponse)` を渡すため、Fastify 公式が推奨する `app.server.emit("request", req, res)` パターンが正しい。
 
 ```typescript
-// apps/server/api/index.ts (Sprint 3 新規)
-import serverless from "serverless-http";
+// apps/server/api/index.ts (Sprint 3 T-1 canonical, T-29 v1.3 で同期)
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildApp } from "../src/app.js";
+import { buildContainer } from "../src/container.js";
+import { loadConfig } from "../src/config.js";
+import type { FastifyInstance } from "fastify";
 
 // Vercel Serverless Function のコールドスタート対策: 同一インスタンス内でアプリをキャッシュ
-let cachedHandler: ReturnType<typeof serverless> | null = null;
+let cachedApp: FastifyInstance | null = null;
 
-export default async function handler(req: unknown, res: unknown) {
-  if (!cachedHandler) {
-    const app = await buildApp({
-      logger: { level: process.env["LOG_LEVEL"] ?? "info" },
-      // env 検証 (Zod) + DI container 構築は buildApp 内部で実行
-    });
-    // serverless-http が Fastify の Node http handler を Vercel/Lambda 互換 (req, res) に変換
-    cachedHandler = serverless(app.server, { provider: "vercel" });
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  if (!cachedApp) {
+    const config = loadConfig();
+    const container = buildContainer(config);
+    cachedApp = await buildApp(container, config);
+    await cachedApp.ready();
   }
-  return await cachedHandler(req, res);
+  // Fastify 公式の Vercel + Node.js runtime 統合パターン
+  // (serverless-http は AWS/Azure 専用、Vercel は素の Node HTTP runtime のため emit で直接処理)
+  cachedApp.server.emit("request", req, res);
 }
-
-// vercel.json `functions[].runtime` で nodejs20.x 指定済のため
-// この config export は不要 (Node.js runtime がデフォルト)
 ```
 
-**実装上の注意**:
-- `buildApp` は `apps/server/src/app.ts` が export する Fastify instance factory。DI container (全 module facade の wire-up) を内包する (Sprint 1 #20 で実装済)
-- `cachedHandler` によるインスタンスキャッシュは Vercel Serverless のウォームインスタンス再利用を前提とする。コールドスタート時は毎回 `buildApp` が実行される (約 200-500ms 増加を許容)
-- **Fastify v4** では `app.handle(req: Request): Promise<Response>` が存在しないため、`serverless-http` (https://github.com/dougmoscrop/serverless-http) を `apps/server/package.json` の `dependencies` に追加する
-- `serverless-http` v3+ で Vercel 互換、`provider: "vercel"` 指定でリクエスト/レスポンス変換が自動
-- vercel.json の `functions[].runtime = "nodejs20.x"` で Node.js runtime を指定するため、エントリポイント側の `export const config = { runtime: ... }` は不要
-- 将来 Fastify v5 にアップグレードする場合は、`serverless-http` を撤去し `await app.handle(req)` 直接使用に簡略化可能 (Sprint 3 Day 1 Spike で v4 維持を確定)
+**実装上の注意 (v1.3)**:
+- `buildApp(container, config)` は `apps/server/src/app.ts` が export する Fastify instance factory (2 引数)
+- `cachedApp` モジュールスコープキャッシュは Vercel Serverless のウォームインスタンス再利用を前提とする。コールドスタート時のみ `buildContainer` + `buildApp` を実行 (約 200-500ms)
+- `cachedApp.ready()` を必ず `await` してから `emit("request", ...)` する。`ready()` 完了前に request を流すと plugin 未登録で fail する
+- vercel.json の `functions["api/index.ts"].runtime = "nodejs20.x"` + `includeFiles = "../../packages/transcript/fonts/**"` (T-9/T-10) を設定
+- **serverless-http は使用しない** (旧 v1.2 記述は誤り)。`apps/server/package.json` に serverless-http 依存追加は不要
+- 将来 Fastify v5 にアップグレードしても本パターンは継続可 (`app.server.emit` は Node HTTP API の標準)
 
 ### 3.2 apps/server/vercel.json
 
@@ -250,14 +252,13 @@ op run --env-file=./op-prod.env -- vercel env pull .env.production.local
 - `apps/server/api/index.ts` (実装) と `apps/server/vercel.json` を **必ず同一 PR** でコミットすること
 - `vercel.json` を先にコミットすると Vercel build が `api/index.ts` 未存在で失敗する (D2 §13 Known Risk #2 と同じ問題)
 
-### 3.3 Fastify バージョン対応
+### 3.3 Fastify バージョン対応 (v1.3 で改訂)
 
-Sprint 3 Day 1 に以下を Spike として確認する:
+§3.1 の `app.server.emit("request", req, res)` パターンは Fastify v4 / v5 のいずれでも動作する (両バージョンとも `app.server` は Node `http.Server`)。Sprint 3 Day 1 Spike は不要。
 
-1. `apps/server/package.json` の fastify バージョンを確認
-2. Fastify v5 以上: `app.handle(req: Request): Promise<Response>` が使えるか確認
-3. Fastify v4 (`^4.28.1`) を採用済のため、`serverless-http` を `dependencies` に追加し §3.1 の canonical 実装 (`serverless(app.server, { provider: "vercel" })`) を使用する。Sprint 3 Day 1 Spike は不要 (§3.1 で確定)。Fastify v5 にアップグレードする場合のみ、`serverless-http` を撤去して `app.handle(req)` 直接使用に簡略化する
-4. `vercel dev` でローカル 200 確認 → staging → production の順に昇格
+- 現状: `fastify: "^4.28.1"` 採用済 → emit パターンで OK
+- 将来 v5 アップグレード時もパターンは継続可 (Node HTTP 標準 API のため)
+- `vercel dev` でローカル 200 確認 → staging → production の順に昇格
 
 ---
 
