@@ -817,7 +817,7 @@ iOS App Store での 2026 年時点の必須サイズ:
 
 1. 冒頭 3 行以内でコア価値 (リアルタイム翻訳通話) を伝える
 2. 具体的なユースケース: ビジネス交渉、海外家族との通話、語学学習
-3. 技術的な信頼性: GPT-4 ベースの翻訳、低遅延 (p95 3 秒)、字幕表示
+3. 技術的な信頼性: OpenAI Realtime Translation API (model: gpt-realtime-translate) によるリアルタイム翻訳、低遅延 (p95 3 秒)、字幕表示
 4. プライバシーへの配慮: 音声データの用途を透明に説明
 5. プラン構成: Free 5 分から試せることを強調
 6. CallKit 統合: iOS 標準着信 UI との統合を技術差別化として訴求
@@ -935,7 +935,7 @@ App Review note は英語が必須。日本語版は PM / 法務の確認用と�
 ```
 TranCall のレビューをありがとうございます。
 
-TranCall は OpenAI OpenAI Realtime Translation API (model: gpt-realtime-translate) を利用したリアルタイム翻訳
+TranCall は OpenAI Realtime Translation API (model: gpt-realtime-translate) を利用したリアルタイム翻訳
 VoIP 通話アプリです。異なる言語を話すユーザー同士が通話すると、音声が
 リアルタイムで翻訳・配信され、字幕が画面に表示されます。
 
