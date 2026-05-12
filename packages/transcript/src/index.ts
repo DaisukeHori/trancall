@@ -22,7 +22,7 @@ export type {
 
 // Facade
 export { createTranscriptFacade } from "./facade.js";
-export type { TranscriptFacade } from "./facade.js";
+export type { TranscriptFacade, RoomMetaProvider } from "./facade.js";
 
 // Repository interfaces (for DI wiring in apps/server)
 export type { SegmentRepository } from "./repositories/segment-repository.js";
@@ -36,5 +36,5 @@ export {
 } from "./services/segment-service.js";
 export type { PlanTierKey } from "./services/segment-service.js";
 
-// Export format type
-export type { ExportFormat } from "./services/export-service.js";
+// Export format type and related types
+export type { ExportFormat, ExportInput, ExportResult, RoomMeta } from "./services/export-service.js";
