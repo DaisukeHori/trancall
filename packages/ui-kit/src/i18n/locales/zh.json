@@ -136,7 +136,25 @@
     "liveSubtitles": "实时字幕",
     "estimatedCost": "预计费用",
     "perMinute": "约 {{cost}} 日元/分钟",
-    "remainingMinutes": "剩余 {{minutes}} 分钟（{{plan}} 套餐）"
+    "remainingMinutes": "剩余 {{minutes}} 分钟（{{plan}} 套餐）",
+    "costEstimate": {
+      "title": "费用估算",
+      "proceed": {
+        "label": "余额充足",
+        "detail": "预计 {{expectedMinutes}} 分钟（剩余 {{remainingMinutes}} 分钟）"
+      },
+      "warnOverage": {
+        "label": "预计产生超出费用",
+        "detail": "超出 {{overageMinutes}} 分钟 → 预计费用 ¥{{predictedCostYen}}",
+        "proceedButton": "直接开始通话",
+        "upgradeButton": "升级后开始"
+      },
+      "upgrade": {
+        "label": "翻译分钟数不足",
+        "detail": "剩余 {{remainingMinutes}} 分钟不够用",
+        "upgradeButton": "升级套餐"
+      }
+    }
   },
   "summary": {
     "callEnded": "通话结束",

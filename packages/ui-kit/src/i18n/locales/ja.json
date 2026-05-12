@@ -136,7 +136,25 @@
     "liveSubtitles": "リアルタイム字幕",
     "estimatedCost": "推定コスト",
     "perMinute": "約{{cost}}円/分",
-    "remainingMinutes": "残り{{minutes}}分（{{plan}}プラン）"
+    "remainingMinutes": "残り{{minutes}}分（{{plan}}プラン）",
+    "costEstimate": {
+      "title": "コスト見積",
+      "proceed": {
+        "label": "残量十分です",
+        "detail": "予想 {{expectedMinutes}} 分（残り {{remainingMinutes}} 分）"
+      },
+      "warnOverage": {
+        "label": "超過課金の見込み",
+        "detail": "超過 {{overageMinutes}} 分 → 予測コスト ¥{{predictedCostYen}}",
+        "proceedButton": "このまま通話を開始",
+        "upgradeButton": "アップグレードして始める"
+      },
+      "upgrade": {
+        "label": "翻訳分数が不足しています",
+        "detail": "残り {{remainingMinutes}} 分では不足しています",
+        "upgradeButton": "プランをアップグレード"
+      }
+    }
   },
   "summary": {
     "callEnded": "通話終了",

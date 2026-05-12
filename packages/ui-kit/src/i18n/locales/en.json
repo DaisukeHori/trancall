@@ -136,7 +136,25 @@
     "liveSubtitles": "Live Subtitles",
     "estimatedCost": "Estimated Cost",
     "perMinute": "~{{cost}} yen/min",
-    "remainingMinutes": "{{minutes}} min remaining ({{plan}} plan)"
+    "remainingMinutes": "{{minutes}} min remaining ({{plan}} plan)",
+    "costEstimate": {
+      "title": "Cost Estimate",
+      "proceed": {
+        "label": "Balance sufficient",
+        "detail": "Est. {{expectedMinutes}} min ({{remainingMinutes}} min remaining)"
+      },
+      "warnOverage": {
+        "label": "Overage expected",
+        "detail": "{{overageMinutes}} min overage → est. ¥{{predictedCostYen}}",
+        "proceedButton": "Start Call Anyway",
+        "upgradeButton": "Upgrade & Start"
+      },
+      "upgrade": {
+        "label": "Insufficient translation minutes",
+        "detail": "{{remainingMinutes}} min remaining is not enough",
+        "upgradeButton": "Upgrade Plan"
+      }
+    }
   },
   "summary": {
     "callEnded": "Call Ended",

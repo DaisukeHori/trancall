@@ -15,6 +15,7 @@ import type {
   StoreKitExternalRedirectResult,
   PlanComparisonView,
   UpgradePreview,
+  PreCallCostEstimate,
 } from "@trancall/billing";
 import {
   initialBillingScreenState,
@@ -22,6 +23,7 @@ import {
   type BillingErrorViewModel,
 } from "@trancall/billing";
 import type { SubscriptionState as SubscriptionStateType } from "@trancall/billing";
+import { PLAN_CONFIGS } from "@trancall/billing";
 import { useAuthStore } from "./auth-store.js";
 import {
   getSubscription,
@@ -535,3 +537,64 @@ export const selectLastError = (
 /** 復元処理中かどうか */
 export const selectIsRestoring = (state: BillingScreenState): boolean =>
   state.isRestoring;
+
+// =============================================================================
+// Pre-call コスト見積計算
+// docs/billing-ui-flow.md §10.1 計算ロジック
+// =============================================================================
+
+/**
+ * 通話前コスト見積を計算する。
+ * Sprint 3 では expectedMinutes = 15 (固定値)。
+ * Sprint 3 後半で通話履歴から平均を算出する予定。
+ */
+export function computePreCallCostEstimate(
+  subscriptionState: SubscriptionStateType,
+  expectedMinutes: number,
+): PreCallCostEstimate {
+  const { remainingMinutes, plan } = subscriptionState;
+  const overageMinutes = Math.max(0, expectedMinutes - remainingMinutes);
+  const predictedCostYen = Math.ceil(overageMinutes * plan.overageRateYen);
+  const willExceedQuota = expectedMinutes > remainingMinutes;
+
+  let recommendedAction: PreCallCostEstimate["recommendedAction"];
+  if (!willExceedQuota) {
+    recommendedAction = "proceed";
+  } else if (plan.tier === "free") {
+    // Free は超過課金なし → アップグレード必須
+    recommendedAction = "upgrade";
+  } else {
+    recommendedAction = "warn_overage";
+  }
+
+  return {
+    expectedMinutes,
+    remainingMinutes,
+    predictedCostYen,
+    willExceedQuota,
+    recommendedAction,
+  };
+}
+
+/**
+ * Sprint 3 固定値: 想定通話時間 15 分
+ * Sprint 3 後半で通話履歴平均を使う予定 (docs/billing-ui-flow.md §10.1)
+ */
+export const DEFAULT_EXPECTED_MINUTES = 15;
+
+/**
+ * billing store から PreCallCostEstimate を取得するセレクター。
+ * subscriptionState が null の場合は null を返す。
+ */
+export const selectPreCallCostEstimate = (
+  state: BillingScreenState,
+): PreCallCostEstimate | null => {
+  if (state.subscriptionState == null) return null;
+  return computePreCallCostEstimate(
+    state.subscriptionState,
+    DEFAULT_EXPECTED_MINUTES,
+  );
+};
+
+// PLAN_CONFIGS を re-export して画面コンポーネントから参照可能にする
+export { PLAN_CONFIGS };
