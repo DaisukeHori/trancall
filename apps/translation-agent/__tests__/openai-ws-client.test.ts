@@ -4,11 +4,12 @@
  * WebSocket は EventEmitter ベースのモックで差し替えて実際のネットワーク接続なしに検証。
  *
  * カバー項目:
- * - 接続成功 → session.update 送信 → open emit
- * - sendAudioFrame → input_audio_buffer.append メッセージ送信
- * - response.audio.delta 受信 → audio.delta emit
- * - response.audio_transcript.delta 受信 → transcript.delta emit
- * - response.audio_transcript.done 受信 → transcript.done emit
+ * - 接続成功 → session.update 送信 (audio.output.language のみ, T2)
+ * - sendAudioFrame → session.input_audio_buffer.append メッセージ送信 (T1)
+ * - session.output_audio.delta 受信 → audio.delta emit (T1)
+ * - session.output_transcript.delta 受信 → transcript.delta emit (T1)
+ * - session.created 受信 → ログのみ (T1)
+ * - session.close 送信 → sendSessionClose() (T7)
  * - close code 1000 → 再接続しない
  * - close code 4001 → fatal、再接続しない
  * - 通常の close → scheduleReconnect (reconnecting イベント emit)
@@ -127,7 +128,7 @@ beforeEach(() => {
 
 // --- テスト ---
 
-describe("OpenAIWsClient: 接続・session.update", () => {
+describe("OpenAIWsClient: 接続・session.update (T2)", () => {
   it("connect() で WebSocket が作成され、open で session.update が送信される", async () => {
     const client = makeClient();
     const openSpy = vi.fn();
@@ -151,6 +152,27 @@ describe("OpenAIWsClient: 接続・session.update", () => {
     expect(sent["type"]).toBe("session.update");
   });
 
+  it("T2: session.update payload は audio.output.language のみ含む", async () => {
+    const client = makeClient();
+    void client.connect();
+    await waitNextTick();
+
+    const ws = MockWebSocket.instances[0];
+    if (!ws) return;
+
+    ws.simulateOpen();
+    await waitNextTick(2);
+
+    const sent = JSON.parse(ws.sentMessages[0] ?? "{}") as {
+      type: string;
+      session: { audio: { output: { language: string }; input?: unknown } };
+    };
+    expect(sent.type).toBe("session.update");
+    // T2: audio.output.language のみ、input/format/sample_rate_hz は含まない
+    expect(sent.session.audio.output.language).toBe("en");
+    expect(sent.session.audio.input).toBeUndefined();
+  });
+
   it("接続中に重複 connect() を呼んでも WebSocket が 1 つしか作られない", async () => {
     const client = makeClient();
 
@@ -162,8 +184,8 @@ describe("OpenAIWsClient: 接続・session.update", () => {
   });
 });
 
-describe("OpenAIWsClient: 音声送信", () => {
-  it("sendAudioFrame() で input_audio_buffer.append が送信される", async () => {
+describe("OpenAIWsClient: 音声送信 (T1)", () => {
+  it("T1: sendAudioFrame() で session.input_audio_buffer.append が送信される", async () => {
     const client = makeClient();
     void client.connect();
     await waitNextTick();
@@ -180,7 +202,8 @@ describe("OpenAIWsClient: 音声送信", () => {
 
     expect(ws.sentMessages).toHaveLength(1);
     const msg = JSON.parse(ws.sentMessages[0] ?? "{}") as Record<string, unknown>;
-    expect(msg["type"]).toBe("input_audio_buffer.append");
+    // T1: 公式仕様のイベント名
+    expect(msg["type"]).toBe("session.input_audio_buffer.append");
     expect(msg["audio"]).toBe("base64pcmdata==");
   });
 
@@ -191,8 +214,36 @@ describe("OpenAIWsClient: 音声送信", () => {
   });
 });
 
-describe("OpenAIWsClient: メッセージ受信", () => {
-  it("response.audio.delta → audio.delta イベントが emit される", async () => {
+describe("OpenAIWsClient: session.close (T7)", () => {
+  it("T7: sendSessionClose() で session.close が送信される", async () => {
+    const client = makeClient();
+    void client.connect();
+    await waitNextTick();
+
+    const ws = MockWebSocket.instances[0];
+    if (!ws) return;
+
+    ws.simulateOpen();
+    await waitNextTick(2);
+
+    ws.sentMessages.length = 0;
+
+    client.sendSessionClose();
+
+    expect(ws.sentMessages).toHaveLength(1);
+    const msg = JSON.parse(ws.sentMessages[0] ?? "{}") as Record<string, unknown>;
+    expect(msg["type"]).toBe("session.close");
+  });
+
+  it("未接続時の sendSessionClose() は何も送信しない", () => {
+    const client = makeClient();
+    client.sendSessionClose(); // state が idle なので何もしない
+    expect(MockWebSocket.instances).toHaveLength(0);
+  });
+});
+
+describe("OpenAIWsClient: メッセージ受信 (T1)", () => {
+  it("T1: session.output_audio.delta → audio.delta イベントが emit される", async () => {
     const client = makeClient();
     const audioDeltaSpy = vi.fn();
     client.on("audio.delta", audioDeltaSpy);
@@ -206,7 +257,7 @@ describe("OpenAIWsClient: メッセージ受信", () => {
     ws.simulateOpen();
     await waitNextTick(2);
 
-    ws.simulateMessage({ type: "response.audio.delta", delta: "encodedAudio==" });
+    ws.simulateMessage({ type: "session.output_audio.delta", delta: "encodedAudio==" });
     await waitNextTick(2);
 
     expect(audioDeltaSpy).toHaveBeenCalledTimes(1);
@@ -215,7 +266,41 @@ describe("OpenAIWsClient: メッセージ受信", () => {
     expect(args[0]).toMatchObject({ audioBase64: "encodedAudio==" });
   });
 
-  it("response.audio_transcript.delta → transcript.delta イベントが emit される", async () => {
+  it("T1: session.output_audio.delta に sample_rate/channels/elapsed_ms が含まれる場合も処理される", async () => {
+    const client = makeClient();
+    const audioDeltaSpy = vi.fn();
+    client.on("audio.delta", audioDeltaSpy);
+
+    void client.connect();
+    await waitNextTick();
+
+    const ws = MockWebSocket.instances[0];
+    if (!ws) return;
+
+    ws.simulateOpen();
+    await waitNextTick(2);
+
+    ws.simulateMessage({
+      type: "session.output_audio.delta",
+      delta: "audiodata==",
+      sample_rate: 24000,
+      channels: 1,
+      elapsed_ms: 500,
+    });
+    await waitNextTick(2);
+
+    expect(audioDeltaSpy).toHaveBeenCalledTimes(1);
+    const args = audioDeltaSpy.mock.calls[0];
+    if (!args) return;
+    expect(args[0]).toMatchObject({
+      audioBase64: "audiodata==",
+      sampleRate: 24000,
+      channels: 1,
+      elapsedMs: 500,
+    });
+  });
+
+  it("T1: session.output_transcript.delta → transcript.delta イベントが emit される", async () => {
     const client = makeClient();
     const transcriptDeltaSpy = vi.fn();
     client.on("transcript.delta", transcriptDeltaSpy);
@@ -229,7 +314,7 @@ describe("OpenAIWsClient: メッセージ受信", () => {
     ws.simulateOpen();
     await waitNextTick(2);
 
-    ws.simulateMessage({ type: "response.audio_transcript.delta", delta: "Hello " });
+    ws.simulateMessage({ type: "session.output_transcript.delta", delta: "Hello " });
     await waitNextTick(2);
 
     expect(transcriptDeltaSpy).toHaveBeenCalledTimes(1);
@@ -238,10 +323,10 @@ describe("OpenAIWsClient: メッセージ受信", () => {
     expect(args[0]).toMatchObject({ text: "Hello ", isFinal: false });
   });
 
-  it("response.audio_transcript.done → transcript.done イベントが emit される", async () => {
+  it("session.created 受信 → open イベントには影響しない (ログのみ)", async () => {
     const client = makeClient();
-    const transcriptDoneSpy = vi.fn();
-    client.on("transcript.done", transcriptDoneSpy);
+    const openSpy = vi.fn();
+    client.on("open", openSpy);
 
     void client.connect();
     await waitNextTick();
@@ -252,13 +337,15 @@ describe("OpenAIWsClient: メッセージ受信", () => {
     ws.simulateOpen();
     await waitNextTick(2);
 
-    ws.simulateMessage({ type: "response.audio_transcript.done", transcript: "Hello world" });
+    // open イベントは WebSocket の open から emit される (session.created ではない)
+    expect(openSpy).toHaveBeenCalledTimes(1);
+
+    // session.created を受信してもエラーにならない
+    ws.simulateMessage({ type: "session.created", session: { id: "sess_abc123" } });
     await waitNextTick(2);
 
-    expect(transcriptDoneSpy).toHaveBeenCalledTimes(1);
-    const args = transcriptDoneSpy.mock.calls[0];
-    if (!args) return;
-    expect(args[0]).toMatchObject({ text: "Hello world", isFinal: true });
+    // open は 1 回のみ
+    expect(openSpy).toHaveBeenCalledTimes(1);
   });
 
   it("error メッセージ → error イベントが emit される", async () => {
@@ -281,6 +368,26 @@ describe("OpenAIWsClient: メッセージ受信", () => {
     expect(errorSpy).toHaveBeenCalledTimes(1);
     const err = errorSpy.mock.calls[0]?.[0] as Error | undefined;
     expect(err?.message).toBe("translation failed");
+  });
+
+  it("未知のイベント type は無視される (エラーにならない)", async () => {
+    const client = makeClient();
+    const errorSpy = vi.fn();
+    client.on("error", errorSpy);
+
+    void client.connect();
+    await waitNextTick();
+
+    const ws = MockWebSocket.instances[0];
+    if (!ws) return;
+
+    ws.simulateOpen();
+    await waitNextTick(2);
+
+    ws.simulateMessage({ type: "some.unknown.event", data: "x" });
+    await waitNextTick(2);
+
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });
 

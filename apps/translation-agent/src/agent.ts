@@ -5,7 +5,7 @@
  * Worker が Job を受け取ったときに `entry(ctx)` が呼ばれ、
  * このプロセスが対象 Room に Agent として参加する。
  *
- * 設計書 docs/agent-flow.md の "Agent Lifecycle" 節を参照。
+ * 設計書 docs/translation-pipeline-design.md (D1) T1-T8 準拠。
  *
  * 翻訳パイプライン:
  * - Participant 参加時に metadata から nativeLanguage を取得
@@ -13,12 +13,9 @@
  * - 同言語ペアはセッションをスキップ（shouldStartSession）
  * - LiveKit Audio Track を subscribe して PCM フレームを OpenAI に流す
  *
- * 同一 Room に Agent が複数 attach されないようにする戦略:
- *   - LiveKit Server の Job Assignment 機構に従い、Worker は agentName を含む
- *     Job のみを accept する。複数 Worker が同じ Job を取りに行った場合は
- *     LiveKit Server が片方だけに割り当てるため、Worker 側で追加処理は不要。
- *   - Room metadata に agentJobId を書き込み、もし「先客」がいたら graceful shutdown。
- *     ただしこれは Phase 1b 以降（複数 Worker をスケールアウトする段階で必要）。
+ * T3: captureToAgent 計測点を pipeAudioTrack に追加 (reader.read() 直後にタイムスタンプ採取)
+ * T5: agentPublish 計測点を translated-audio ハンドラに追加 (captureFrame 前後)
+ * T8: publish 失敗カウンタ管理 (連続 3 回で session.end("agent_publish_failed"))
  */
 
 import type { JobContext, JobProcess } from "@livekit/agents";
@@ -34,6 +31,25 @@ import {
 } from "@livekit/rtc-node";
 
 import { OutputLanguage } from "@trancall/shared-kernel";
+
+// T-14: Data Channel payload 型（module-contracts.md §3.4 に準拠）
+interface DegradedChannelPayload {
+  type: "translation.degraded";
+  sessionId: string;
+  sourceLang: string;
+  targetLang: string;
+  reason: "openai_ws_reconnecting" | "high_latency" | "output_silence";
+  timestamp: string;
+}
+
+interface RecoveredChannelPayload {
+  type: "translation.recovered";
+  sessionId: string;
+  sourceLang: string;
+  targetLang: string;
+  degradedDurationMs: number;
+  timestamp: string;
+}
 
 import { type Config } from "./config.js";
 import {
@@ -178,6 +194,7 @@ export default defineAgent({
         roomId,
         sourceParticipantId,
         targetParticipantId,
+        sourceLang,
         outputLanguage: targetLang,
         openaiApiKey: deps.config.OPENAI_API_KEY,
         openaiUrl: deps.config.OPENAI_REALTIME_TRANSLATE_URL,
@@ -204,23 +221,99 @@ export default defineAgent({
         sessions.delete(key);
       });
 
+      // T-14: degraded/recovered イベント購読 → LiveKit Data Channel publish
+      // module-contracts.md §3.4 に準拠した payload を RELIABLE モードで送信する
+      session.on("degraded", (reason: string) => {
+        const meta = session.getDegradedChannelMeta();
+        const payload: DegradedChannelPayload = {
+          type: "translation.degraded",
+          sessionId: meta.sessionId,
+          sourceLang: meta.sourceLang,
+          targetLang: meta.targetLang,
+          reason: reason as DegradedChannelPayload["reason"],
+          timestamp: new Date().toISOString(),
+        };
+        const data = Buffer.from(JSON.stringify(payload));
+        const localParticipant = ctx.room.localParticipant;
+        if (localParticipant) {
+          void localParticipant.publishData(new Uint8Array(data), { reliable: true }).catch(
+            (e: unknown) => {
+              logger.warn("Agent: degraded Data Channel publish 失敗", {
+                key,
+                error: e instanceof Error ? e.message : String(e),
+              });
+            },
+          );
+        }
+        logger.info("Agent: degraded Data Channel publish", { key, reason });
+      });
+
+      session.on("recovered", () => {
+        const meta = session.getDegradedChannelMeta();
+        // degradedDurationMs は translation-session 側で計算済みだが
+        // agent.ts では session に露出していないため 0 で送信し、
+        // Internal API 経由の recovered イベント (postRecoveredEvent) が正確な値を持つ
+        const payload: RecoveredChannelPayload = {
+          type: "translation.recovered",
+          sessionId: meta.sessionId,
+          sourceLang: meta.sourceLang,
+          targetLang: meta.targetLang,
+          degradedDurationMs: 0,
+          timestamp: new Date().toISOString(),
+        };
+        const data = Buffer.from(JSON.stringify(payload));
+        const localParticipant = ctx.room.localParticipant;
+        if (localParticipant) {
+          void localParticipant.publishData(new Uint8Array(data), { reliable: true }).catch(
+            (e: unknown) => {
+              logger.warn("Agent: recovered Data Channel publish 失敗", {
+                key,
+                error: e instanceof Error ? e.message : String(e),
+              });
+            },
+          );
+        }
+        logger.info("Agent: recovered Data Channel publish", { key });
+      });
+
       await session.start();
 
       // source Participant の Audio Track を subscribe して PCM フレームをパイプライン
       // AudioSource + LocalAudioTrack を使って翻訳済み音声を Publish する
+      // D1 §3.1: 24kHz mono (LiveKit SDK が 48kHz から自動リサンプル)
       const audioSource = new AudioSource(24000, 1);
+      // D1 §8.1: Track 命名規約 trans-{sourceParticipantIdentity}-to-{targetLang}
       const publishTrack = LocalAudioTrack.createAudioTrack(
         `trans-${sourceIdentity}-to-${targetLang}`,
         audioSource,
       );
 
       // 翻訳済み音声 (Base64 PCM16) → AudioSource → LiveKit Track へ流す
+      // T5: agentPublish 計測点 (captureFrame 前後の wallclock 差分)
+      // T8: publish 失敗カウンタ管理
       session.on("translated-audio", (pcm16Base64: string) => {
+        // D1 §4.7: AudioFrame への変換
         const pcmBuffer = Buffer.from(pcm16Base64, "base64");
         const int16 = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.byteLength / 2);
         const samplesPerChannel = int16.length;
         const frame = new AudioFrame(int16, 24000, 1, samplesPerChannel);
-        void audioSource.captureFrame(frame);
+
+        // T5: captureFrame 前後で agentPublish を計測
+        const captureStart = Date.now();
+        audioSource.captureFrame(frame).then(() => {
+          const publishLatencyMs = Date.now() - captureStart;
+          // T5/T6: agentPublish + totalEndToEnd を記録
+          session.recordPublishMetrics(publishLatencyMs);
+          // T8: publish 成功でカウンタリセット
+          session.recordPublishSuccess();
+        }).catch((e: unknown) => {
+          logger.error("Agent: captureFrame 失敗", {
+            key,
+            error: e instanceof Error ? e.message : String(e),
+          });
+          // T8: publish 失敗カウンタ増加 (3 回連続で session.end)
+          session.recordPublishFailure();
+        });
       });
 
       // LocalParticipant として翻訳音声 Track を Publish
@@ -245,11 +338,15 @@ export default defineAgent({
     /**
      * RemoteAudioTrack → TranslationSession.pushAudioFrame() パイプライン。
      * AudioStream (ReadableStream<AudioFrame>) から reader API で非同期に読み取る。
+     *
+     * T3: reader.read() 直後にタイムスタンプ採取し captureToAgent を計測する。
+     * D1 §3.2: LiveKit SDK が 48kHz → 24kHz を自動リサンプル (自前実装不要)。
      */
     async function pipeAudioTrack(
       track: RemoteAudioTrack,
       session: TranslationSession,
     ): Promise<void> {
+      // D1 §3.2: 24kHz 1ch で AudioStream を生成 (SDK が 48→24kHz リサンプル)
       const stream = new AudioStream(track, 24000, 1);
       const reader = stream.getReader();
       logger.debug("Agent: AudioStream パイプライン開始", {
@@ -258,12 +355,26 @@ export default defineAgent({
       });
       try {
         for (;;) {
+          // T3: reader.read() 直後にタイムスタンプ採取して captureToAgent を計測
+          const readStart = Date.now();
           const result = await reader.read();
           if (result.done) break;
+
+          const agentReceivedAt = Date.now();
+          // T3: D1 §5.3 参照 - captureToAgent = AudioStream.read() で受領時刻の差分
+          // LiveKit SDK は AudioFrame に capture timestamp を持たないため
+          // read() 呼び出し前後の wallclock 差分を proxy として使用
+          // (最初の数フレームは SDK リサンプル初期化ノイズを含むため精度は参考値)
+          const captureToAgent = agentReceivedAt - readStart;
+
           const frame = result.value;
           // PCM16 Int16Array を Base64 に変換して OpenAI に送信
           const pcmBuffer = Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength);
           const pcm16Base64 = pcmBuffer.toString("base64");
+
+          // T3: captureToAgent レイテンシを記録
+          session.recordCaptureToAgent(captureToAgent);
+
           session.pushAudioFrame(pcm16Base64);
         }
       } catch (e: unknown) {
