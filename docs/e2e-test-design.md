@@ -368,4 +368,4 @@ Phase 1a で **本書作成のみ**、コードは 0 行追加。Sprint 1 のス
 - v1 (2026-05-12) 初版。Sprint 1 中に Layer 4 が一段落した時点で E2E 戦略を確定するために作成。
 - v1.1 (2026-05-12) PR #27 Round 1 レビュー反映 (commit `1db39c6`): §5 ヘッダー flows 数訂正、CallKeepNativeModule→RNCallKeepNativeModule、YAML サンプルの `${T_*}` プレースホルダ化と timeout 2000ms 統一、4 gates 完備、SCR-010 帰属注記、mock-server gating 候補追記、test-strategy 注記。
 - v1.2 (2026-05-12) PR #27 Round 2 レビュー反映: P0 12→14 flows の波及更新、e2eCallKeepStub に answerIncomingCall 追加、§1 冒頭の test-strategy 参照を過去形に。
-- v1.3 (2026-05-12) PR #27 Round 3 レビュー反映: ヘッダー Status を v1.2 に追従、§5.1 P0 内訳式を「基本 10 + gates 4 = 14」に修正 (実テーブルと一致)。
+- v1.3 (2026-05-12) PR #27 Round 3 レビュー反映: ヘッダー Status を v1.3 に更新 (v1.1 / v1.2 で更新漏れのまま `Draft v1` が残存していたため一括是正)、§5.1 P0 内訳式を「基本 10 + gates 4 = 14」に修正 (実テーブルと一致)。
