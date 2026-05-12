@@ -78,6 +78,58 @@ T-23 mobile UI は実装済 (commit `9c75b63`) だが、`POST /api/account/delet
 - 30 日後の物理削除バッチ (T-60 retention に組み込み済 or 別バッチ)
 - 30 日内の復元 endpoint
 
+### 2.13 Android Manifest plugin — FCM サービスクラス名不一致 (Sprint 3 後半 D Round 2 で発見)
+
+`apps/mobile/plugins/with-android-manifest.ts` は `.TranCallFirebaseMessagingService` を AndroidManifest に宣言するが、実装済みの Kotlin クラスは `tech.hori.trancall.FcmService` (class 名 `FcmService`)。Expo prebuild 後の AndroidManifest.xml には存在しないクラス名が登録されるため、FCM data message が `onMessageReceived` に到達せず着信通話が動作しない。
+
+**対処**: plugin の FCM service 宣言名を `.FcmService` に修正するか、`FcmService.kt` のクラス名を `TranCallFirebaseMessagingService` に改名する。ConnectionService.kt 実装時（Sprint 3 Phase 1a）に合わせて解決する。
+
+### 2.14 Android Manifest plugin — ConnectionService クラス名の設計書との差異
+
+設計書 (`native-call-bridge.md §5.1`) は `.CallConnectionService` と宣言しているが、plugin は `.TranCallConnectionService` を宣言。ConnectionService.kt は未実装（Sprint 3 Phase 1a 予定）のため現時点では機能影響なし。実装時にどちらのクラス名を採用するか確定し、plugin または設計書を合わせる必要がある。
+
+### 2.15 app.json に `android.permission.FOREGROUND_SERVICE` が未宣言
+
+`CallForegroundService.startForeground()` を呼ぶには Android 9 (API 28) 以上で `android.permission.FOREGROUND_SERVICE` の `<uses-permission>` 宣言が必要（normal permission、manifest 宣言のみで付与）。現在 app.json の `android.permissions` に含まれておらず、`CallForegroundService.kt` 実装後に `SecurityException` で異常終了する。
+
+**対処**: Sprint 3 Phase 1a で `CallForegroundService.kt` を実装する際に `app.json` の `android.permissions` に `"android.permission.FOREGROUND_SERVICE"` を追加する。
+
+### 2.16 `com.google.android.c2dm.permission.RECEIVE` の要否
+
+設計書 §5.1 に記載されているが、現代の Firebase Messaging SDK (v21+) はこの permission を SDK 内部で自動宣言するため、アプリ側の明示宣言は不要。`app.json` への追加は不要。Sprint 4 での設計書更新時に §5.1 の記述を削除推奨。
+
+### 2.17 iOS Simulator build — pnpm + CocoaPods autolinking 課題
+
+`npx expo prebuild --platform ios` で `ios/` を生成後、`pod install` を実行すると `react-native` の podspec autolink が失敗:
+
+```
+[!] list_native_modules! skipped the react-native dependency 'react-native'. No podspec file was found.
+```
+
+**原因**: pnpm の symlink 構造 (`apps/mobile/node_modules/react-native -> ../../../node_modules/.pnpm/react-native@.../node_modules/react-native`) を `@react-native-community/cli` autolinking が resolve できない。
+
+**対処**:
+1. `.npmrc` に `node-linker=hoisted` または `public-hoist-pattern[]=react-native*` を追加 + clean `pnpm install`
+2. または apps/mobile に `react-native` を直接 dependency に展開 (workspace 外で flat install)
+
+**現状**: Sprint 3 native files (HmacValidator.swift / PushKitDelegate.swift / PrivacyInfo.xcprivacy / TranCall.entitlements) は復元済。Sprint 4 で `.npmrc` 設定と `pnpm install --shamefully-hoist` 等の対処を行ってから `expo run:ios` 実行を推奨。
+
+### 2.18 iOS native files の Expo Config Plugin 化
+
+`npx expo prebuild` は `ios/` ディレクトリを clearing して再生成するため、Sprint 3 で手動配置した以下 4 ファイルが消失する:
+- `apps/mobile/ios/CallBridge/HmacValidator.swift`
+- `apps/mobile/ios/CallBridge/PushKitDelegate.swift`
+- `apps/mobile/ios/TranCall/PrivacyInfo.xcprivacy` (T-48)
+- `apps/mobile/ios/TranCall/TranCall.entitlements` (T-50)
+
+**対処**: Sprint 4 で `apps/mobile/plugins/with-ios-callbridge.js` 等の Expo Config Plugin を作成し、prebuild フックで上記 4 ファイルを programmatic に配置する。
+
+### 2.19 Expo Config Plugin TS → JS 変換
+
+`apps/mobile/plugins/with-android-manifest.ts` は EAS Build (`eas build --local`) で「plugin 解決失敗」になる。`.ts` から `.js` (CommonJS) に変換した `with-android-manifest.js` を併存させて回避済 (commit pending)。
+
+**対処**: Sprint 4 で TypeScript ベースの plugin を完全削除し、JavaScript plugin のみを canonical とする。または、tsx/jiti ベースの plugin loader 設定を `package.json` に追加。
+
 ## 3. T-29 履歴
 
 - **v1.3** (`production-runbook.md`): serverless-http 撤去 → `app.server.emit` パターン canonical 化

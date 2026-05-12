@@ -9,3 +9,4 @@ coverage/
 .expo/
 *.log
 .claude/
+.vercel
