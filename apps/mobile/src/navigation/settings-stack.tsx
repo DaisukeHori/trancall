@@ -5,6 +5,7 @@ import { SettingsScreen } from "../screens/settings-screen.js";
 import { FaqScreen } from "../screens/faq-screen.js";
 import { OssLicensesScreen } from "../screens/oss-licenses-screen.js";
 import { AccountDeletionScreen } from "../screens/account-deletion-screen.js";
+import { SupportScreen } from "../screens/support-screen.js";
 import { useTranslation } from "../i18n/index.js";
 
 export type SettingsStackParamList = {
@@ -12,6 +13,7 @@ export type SettingsStackParamList = {
   Faq: undefined;
   OssLicenses: undefined;
   AccountDeletion: undefined;
+  Support: undefined;
 };
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
@@ -37,6 +39,17 @@ export function SettingsStack() {
         }}
       />
       <Stack.Screen name="AccountDeletion" component={AccountDeletionScreen} />
+      <Stack.Screen
+        name="Support"
+        component={SupportScreen}
+        options={{
+          headerShown: true,
+          title: t("support.title"),
+          headerStyle: { backgroundColor: c.bgSecondary },
+          headerTintColor: c.primary,
+          headerTitleStyle: { color: c.textPrimary },
+        }}
+      />
     </Stack.Navigator>
   );
 }

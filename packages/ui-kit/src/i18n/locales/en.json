@@ -553,6 +553,50 @@
       "privacy": "Privacy"
     }
   },
+  "support": {
+    "title": "Contact Us",
+    "section": {
+      "email": "Send us an email"
+    },
+    "category": {
+      "label": "Category",
+      "placeholder": "Select a category",
+      "hint": "Select a category",
+      "bug": "Bug Report",
+      "billing": "Billing & Payment",
+      "feature_request": "Feature Request",
+      "privacy": "Privacy",
+      "other": "Other"
+    },
+    "subject": {
+      "label": "Subject (optional)",
+      "placeholder": "e.g. Translation stops mid-call",
+      "hint": "Enter a subject (optional)"
+    },
+    "body": {
+      "label": "Message",
+      "hint": "Enter your message (required)"
+    },
+    "message_placeholder": "Describe your issue (up to 1000 characters)",
+    "submit": "Submit",
+    "diagnosticInfo": {
+      "title": "The following info will be attached automatically",
+      "appVersion": "App version",
+      "osDevice": "OS / device model",
+      "locale": "Locale / timezone",
+      "recentCalls": "Recent call history"
+    },
+    "success": {
+      "title": "Sent",
+      "message": "Your inquiry has been received. We will get back to you shortly.",
+      "ticketId": "Ticket ID"
+    },
+    "error": {
+      "rateLimitExceeded": "You have reached the submission limit. Please try again in 1 hour.",
+      "mailSendFailed": "Failed to send email. Please try again later or email us directly at support@trancall.app.",
+      "generic": "Submission failed. Please check your network and try again."
+    }
+  },
   "dev": {
     "notImplementedYet": "Not implemented yet (Layer 4-B)"
   },

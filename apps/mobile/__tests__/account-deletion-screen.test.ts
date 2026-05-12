@@ -148,7 +148,7 @@ describe("account deletion flow logic", () => {
 
   describe("i18n keys for account_deletion", () => {
     it("all required account_deletion keys exist in en locale", async () => {
-      const { default: en } = await import("../../packages/ui-kit/src/i18n/locales/en.json", {
+      const { default: en } = await import("../../../packages/ui-kit/src/i18n/locales/en.json", {
         with: { type: "json" },
       }) as { default: Record<string, unknown> };
 
@@ -188,9 +188,9 @@ describe("account deletion flow logic", () => {
 
     it("ja and zh have the same account_deletion keys as en", async () => {
       const [{ default: en }, { default: ja }, { default: zh }] = await Promise.all([
-        import("../../packages/ui-kit/src/i18n/locales/en.json", { with: { type: "json" } }) as Promise<{ default: Record<string, unknown> }>,
-        import("../../packages/ui-kit/src/i18n/locales/ja.json", { with: { type: "json" } }) as Promise<{ default: Record<string, unknown> }>,
-        import("../../packages/ui-kit/src/i18n/locales/zh.json", { with: { type: "json" } }) as Promise<{ default: Record<string, unknown> }>,
+        import("../../../packages/ui-kit/src/i18n/locales/en.json", { with: { type: "json" } }) as Promise<{ default: Record<string, unknown> }>,
+        import("../../../packages/ui-kit/src/i18n/locales/ja.json", { with: { type: "json" } }) as Promise<{ default: Record<string, unknown> }>,
+        import("../../../packages/ui-kit/src/i18n/locales/zh.json", { with: { type: "json" } }) as Promise<{ default: Record<string, unknown> }>,
       ]);
 
       function flattenSubkeys(obj: Record<string, unknown>, prefix = ""): string[] {

@@ -36,7 +36,8 @@
     "../../packages/ui-kit/src/**/*.tsx",
     "../../packages/shared-kernel/src/**/*.ts",
     "../../packages/billing/src/**/*.ts",
-    "../../packages/translation/src/**/*.ts"
+    "../../packages/translation/src/**/*.ts",
+    "../../packages/ui-kit/src/i18n/locales/*.json"
   ],
   "exclude": ["node_modules", "dist", "_design-ref"]
 }
