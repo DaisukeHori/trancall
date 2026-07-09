@@ -74,6 +74,9 @@ import {
   makeStripeAdapter,
   makeAppleIapAdapter,
   makeGooglePlayAdapter,
+  makeStripeWebCheckoutAdapter,
+  makeIapAdapter,
+  makeExternalPurchaseAdapter,
 } from "./adapters.js";
 
 export interface Facades {
@@ -137,6 +140,9 @@ export function buildFacades(opts: BuildFacadesOptions = {}): {
   const stripeAdapter = makeStripeAdapter();
   const appleIapAdapter = makeAppleIapAdapter();
   const googlePlayAdapter = makeGooglePlayAdapter();
+  const stripeWebCheckoutAdapter = makeStripeWebCheckoutAdapter();
+  const iapAdapter = makeIapAdapter();
+  const externalPurchaseAdapter = makeExternalPurchaseAdapter(externalPurchaseTokenRepo);
 
   // --- auth ---
   const authEventBus: AuthEventBus = {
@@ -169,6 +175,9 @@ export function buildFacades(opts: BuildFacadesOptions = {}): {
     stripeAdapter,
     appleIapAdapter,
     googlePlayAdapter,
+    stripeWebCheckoutAdapter,
+    iapAdapter,
+    externalPurchaseAdapter,
   });
 
   // --- contact ---

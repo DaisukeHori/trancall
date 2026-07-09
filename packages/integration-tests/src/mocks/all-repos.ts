@@ -138,6 +138,12 @@ export function makeConsentRepository(): ConsentRepository {
       }
       return ok(null);
     },
+    async listActive(userId: UserId): Promise<Result<ConsentRecord[]>> {
+      const active = [...records.values()].filter(
+        (rec) => rec.userId === userId && rec.revokedAt === null,
+      );
+      return ok(active);
+    },
     async revoke(userId: UserId, scope: ConsentScope): Promise<Result<true>> {
       const revokedAt = new Date().toISOString();
       for (const [key, rec] of records.entries()) {
@@ -173,38 +179,61 @@ export function makeExternalPurchaseTokenRepository(): ExternalPurchaseTokenRepo
   const tokens = new Map<string, ExternalPurchaseTokenRow>();
 
   return {
-    async create(params: {
-      userId: UserId;
-      targetTier: BillingPlanTier;
-      stripeSessionId: string;
-    }): Promise<Result<ExternalPurchaseTokenRow>> {
-      const token = `mock-token-${crypto.randomUUID()}`;
+    async createToken(
+      userId: UserId,
+      targetTier: BillingPlanTier,
+      stripeSessionId: string,
+      token: string,
+      ttlMinutes: number,
+    ): Promise<Result<ExternalPurchaseTokenRow>> {
       const row: ExternalPurchaseTokenRow = {
         id: crypto.randomUUID(),
-        user_id: params.userId,
+        userId,
         token,
-        target_tier: params.targetTier,
-        stripe_session_id: params.stripeSessionId,
-        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        targetTier,
+        stripeSessionId,
+        expiresAt: new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString(),
         used: false,
-        created_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       };
       tokens.set(token, row);
       return ok(row);
     },
-    async findValidByToken(token: string): Promise<Result<ExternalPurchaseTokenRow | null>> {
+    async findByToken(token: string): Promise<Result<ExternalPurchaseTokenRow>> {
       const row = tokens.get(token);
-      if (!row || row.used || new Date(row.expires_at) < new Date()) return ok(null);
+      if (row === undefined) {
+        return err({
+          code: "NOT_FOUND",
+          message: `redirectToken が見つかりません: ${token.slice(0, 8)}...`,
+          retryable: false,
+        });
+      }
       return ok(row);
     },
-    async markUsed(id: string): Promise<Result<void>> {
+    async markUsed(token: string): Promise<Result<true>> {
+      const row = tokens.get(token);
+      // 二重消費防止: used=false の行のみ更新。存在しない or 使用済みはエラー。
+      if (row === undefined || row.used) {
+        return err({
+          code: "BILLING_PAYMENT_FAILED",
+          message:
+            "redirectToken は既に使用済みか存在しません。二重消費を防止しました。",
+          retryable: false,
+        });
+      }
+      tokens.set(token, { ...row, used: true });
+      return ok(true);
+    },
+    async cleanupExpired(): Promise<Result<number>> {
+      const now = new Date();
+      let count = 0;
       for (const [token, row] of tokens.entries()) {
-        if (row.id === id) {
-          tokens.set(token, { ...row, used: true });
-          break;
+        if (!row.used && new Date(row.expiresAt) < now) {
+          tokens.delete(token);
+          count++;
         }
       }
-      return ok(undefined);
+      return ok(count);
     },
   };
 }
