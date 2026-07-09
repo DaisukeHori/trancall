@@ -1,14 +1,20 @@
 import type { Router, Request, Response } from "express";
+import { z } from "zod";
 import {
   getState,
   getSessionByToken,
   getUserById,
 } from "../state.js";
 import {
-  E2E_ROOM_ID,
   MOCK_LIVEKIT_TOKEN,
   MOCK_LIVEKIT_URL,
 } from "../fixtures.js";
+
+const CreateRoomBodySchema = z.object({
+  inviteeIds: z.array(z.string()).optional(),
+  roomType: z.enum(["audio", "video"]).optional(),
+  translationEnabled: z.boolean().optional(),
+});
 
 function extractBearerToken(req: Request): string | null {
   const auth = req.headers["authorization"];
@@ -69,11 +75,10 @@ export function registerRoomRoutes(router: Router): void {
     const userId = requireAuth(req, res);
     if (!userId) return;
 
-    const { inviteeIds, roomType, translationEnabled } = req.body as {
-      inviteeIds?: string[];
-      roomType?: string;
-      translationEnabled?: boolean;
-    };
+    const parsedBody = CreateRoomBodySchema.safeParse(req.body);
+    const { inviteeIds, roomType, translationEnabled } = parsedBody.success
+      ? parsedBody.data
+      : {};
 
     if (!inviteeIds || inviteeIds.length === 0) {
       res.status(400).json({
@@ -100,7 +105,7 @@ export function registerRoomRoutes(router: Router): void {
     const newRoom = {
       roomId: `room-${Date.now()}`,
       status: "active" as const,
-      roomType: (roomType ?? "audio") as "audio" | "video",
+      roomType: roomType ?? "audio",
       translationEnabled: translationEnabled ?? true,
       hostUserId: userId,
       participantIds: [userId, ...(inviteeIds ?? [])],

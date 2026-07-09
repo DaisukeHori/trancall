@@ -85,7 +85,7 @@ const AppleWebhookBodySchema = z.object({
  * Webhook 通知ペイロードのスキーマは packages/billing 側の
  * AppleNotificationPayloadSchema が担うため、ここでは unknown を返すだけにとどめる)。
  */
-function decodeJwsPayloadUnvalidated(jws: string): unknown | null {
+function decodeJwsPayloadUnvalidated(jws: string): unknown {
   const parts = jws.split(".");
   const payloadPart = parts[1];
   if (parts.length !== 3 || payloadPart === undefined) {
@@ -94,7 +94,7 @@ function decodeJwsPayloadUnvalidated(jws: string): unknown | null {
   try {
     const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
     const jsonString = Buffer.from(base64, "base64").toString("utf-8");
-    return JSON.parse(jsonString) as unknown;
+    return JSON.parse(jsonString);
   } catch {
     return null;
   }

@@ -1,5 +1,11 @@
 import type { Router, Request, Response } from "express";
-import { getState, getSessionByToken, getUserById } from "../state.js";
+import { z } from "zod";
+import { getSessionByToken, getUserById } from "../state.js";
+
+const CheckoutBodySchema = z.object({
+  tier: z.string().optional(),
+  paymentMethod: z.string().optional(),
+});
 
 function extractBearerToken(req: Request): string | null {
   const auth = req.headers["authorization"];
@@ -57,10 +63,8 @@ export function registerBillingRoutes(router: Router): void {
     const userId = requireAuth(req, res);
     if (!userId) return;
 
-    const { tier, paymentMethod } = req.body as {
-      tier?: string;
-      paymentMethod?: string;
-    };
+    const parsedBody = CheckoutBodySchema.safeParse(req.body);
+    const { tier, paymentMethod } = parsedBody.success ? parsedBody.data : {};
 
     if (paymentMethod === "iap") {
       res.status(200).json({

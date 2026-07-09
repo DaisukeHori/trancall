@@ -1,4 +1,5 @@
 import type { Router, Request, Response } from "express";
+import { z } from "zod";
 import {
   getState,
   createSession,
@@ -6,6 +7,29 @@ import {
   getSessionByToken,
   getUserById,
 } from "../state.js";
+import type { UserFixture } from "../fixtures.js";
+
+const SignupBodySchema = z.object({
+  email: z.string().optional(),
+  password: z.string().optional(),
+  displayName: z.string().optional(),
+  nativeLanguage: z.string().optional(),
+});
+
+const SigninBodySchema = z.object({
+  email: z.string().optional(),
+  password: z.string().optional(),
+});
+
+const UpdateProfileBodySchema = z.object({
+  displayName: z.string().optional(),
+  nativeLanguage: z.string().optional(),
+  avatarUrl: z.string().optional(),
+});
+
+const ConsentBodySchema = z.object({
+  consentVersion: z.string().optional(),
+});
 
 function extractBearerToken(req: Request): string | null {
   const auth = req.headers["authorization"];
@@ -31,12 +55,10 @@ function buildUserProfile(userId: string) {
 
 export function registerAuthRoutes(router: Router): void {
   router.post("/auth/signup", (req: Request, res: Response) => {
-    const { email, password, displayName, nativeLanguage } = req.body as {
-      email?: string;
-      password?: string;
-      displayName?: string;
-      nativeLanguage?: string;
-    };
+    const parsedBody = SignupBodySchema.safeParse(req.body);
+    const { email, password, displayName, nativeLanguage } = parsedBody.success
+      ? parsedBody.data
+      : {};
 
     if (!email || !password || !displayName || !nativeLanguage) {
       res.status(400).json({
@@ -56,18 +78,18 @@ export function registerAuthRoutes(router: Router): void {
     }
 
     const state = getState();
-    const newUser = {
+    const newUser: UserFixture = {
       userId: `user-new-${Date.now()}`,
       email,
       password,
       trancallId: `@${displayName.toLowerCase().replace(/\s+/g, "_")}`,
       displayName,
       nativeLanguage,
-      avatarUrl: null as string | null,
-      consentVersion: null as string | null,
+      avatarUrl: null,
+      consentVersion: null,
       emailVerified: false,
       createdAt: new Date().toISOString(),
-      tier: "free" as const,
+      tier: "free",
       remainingMinutes: 30,
     };
     state.users.push(newUser);
@@ -85,7 +107,8 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.post("/auth/signin", (req: Request, res: Response) => {
-    const { email, password } = req.body as { email?: string; password?: string };
+    const parsedBody = SigninBodySchema.safeParse(req.body);
+    const { email, password } = parsedBody.success ? parsedBody.data : {};
 
     if (!email || !password) {
       res.status(400).json({
@@ -188,11 +211,10 @@ export function registerAuthRoutes(router: Router): void {
       return;
     }
 
-    const { displayName, nativeLanguage, avatarUrl } = req.body as {
-      displayName?: string;
-      nativeLanguage?: string;
-      avatarUrl?: string;
-    };
+    const parsedBody = UpdateProfileBodySchema.safeParse(req.body);
+    const { displayName, nativeLanguage, avatarUrl } = parsedBody.success
+      ? parsedBody.data
+      : {};
 
     if (displayName !== undefined) user.displayName = displayName;
     if (nativeLanguage !== undefined) user.nativeLanguage = nativeLanguage;
@@ -224,7 +246,8 @@ export function registerAuthRoutes(router: Router): void {
       return;
     }
 
-    const { consentVersion } = req.body as { consentVersion?: string };
+    const parsedBody = ConsentBodySchema.safeParse(req.body);
+    const { consentVersion } = parsedBody.success ? parsedBody.data : {};
     const state = getState();
     const user = state.users.find((u) => u.userId === session.userId);
     if (user && consentVersion) {

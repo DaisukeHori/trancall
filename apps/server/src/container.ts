@@ -10,7 +10,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Facades
 import { createAuthFacade } from "@trancall/auth";
-import type { AuthFacade } from "@trancall/auth";
+import type {
+  AuthFacade,
+  AuthEventBus,
+  AuthConsentRecordedEvent,
+  AuthConsentRevokedEvent,
+} from "@trancall/auth";
 import {
   createBillingFacade,
   createStripeWebCheckoutAdapter,
@@ -162,17 +167,12 @@ export function buildContainer(config: Config): AppContainer {
   // ── Facades (依存順に構築) ─────────────────────────────────────────────────
   // auth (新形式: profileRepo + consentRepo + legalDocRepo + eventBus)
   // AuthEventBus は EventBus の narrowed wrapper として注入する
-  const authEventBus = {
-    publish: async (event: { type: string; payload?: unknown }): Promise<void> => {
-      if (
-        event.type === "auth.consent_recorded" ||
-        event.type === "auth.consent_revoked"
-      ) {
-        // DomainEvent union に auth イベントを追加済みのため publish 可能
-        await eventBus.publish(
-          event as Parameters<typeof eventBus.publish>[0],
-        );
-      }
+  const authEventBus: AuthEventBus = {
+    async publish(
+      event: AuthConsentRecordedEvent | AuthConsentRevokedEvent,
+    ): Promise<void> {
+      // DomainEvent union に auth イベントを追加済みのため publish 可能
+      await eventBus.publish(event);
     },
   };
   const auth = createAuthFacade({

@@ -63,7 +63,7 @@ export function createLegalDocVersionRepository(
         });
       }
 
-      return mapRow(data as Record<string, unknown>);
+      return mapRow(data);
     },
 
     async findAllLatest(): Promise<Result<LegalDocumentVersion[]>> {

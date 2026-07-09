@@ -25,15 +25,6 @@ const ExportQuerySchema = z.object({
 
 const TranscriptParamsSchema = z.object({ roomId: z.string() });
 
-/**
- * roomId を検証して RoomId Brand 型に変換する共通ヘルパー
- */
-function parseRoomId(rawId: string): { success: true; data: ReturnType<typeof brandRoomId>["data"] } | { success: false } {
-  const result = brandRoomId(rawId);
-  if (!result.success) return { success: false };
-  return { success: true, data: result.data };
-}
-
 export function registerTranscriptRoutes(
   fastify: FastifyInstance,
   deps: { transcript: TranscriptFacade },

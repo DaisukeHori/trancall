@@ -1,6 +1,22 @@
 import type { Router, Request, Response } from "express";
+import { z } from "zod";
 import { getState, resetState } from "../state.js";
 import { E2E_ROOM_ID } from "../fixtures.js";
+
+const TriggerIncomingCallBodySchema = z.object({
+  targetUserId: z.string().optional(),
+});
+
+const InjectSubtitleDeltaBodySchema = z.object({
+  roomId: z.string().optional(),
+  speakerId: z.string().optional(),
+  text: z.string().optional(),
+  isFinal: z.boolean().optional(),
+});
+
+const SetBillingZeroBodySchema = z.object({
+  userId: z.string().optional(),
+});
 
 export function registerE2eHookRoutes(router: Router): void {
   router.post("/__e2e__/reset", (_req: Request, res: Response) => {
@@ -9,7 +25,8 @@ export function registerE2eHookRoutes(router: Router): void {
   });
 
   router.post("/__e2e__/trigger-incoming-call", (req: Request, res: Response) => {
-    const { targetUserId } = req.body as { targetUserId?: string };
+    const parsedBody = TriggerIncomingCallBodySchema.safeParse(req.body);
+    const { targetUserId } = parsedBody.success ? parsedBody.data : {};
 
     const state = getState();
     state.pendingIncomingCallTarget = targetUserId ?? null;
@@ -27,12 +44,10 @@ export function registerE2eHookRoutes(router: Router): void {
   });
 
   router.post("/__e2e__/inject-subtitle-delta", (req: Request, res: Response) => {
-    const { roomId, speakerId, text, isFinal } = req.body as {
-      roomId?: string;
-      speakerId?: string;
-      text?: string;
-      isFinal?: boolean;
-    };
+    const parsedBody = InjectSubtitleDeltaBodySchema.safeParse(req.body);
+    const { roomId, speakerId, text, isFinal } = parsedBody.success
+      ? parsedBody.data
+      : {};
 
     res.status(200).json({
       ok: true,
@@ -47,7 +62,8 @@ export function registerE2eHookRoutes(router: Router): void {
   });
 
   router.post("/__e2e__/set-billing-zero", (req: Request, res: Response) => {
-    const { userId } = req.body as { userId?: string };
+    const parsedBody = SetBillingZeroBodySchema.safeParse(req.body);
+    const { userId } = parsedBody.success ? parsedBody.data : {};
     const state = getState();
 
     if (userId) {

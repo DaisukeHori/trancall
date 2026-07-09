@@ -496,7 +496,7 @@ export default defineAgent({
       participantLanguages.set(participantIdentity, sourceLang);
 
       // 他の全 Participant に対してセッションを開始
-      for (const [otherIdentity, otherParticipant] of ctx.room.remoteParticipants.entries()) {
+      for (const otherIdentity of ctx.room.remoteParticipants.keys()) {
         if (otherIdentity === participantIdentity) continue;
 
         const otherLangResult = participantLanguages.get(otherIdentity);
