@@ -1,3 +1,64 @@
+## 引き継ぎメモ (2026-07-09時点)
+
+### プロジェクト概要
+- リポジトリ: /Users/horidaisuke/trancall (GitHub: DaisukeHori/trancall)
+- GPT-Realtime-Translateを使ったリアルタイム翻訳付きVoIPアプリ。モジュラーモノリス (10 packages + 4 apps: mobile/desktop/server/translation-agent)
+- 詳細はルートCLAUDE.mdおよびdocs/architecture.md, docs/module-contracts.md (canonical) を参照
+
+### 今回のセッションでやったこと
+1. `git pull` → ローカルmainがorigin/mainより97コミット先行していたのを確認
+2. Fableサブエージェント5体を並列起動し、以下を監査:
+   - 既知課題 (docs/sprint3-known-issues.md §2.1〜2.19) の実コード突合
+   - server/認証/課金 (routes, middleware, adapters, supabase migrations)
+   - mobile/ネイティブ (plugins, ios/android手動配置ファイル, デザインシステム準拠)
+   - リアルタイム系 (room/signaling/media/translation/transcript, translation-agent, EventBus)
+   - typecheck/lint/testの実測 (test 1444/1444 PASS, typecheck 2 package FAIL, lint 7 package FAIL 1188件)
+3. 見つかった問題を **GitHub Issue #39〜#74 (36件)** として登録。各Issueに症状/原因(file:line)/再現シナリオ/対処方針を記載済み
+4. 97コミットをorigin/mainにpush済み (HEAD: d207a20、fast-forward、force不使用)
+
+### 現在の状態
+- リモートは最新。ローカル未コミット差分: `apps/server/.gitignore`と`supabase/.temp/*`のuntrackedファイルのみ (Issue #74で追跡中)
+- テストは全PASSだが、**typecheckとlintは赤** (詳細はIssue #59, #73)
+- 決済フロー・通話パイプラインは重大バグにより実質機能不全 (下記CRITICAL参照)
+
+### 最優先で着手すべきIssue (推奨順)
+
+#### まず着手 (レバレッジが高い/前提条件になっているもの)
+- **#59** native-modules.d.tsの1行修正でtypecheck 290件+lint 1106件が解消する見込み (最優先、着手コスト最小)
+- **#58** registerRootComponent欠落でアプリ起動時クラッシュ (1行修正)
+- **#55** Config Pluginの@expo/config-plugins import修正 (1行修正、iOSの.npmrc hoistingも同Issue内に記載)
+- **#67** translation/billingドメインイベントがEventBus未配線 → これが#46(利用量計測)の前提条件
+
+#### 決済フロー (ほぼ全滅、事業影響大)
+#39 Stripe webhook署名検証失敗 → #40 IAP検証なしで決済偽造可能 → #41 解約がStripeに伝わらない → #42 updatePlanのResultエラー握り潰し (他Issueの根本原因) → #44 External Purchase検証なし → #46 利用量計測未配線 → #47 新規ユーザーprovisioning経路なし
+
+#### 通話パイプライン (音声翻訳は動くが周辺機能が断線)
+#48 transcript永続化されない → #51 Data Channel topic不一致で字幕/ステータスUI未達 → #52 着信Push検証失敗で誰にも届かない → #53 予約sessionId不一致でユーザー残高ロック → #43 room token/leave/getのなりすまし・DoS認可バイパス
+
+#### モバイルビルド基盤 (そもそもビルドできない)
+#54 Expo/RNバージョン不整合 → #56 ネイティブファイルがビルド経路未接続 → #57 VoIP Push payload不一致 (Apple規約違反リスクあり) → #68 CallStack未接続で発着信UI到達不能
+
+#### HIGH級 (#60〜#66)
+Apple webhook冪等キー超過/署名検証なし、Stripeライフサイクル未処理、Internal HMAC再シリアライズ、profiles RLS全公開、退会非原子的、サポート問い合わせXSS
+
+#### MEDIUM/LOW (チェックリスト形式、#69〜#74)
+Realtime運用品質、Mobile native残務、デザインシステム/i18n、コーディング規約違反、lint/typecheck残務、リポジトリ衛生 (未push確認/stale worktree37個等)
+
+### 注意点
+- `docs/sprint3-known-issues.md` §2.13/§2.15は**現行コードでは解消済み**なのに記述が古いまま。このドキュメントを鵜呑みにして再修正すると改悪するので要注意 (Issue #74に記載)
+- `updatePlan`のResultエラー握り潰し(#42)は複数のCRITICAL Issueの根本原因。ここを直すと#41等の診断がしやすくなる
+- モバイルのcallkeep実装(#68)は設計書 (native-call-bridge.md §3.3) の「Expo Modules自前実装」方針と逆方向のコードになっている。修正前に方針再確認が必要
+- サブエージェントはSonnet 5指定 (`model: "sonnet"`)。設計書・戦略文書はmodel=opus/fable直接執筆
+
+### 参照
+- 全Issue: https://github.com/DaisukeHori/trancall/issues (#39〜#74)
+- 既知課題: docs/sprint3-known-issues.md
+- モジュール契約: docs/module-contracts.md
+- 通話ライフサイクル: docs/call-lifecycle.md
+- ネイティブブリッジ設計: docs/native-call-bridge.md
+
+---
+
 # TranCall
 
 **すべての通話を、自分の言語で。**
