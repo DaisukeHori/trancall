@@ -278,13 +278,17 @@ export function makeSubscriptionRepository(
   const rows = new Map<string, SubscriptionRow>();
   const usedSecondsMap = new Map<string, number>();
 
+  // nullable 追従 (00019 migration): SubscriptionRow.user_id は退会済みユーザーの
+  // 物理削除後に NULL 化されうる。このモック repo は userId をキーに index する
+  // ため、null は index できない (= その行は findByUserId では引けない、
+  // 本番の「退会済みユーザー参照」の意味的にも妥当)。
   for (const row of initialRows) {
-    rows.set(row.user_id, row);
+    if (row.user_id !== null) rows.set(row.user_id, row);
   }
 
   return {
     _setRow(row: SubscriptionRow): void {
-      rows.set(row.user_id, row);
+      if (row.user_id !== null) rows.set(row.user_id, row);
     },
     _addUsedSeconds(userId: string, seconds: number): void {
       const prev = usedSecondsMap.get(userId) ?? 0;

@@ -36,6 +36,8 @@ const ERROR_CODE_TO_STATUS: Record<string, number> = {
   AUTH_CONSENT_REVOKED: 403,
   CONTACT_USER_BLOCKED: 403,
   ROOM_USER_BLOCKED: 403,
+  // 確定#2: 招待されていないユーザーの POST /api/rooms/:id/join を拒否する際に使う
+  ROOM_USER_NOT_INVITED: 403,
   FORBIDDEN: 403,
   TRANSCRIPT_EXPORT_FORBIDDEN: 403,
   // 404

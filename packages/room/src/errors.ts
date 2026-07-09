@@ -10,6 +10,9 @@ export const RoomErrorCode = {
   ROOM_ALREADY_ENDED: "ROOM_ALREADY_ENDED",
   ROOM_CREATE_FAILED: "ROOM_CREATE_FAILED",
   ROOM_MEDIA_CREATE_FAILED: "ROOM_MEDIA_CREATE_FAILED",
+  // 確定#2: 招待されていないユーザー (participants 行が存在しないユーザー) の
+  // 自己エンロール (POST /api/rooms/:id/join) を拒否する際に使う。
+  ROOM_USER_NOT_INVITED: "ROOM_USER_NOT_INVITED",
 } as const;
 
 export type RoomErrorCode = (typeof RoomErrorCode)[keyof typeof RoomErrorCode];

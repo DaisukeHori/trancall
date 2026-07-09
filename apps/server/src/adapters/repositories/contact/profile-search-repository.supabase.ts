@@ -18,13 +18,17 @@ import { PublicProfileSchema } from "@trancall/contact";
 import type { PublicProfile } from "@trancall/contact";
 
 /**
- * PostgreSQL の ILIKE パターン特殊文字 (`%` `_` `\`) をエスケープする。
+ * PostgreSQL の ILIKE パターン特殊文字 (`%` `_` `\`) と PostgREST の `*` (ILIKE の
+ * `%` の別名として解釈される) をエスケープする。
  * エスケープしないと `q=%` や `q=_` で全件 (あるいは意図しない広範囲) がヒットしてしまう
- * (Issue #26)。エスケープ後は Supabase 側の `ilike` に `%${escaped}%` として渡すため、
- * ユーザー入力に含まれる `%` `_` はリテラル文字として扱われる。
+ * (Issue #26)。確定#3: PostgREST は `ilike` フィルタのパターン文字列中の `*` を `%`
+ * のエイリアスとして扱うため、`\%` `\_` `\\` だけでは `q=*` が依然として全件マッチして
+ * しまう取りこぼしがあった。`*` もエスケープ対象に追加する。
+ * エスケープ後は Supabase 側の `ilike` に `%${escaped}%` として渡すため、
+ * ユーザー入力に含まれる `%` `_` `\` `*` はリテラル文字として扱われる。
  */
 function escapeIlikePattern(input: string): string {
-  return input.replace(/[\\%_]/g, (char) => `\\${char}`);
+  return input.replace(/[\\%_*]/g, (char) => `\\${char}`);
 }
 
 export function createProfileSearchRepository(

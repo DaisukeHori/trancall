@@ -43,6 +43,14 @@ Caller App          API Server              Supabase           LiveKit SFU      
 
 ## 2. 着信フロー（Callee側）
 
+**確定#2 (2026-07 敵対的レビュー) 追記**: `POST /rooms/:id/join` は「発信フロー §1
+createCall が invitee を participants に事前登録済み (joined_at: NULL の
+招待済み・未参加状態) であること」を前提にした認可チェックを行う。
+招待されていない (= participants 行が存在しない) ユーザーの join は
+`ROOM_USER_NOT_INVITED` (403) で拒否される。下図の「INSERT participant」は
+実際には「事前登録済み行の joined_at を更新 (markJoined)」であり、新規行の
+INSERT ではない。
+
 ```
 Callee Device      Callee App        API Server        LiveKit SFU       Translation Agent
     │                   │                │                  │                    │

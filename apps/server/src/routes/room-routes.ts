@@ -386,9 +386,14 @@ export function registerRoomRoutes(
   });
 }
 
-/** #43: request.userId が room の参加者一覧に含まれるかを確認する */
+/**
+ * #43: request.userId が room の参加者一覧に含まれるかを確認する。
+ * nullable 追従 (00019 migration): participant.userId は退会済みユーザー物理削除後に
+ * null になりうるが、request.userId (認証済みユーザー) は常に非 null のため
+ * null 行が誤って一致することはない。
+ */
 function isRoomParticipant(
-  participants: { userId: UserId }[],
+  participants: { userId: UserId | null }[],
   userId: UserId,
 ): boolean {
   return participants.some((p) => p.userId === userId);

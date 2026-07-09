@@ -94,6 +94,78 @@ describe("POST /api/auth/signin — rate limit (10 req/min/IP)", () => {
   });
 });
 
+// 確定#5: rate limit キーを IP のみから IP + email 併用に変更 (trustProxy: true と併せて対応)。
+describe("POST /api/auth/signup — rate limit key = IP + email (確定#5)", () => {
+  it("同一 email なら X-Forwarded-For (IP) を変えても 11 回目で 429 になる", async () => {
+    const app = await createApp();
+    try {
+      const payload = {
+        email: "victim@example.com",
+        password: "secureP@ss123",
+        displayName: "田中太郎",
+        nativeLanguage: "ja",
+      };
+
+      let lastResponse;
+      for (let i = 0; i < 11; i++) {
+        lastResponse = await app.inject({
+          method: "POST",
+          url: "/api/auth/signup",
+          payload,
+          // trustProxy: true (app.ts) により X-Forwarded-For の値が request.ip として扱われる。
+          // IP をリクエストごとに変えても email ベースの制限で弾かれることを確認する。
+          headers: { "x-forwarded-for": `10.0.0.${i + 1}` },
+        });
+      }
+
+      expect(lastResponse?.statusCode).toBe(429);
+      const body = JSON.parse(lastResponse?.body ?? "{}") as { ok: boolean; error: { code: string } };
+      expect(body.ok).toBe(false);
+      expect(body.error.code).toBe("RATE_LIMITED");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("IP・email が両方とも異なれば独立してカウントされる (バケット分離の確認)", async () => {
+    const app = await createApp();
+    try {
+      // userA: IP 10.1.1.1 から 10 回 (IP バケット・email バケットともに上限まで消費)
+      for (let i = 0; i < 10; i++) {
+        await app.inject({
+          method: "POST",
+          url: "/api/auth/signup",
+          payload: {
+            email: "userA2@example.com",
+            password: "secureP@ss123",
+            displayName: "A",
+            nativeLanguage: "ja",
+          },
+          headers: { "x-forwarded-for": "10.1.1.1" },
+        });
+      }
+
+      // userB: 別 IP・別 email から 1 回目 → IP バケット・email バケットどちらも
+      // userA の消費とは無関係な新規バケットのため 200 になるはず。
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/auth/signup",
+        payload: {
+          email: "userB2@example.com",
+          password: "secureP@ss123",
+          displayName: "B",
+          nativeLanguage: "ja",
+        },
+        headers: { "x-forwarded-for": "10.2.2.2" },
+      });
+
+      expect(response.statusCode).toBe(200);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe("GET /api/contacts/search — rate limit (10 req/min/user)", () => {
   it("11 回目のリクエストで 429 (RATE_LIMITED) を返す", async () => {
     const app = await createApp();

@@ -163,7 +163,12 @@ export class InternalApiClient {
   async postEvent(event: AgentEvent): Promise<Result<void, PostError>> {
     const idempotencyKey = randomUUID();
     const body = JSON.stringify(event);
-    const signature = this.sign(body, idempotencyKey);
+    // 確定#4: timestamp は署名対象に含める (apps/server/src/middleware/hmac-middleware.ts
+    // と canonical string を一致させる必要がある、両側は必ずペアで変更すること)。
+    // リトライ全体で同一 timestamp を使い回す (許容ウィンドウ 5 分に対しリトライの
+    // 最大遅延は数十秒程度のため、リトライごとに再生成する必要はない)。
+    const timestamp = new Date().toISOString();
+    const signature = this.sign(body, idempotencyKey, timestamp);
 
     let lastError: PostError = {
       code: "network",
@@ -171,7 +176,7 @@ export class InternalApiClient {
     };
 
     for (let attempt = 0; attempt <= this.config.maxRetries; attempt += 1) {
-      const result = await this.doPost(body, signature, idempotencyKey);
+      const result = await this.doPost(body, signature, idempotencyKey, timestamp);
       if (result.ok) {
         return { ok: true, data: undefined };
       }
@@ -200,6 +205,7 @@ export class InternalApiClient {
     body: string,
     signature: string,
     idempotencyKey: string,
+    timestamp: string,
   ): Promise<Result<void, PostError>> {
     try {
       const response = await this.fetchImpl(`${this.config.serverUrl}/internal/agent/events`, {
@@ -209,6 +215,7 @@ export class InternalApiClient {
           "x-trancall-agent": this.config.agentName,
           "x-trancall-signature": signature,
           "x-trancall-idempotency-key": idempotencyKey,
+          "x-trancall-timestamp": timestamp,
         },
         body,
       });
@@ -248,12 +255,15 @@ export class InternalApiClient {
   }
 
   /**
-   * HMAC-SHA256 で `body || idempotencyKey` に署名する。
-   * Server 側で同じ計算をして検証する。
+   * HMAC-SHA256 で `body || idempotencyKey || timestamp` に署名する。
+   * Server 側 (apps/server/src/middleware/hmac-middleware.ts) で同じ計算をして検証する。
+   * 確定#4: timestamp を署名対象に含めることで、リプレイ防止用の timestamp
+   * ヘッダー自体の改竄を防ぐ (署名を変えずに timestamp だけ「今」に書き換えて
+   * 鮮度チェックを回避する攻撃を塞ぐ)。
    */
-  private sign(body: string, idempotencyKey: string): string {
+  private sign(body: string, idempotencyKey: string, timestamp: string): string {
     return createHmac("sha256", this.config.hmacSecret)
-      .update(`${body}|${idempotencyKey}`)
+      .update(`${body}|${idempotencyKey}|${timestamp}`)
       .digest("hex");
   }
 }

@@ -130,6 +130,34 @@ describe("CallLifecycleService.createCall", () => {
     expect(event.type).toBe("room.created");
   });
 
+  // 確定#2 (認可バイパス修正): invitee は participants に「招待済み・未参加」
+  // (joined_at: null) として事前登録される。RoomState.participants (公開契約) には
+  // 実際に join したユーザーのみ含まれる (= host 1 人のまま) が、内部の
+  // participantRepo には invitee 行が存在し、後で joinCall する際に使われる。
+  it("invitee は participants に「招待済み・未参加」として事前登録される", async () => {
+    const { service, participantRepo } = makeService();
+    const result = await service.createCall(creatorId, [inviteeId1, inviteeId2], {
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // 公開 RoomState.participants は host のみ (invitee は未 join のため含まれない)
+    expect(result.data.participants).toHaveLength(1);
+
+    // 内部の participantRepo には invitee 行 (joined_at: null) が存在する
+    const rowsResult = await participantRepo.findByRoomId(result.data.roomId);
+    expect(rowsResult.ok).toBe(true);
+    if (!rowsResult.ok) return;
+    expect(rowsResult.data).toHaveLength(3);
+    const invitee1Row = rowsResult.data.find((r) => r.user_id === inviteeId1);
+    const invitee2Row = rowsResult.data.find((r) => r.user_id === inviteeId2);
+    expect(invitee1Row?.joined_at).toBeNull();
+    expect(invitee2Row?.joined_at).toBeNull();
+    expect(invitee1Row?.role).toBe("member");
+  });
+
   it("notification が失敗しても createCall は成功する (best-effort)", async () => {
     const { service, notification } = makeService();
     vi.mocked(notification.sendIncomingCall).mockResolvedValue({

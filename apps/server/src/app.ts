@@ -30,6 +30,19 @@ export async function buildApp(
   const fastify = Fastify({
     logger: false, // 独自ロガーを使用
     bodyLimit: 4 * 1024 * 1024, // 4MB
+    // 確定#5: rate limit (auth-routes.ts / contact-routes.ts) や監査ログは request.ip を
+    // キーに使うが、trustProxy 未設定だと Vercel/Render 等のリバースプロキシ経由の
+    // リクエストで request.ip が常にプロキシの IP (単一値) になり、rate limit が
+    // 事実上無効化されていた。デプロイ先 (Vercel) は単一ホップのリバースプロキシとして
+    // X-Forwarded-For を付与するため、trustProxy: true (先頭の XFF エントリを
+    // request.ip として採用) で実 IP を復元する。
+    // 注意 (XFF スプーフィング): この設定は「アプリの手前に必ず信頼できるプロキシが
+    // 存在する」ことが前提。もしアプリが信頼できないネットワークから直接到達可能
+    // (プロキシを経由しないアクセス経路がある) な場合、クライアントが任意の
+    // X-Forwarded-For を送りつけて request.ip を偽装できてしまう。将来的に複数ホップの
+    // プロキシ構成になる場合は trustProxy を具体的なホップ数 (number) や信頼する
+    // プロキシの IP/CIDR リストに絞り込むこと (Fastify trustProxy オプション参照)。
+    trustProxy: true,
   });
 
   // セキュリティ

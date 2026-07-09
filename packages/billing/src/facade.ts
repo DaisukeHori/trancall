@@ -265,6 +265,18 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     if (!rowResult.ok) return rowResult;
     if (rowResult.data === null) return ok(null);
 
+    // nullable 追従 (00019 migration): 契約者が退会し物理削除済みだと user_id が NULL 化される。
+    // その場合はユーザーを解決できないため、Stripe ライフサイクル同期をスキップする
+    // (行自体は課金監査のため残るが、紐付くユーザーがもう存在しないので同期対象外)。
+    if (rowResult.data.user_id === null) {
+      console.warn(
+        "[BillingFacade] subscription.user_id が NULL (退会済みユーザー物理削除) のため" +
+          " Stripe ライフサイクル同期をスキップしました",
+        { stripeSubscriptionId },
+      );
+      return ok(null);
+    }
+
     const userIdResult = brandUserId(rowResult.data.user_id);
     if (!userIdResult.success) {
       return err({

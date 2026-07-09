@@ -56,6 +56,26 @@ describe("ProfileSearchRepository.searchByDisplayName — ILIKE ワイルドカ�
     expect(ilikeMock).toHaveBeenCalledWith("display_name", "%a\\\\b%");
   });
 
+  // 確定#3: PostgREST は ilike パターン中の `*` を `%` の別名として解釈するため、
+  // `\%` `\_` `\\` のエスケープだけでは `q=*` が全件マッチしてしまっていた。
+  it("`*` を含むクエリもエスケープされる (PostgREST の % 別名対策、確定#3)", async () => {
+    const { supabase, ilikeMock } = makeSupabaseMock();
+    const repo = createProfileSearchRepository(supabase);
+
+    await repo.searchByDisplayName("*");
+
+    expect(ilikeMock).toHaveBeenCalledWith("display_name", "%\\*%");
+  });
+
+  it("`*` を含む複合クエリもエスケープされる", async () => {
+    const { supabase, ilikeMock } = makeSupabaseMock();
+    const repo = createProfileSearchRepository(supabase);
+
+    await repo.searchByDisplayName("a*b");
+
+    expect(ilikeMock).toHaveBeenCalledWith("display_name", "%a\\*b%");
+  });
+
   it("通常の英数字クエリはそのまま (エスケープなし) 前後に % を付けて渡される", async () => {
     const { supabase, ilikeMock } = makeSupabaseMock();
     const repo = createProfileSearchRepository(supabase);

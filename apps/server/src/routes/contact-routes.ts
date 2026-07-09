@@ -32,8 +32,11 @@ const ReportSchema = z.object({
   details: z.string().optional(),
 });
 
+// 確定#3: 最小 1 文字は既存要件のまま維持しつつ、上限なしだと DB への ILIKE 検索に
+// 任意長の文字列 (エスケープ処理コストや意図しない負荷) を渡せてしまうため、
+// 上限のみ追加する (display_name は DB 上 VARCHAR(50) のため、それより十分大きい値に設定)。
 const SearchQuerySchema = z.object({
-  q: z.string().min(1),
+  q: z.string().min(1).max(100),
 });
 
 export function registerContactRoutes(

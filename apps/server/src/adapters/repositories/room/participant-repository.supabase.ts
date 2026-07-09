@@ -15,10 +15,12 @@ type ParticipantRole = "host" | "member";
 type ParticipantRow = {
   id: string;
   room_id: string;
-  user_id: string;
+  // nullable 追従 (00019 migration): 退会し物理削除されると NULL 化される
+  user_id: string | null;
   role: ParticipantRole;
   is_muted: boolean;
-  joined_at: string;
+  // 確定#2: NULL は「招待済みだがまだ join していない」ことを表す
+  joined_at: string | null;
   left_at: string | null;
 };
 
@@ -26,16 +28,19 @@ type UpsertParticipantCommand = {
   roomId: RoomId;
   userId: UserId;
   role: ParticipantRole;
-  joinedAt: string;
+  // 確定#2: createCall の invitee 事前登録では null (未 join) を渡す
+  joinedAt: string | null;
 };
 
 const ParticipantRowSchema = z.object({
   id: z.uuid(),
   room_id: z.uuid(),
-  user_id: z.uuid(),
+  // nullable 追従 (00019 migration): 退会し物理削除されると NULL 化される
+  user_id: z.uuid().nullable(),
   role: z.enum(["host", "member"]),
   is_muted: z.boolean(),
-  joined_at: z.iso.datetime(),
+  // 確定#2: NULL は「招待済みだがまだ join していない」ことを表す
+  joined_at: z.iso.datetime().nullable(),
   left_at: z.iso.datetime().nullable(),
 });
 
@@ -113,6 +118,47 @@ export function createParticipantRepository(supabase: SupabaseClient): Participa
         return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
       }
       return ok(true);
+    },
+
+    // 確定#2: room_id + user_id に一致する参加者行を 1 件取得する (存在しなければ null)。
+    async findOne(roomId: RoomId, userId: UserId): Promise<Result<ParticipantRow | null>> {
+      const { data, error } = await supabase
+        .schema("trancall_room")
+        .from("participants")
+        .select("*")
+        .eq("room_id", roomId)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error) {
+        return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
+      }
+      if (!data) return ok(null);
+      return parseRow(data as Record<string, unknown>);
+    },
+
+    // 確定#2: 既存行の joined_at のみを更新する (role は書き換えない)。
+    async markJoined(roomId: RoomId, userId: UserId, joinedAt: string): Promise<Result<ParticipantRow>> {
+      const { data, error } = await supabase
+        .schema("trancall_room")
+        .from("participants")
+        .update({ joined_at: joinedAt })
+        .eq("room_id", roomId)
+        .eq("user_id", userId)
+        .select()
+        .maybeSingle();
+
+      if (error) {
+        return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
+      }
+      if (!data) {
+        return err({
+          code: "ROOM_USER_NOT_INVITED",
+          message: `ユーザー ${userId} はこの通話に招待されていません`,
+          retryable: false,
+        });
+      }
+      return parseRow(data as Record<string, unknown>);
     },
   };
 }

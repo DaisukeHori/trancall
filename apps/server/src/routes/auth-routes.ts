@@ -74,8 +74,14 @@ export function registerAuthRoutes(
 ): void {
   const { supabase, auth } = deps;
 
-  // #34: signin/signup は認証不要 (auth-middleware で除外) なため、無制限だと
+  // #34/確定#5: signin/signup は認証不要 (auth-middleware で除外) なため、無制限だと
   // credential stuffing / アカウント総当たりが可能だった。IP ベースで 10 req/min に制限する。
+  // 確定#5: IP のみのキーだと (a) trustProxy 未設定下では request.ip がプロキシの
+  // 単一 IP に潰れて実質グローバル上限になる、(b) trustProxy 設定後も攻撃者が IP を
+  // ローテーションすれば同一メールアドレスへの総当たりを回避できる、という 2 つの
+  // 抜け道があった。IP ベースの制限 (フラッド対策、body 未検証でも早期に弾く) に加えて
+  // email ベースの制限 (同一アカウントへの標的型総当たり対策、IP ローテーションでは
+  // 回避できない) を併用する。email が判明した時点 (body バリデーション後) で追加チェックする。
   // NOTE: in-memory store は Vercel serverless ではインスタンスごとに分断されるため
   // グローバルな制限としては実効性が限定的 (rate-limit.ts の JSDoc 参照)。
   const authRateLimitStore = createInMemoryRateLimitStore();
@@ -84,7 +90,7 @@ export function registerAuthRoutes(
 
   // POST /api/auth/signup
   fastify.post("/api/auth/signup", async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!signupRateLimiter.check(`signup:${request.ip}`)) {
+    if (!signupRateLimiter.check(`signup:ip:${request.ip}`)) {
       return reply.status(429).send({
         ok: false,
         error: {
@@ -103,6 +109,19 @@ export function registerAuthRoutes(
           code: "VALIDATION_ERROR",
           message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
           retryable: false,
+        },
+      });
+    }
+
+    // 確定#5: email が判明したので、email ベースの追加レート制限も適用する
+    // (IP ローテーションによる同一アカウント総当たりを防ぐ)。
+    if (!signupRateLimiter.check(`signup:email:${parsed.data.email.toLowerCase()}`)) {
+      return reply.status(429).send({
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: "リクエストが多すぎます。しばらくお待ちください。",
+          retryable: true,
         },
       });
     }
@@ -156,7 +175,7 @@ export function registerAuthRoutes(
 
   // POST /api/auth/signin
   fastify.post("/api/auth/signin", async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!signinRateLimiter.check(`signin:${request.ip}`)) {
+    if (!signinRateLimiter.check(`signin:ip:${request.ip}`)) {
       return reply.status(429).send({
         ok: false,
         error: {
@@ -172,6 +191,19 @@ export function registerAuthRoutes(
       return reply.status(400).send({
         ok: false,
         error: { code: "VALIDATION_ERROR", message: "入力が無効です", retryable: false },
+      });
+    }
+
+    // 確定#5: email が判明したので、email ベースの追加レート制限も適用する
+    // (IP ローテーションによる同一アカウント総当たりを防ぐ)。
+    if (!signinRateLimiter.check(`signin:email:${parsed.data.email.toLowerCase()}`)) {
+      return reply.status(429).send({
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: "リクエストが多すぎます。しばらくお待ちください。",
+          retryable: true,
+        },
       });
     }
 

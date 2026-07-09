@@ -19,8 +19,11 @@
  *
  * #51: Data Channel の topic を module-contracts.md §3.4 の canonical (`translation.status`) に
  * 明示統一。subtitle.delta / translation.degraded / translation.recovered の 3 種を
- * 同一 topic 上の discriminated union (TranslationStatusChannelPayloadSchema) として送信する
- * (apps/mobile/src/lib/livekit/translation-status.ts が同 topic・同 schema で受信する)。
+ * 同一 topic 上の discriminated union (TranslationStatusChannelPayloadSchema) として送信する。
+ * 訂正 (2026-07 敵対的レビュー確定#6): 送信側 (本ファイル) の実装・topic 名は完了しているが、
+ * apps/mobile 側の受信 consumer (`apps/mobile/src/lib/livekit/translation-status.ts` で
+ * 同 topic・同 schema を受信し画面表示に配線する部分) は未着手・未配線。
+ * mobile 側の字幕表示配線は別 Wave (#51 の続き) で対応する。
  */
 
 import type { JobContext, JobProcess } from "@livekit/agents";
@@ -332,7 +335,9 @@ export default defineAgent({
 
       // #51: transcript イベント購読 → subtitle.delta Data Channel publish
       // module-contracts.md §3.4 の subtitle.delta として translation.status topic に送信する
-      // (isFinal=false/true 両方を送信、mobile 側は最新 delta を字幕として表示する)
+      // (isFinal=false/true 両方を送信)。
+      // 訂正 (確定#6): mobile 側の受信・字幕表示への配線は本ファイルの責務範囲外であり、
+      // 現時点では未配線 (apps/mobile 側の consumer 実装は #51 の続きとして別 Wave で対応)。
       session.on("transcript", (text: string, isFinal: boolean, elapsedMs: number) => {
         const meta = session.getDegradedChannelMeta();
         const payload: SubtitleDeltaChannelPayload = {

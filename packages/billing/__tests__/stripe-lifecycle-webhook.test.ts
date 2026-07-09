@@ -170,6 +170,38 @@ describe("BillingFacade.handleStripeWebhook — customer.subscription.updated (#
     expect(deps.webhookEventRepo.markProcessed).toHaveBeenCalledOnce();
   });
 
+  // nullable 追従 (00019 migration + 自己レビュー): subscriptions.user_id は退会済み
+  // ユーザーの物理削除後に NULL 化されうる。SubscriptionRow.safeParse がこれをエラーに
+  // せず、facade 側もクラッシュせずにライフサイクル同期をスキップできることを確認する。
+  it("subscription.user_id が null (退会済みユーザー物理削除) の場合はスキップし markProcessed する", async () => {
+    currentStripeEvent = {
+      type: "customer.subscription.updated",
+      id: "evt_test_001",
+      data: {
+        object: {
+          id: "sub_test",
+          customer: "cus_test",
+          current_period_start: 1_700_000_000,
+          current_period_end: 1_702_600_000,
+          cancel_at_period_end: false,
+        },
+      },
+    };
+
+    const deps = makeDeps({
+      findByStripeSubscriptionId: vi
+        .fn()
+        .mockResolvedValue({ ok: true, data: { ...subRow, user_id: null } }),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.handleStripeWebhook("rawbody", "sig");
+
+    expect(result.ok).toBe(true);
+    expect(deps.subscriptionRepo.updatePlan).not.toHaveBeenCalled();
+    expect(deps.webhookEventRepo.markProcessed).toHaveBeenCalledOnce();
+  });
+
   it("findByStripeSubscriptionId が未実装 (undefined) の場合はスキップし markProcessed する", async () => {
     currentStripeEvent = {
       type: "customer.subscription.updated",

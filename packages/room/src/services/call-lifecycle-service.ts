@@ -130,6 +130,41 @@ export function createCallLifecycleService(
         });
       }
 
+      // 4.5. 確定#2 (認可バイパス修正): invitee 全員を participants に
+      // 「招待済み・未参加」ステータス (joined_at: null) で事前登録する。
+      // joinCall はこの行の有無で「招待されているか」を判定するため、ここで
+      // 登録しておかないと invitee は永久に join できなくなる。
+      // best-effort: push 通知の失敗と同じ方針で、事前登録に失敗した invitee が
+      // いても通話作成自体は失敗させない (その invitee は join 時に
+      // ROOM_USER_NOT_INVITED になる、という限定的な影響に留める)。
+      const inviteResults = await Promise.allSettled(
+        inviteeIds.map((inviteeId) =>
+          participantRepo.upsert({
+            roomId,
+            userId: inviteeId,
+            role: "member",
+            joinedAt: null,
+          }),
+        ),
+      );
+      inviteResults.forEach((result, index) => {
+        const inviteeId = inviteeIds[index];
+        if (result.status === "rejected") {
+          console.warn("[room] invitee 事前登録に失敗 (best-effort, 通話作成は継続)", {
+            roomId,
+            inviteeId,
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          });
+        } else if (!result.value.ok) {
+          console.warn("[room] invitee 事前登録がエラーを返した (best-effort, 通話作成は継続)", {
+            roomId,
+            inviteeId,
+            errorCode: result.value.error.code,
+            errorMessage: result.value.error.message,
+          });
+        }
+      });
+
       // 5. invitee 全員に sendIncomingCall (並列、best-effort)
       // #52: callerName/languagePair/callerLanguage は呼び出し元 (server route) が
       // auth/profile 解決済みの値を opts 経由で渡す (room facade は auth に依存しないため自己解決不可)。
