@@ -55,4 +55,31 @@ export interface SubscriptionRepository {
     periodStart: string,
     periodEnd: string,
   ): Promise<Result<number>>;
+
+  /**
+   * [#40] iap_original_transaction_id で既存のサブスクリプション行を検索する。
+   * updatePlan (UPDATE) 実行前の冪等重複排除チェックに使用する
+   * (DB 側の UNIQUE 制約は別ワークストリームが追加する想定)。
+   * 見つからない場合はエラーではなく `ok(null)` を返す。
+   *
+   * オプショナルメソッド: 未実装の repository では facade 側の
+   * pre-check がスキップされ、updatePlan の Result エラー
+   * (unique/duplicate 検知) のみで冪等性を担保する。
+   */
+  findByIapOriginalTransactionId?(
+    transactionId: string,
+  ): Promise<Result<SubscriptionRow | null>>;
+
+  /**
+   * [#24] stripe_subscription_id で既存のサブスクリプション行を検索する。
+   * Stripe ライフサイクル Webhook (customer.subscription.updated/deleted, invoice.paid)
+   * から対象ユーザーを特定するために使用する。
+   * 見つからない場合はエラーではなく `ok(null)` を返す。
+   *
+   * オプショナルメソッド: 未実装の repository では該当 Webhook の
+   * ライフサイクル同期がスキップされる (facade 側で警告ログを出力する)。
+   */
+  findByStripeSubscriptionId?(
+    stripeSubscriptionId: string,
+  ): Promise<Result<SubscriptionRow | null>>;
 }

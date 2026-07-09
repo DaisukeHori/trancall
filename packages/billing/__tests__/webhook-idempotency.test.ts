@@ -46,6 +46,16 @@ vi.mock("stripe", () => ({
         },
       }),
     },
+    // #24: parseCheckoutCompleted が実際の請求期間取得のために呼び出す
+    subscriptions: {
+      retrieve: vi.fn().mockResolvedValue({
+        id: "sub_test",
+        current_period_start: 1_700_000_000,
+        current_period_end: 1_702_600_000,
+      }),
+      cancel: vi.fn().mockResolvedValue({ id: "sub_test", status: "canceled" }),
+      update: vi.fn().mockResolvedValue({ id: "sub_test" }),
+    },
   })),
   errors: {
     StripeCardError: class extends Error { code = "card_declined"; },

@@ -143,8 +143,10 @@ export function createStripeAdapter(config: StripeAdapterConfig) {
 
     /**
      * checkout.session.completed イベントからサブスクリプション情報を抽出する。
+     * current_period_start/end は Stripe Subscription API から実値を取得する
+     * (#24: 従来の「now+30日」暫定値を廃止)。
      */
-    parseCheckoutCompleted(event: Stripe.Event): Result<
+    async parseCheckoutCompleted(event: Stripe.Event): Promise<Result<
       {
         userId: string;
         tier: PlanTier;
@@ -155,7 +157,7 @@ export function createStripeAdapter(config: StripeAdapterConfig) {
         currentPeriodEnd: string;
       },
       AppError
-    > {
+    >> {
       if (event.type !== "checkout.session.completed") {
         return err({
           code: "VALIDATION_ERROR",
@@ -194,21 +196,28 @@ export function createStripeAdapter(config: StripeAdapterConfig) {
         });
       }
 
-      // subscription の current_period は別途 Stripe API で取得が必要だが、
-      // ここでは現在時刻 + 30日を暫定値として使用
-      const now = new Date();
-      const periodEnd = new Date(now);
-      periodEnd.setDate(periodEnd.getDate() + 30);
+      // subscription の実際の請求期間を Stripe API から取得する
+      try {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const currentPeriodStart = new Date(
+          subscription.current_period_start * 1000,
+        ).toISOString();
+        const currentPeriodEnd = new Date(
+          subscription.current_period_end * 1000,
+        ).toISOString();
 
-      return ok({
-        userId,
-        tier,
-        channel,
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: subscriptionId,
-        currentPeriodStart: now.toISOString(),
-        currentPeriodEnd: periodEnd.toISOString(),
-      });
+        return ok({
+          userId,
+          tier,
+          channel,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscriptionId,
+          currentPeriodStart,
+          currentPeriodEnd,
+        });
+      } catch (e: unknown) {
+        return mapStripeError(e);
+      }
     },
 
     /**
@@ -236,16 +245,24 @@ export function createStripeAdapter(config: StripeAdapterConfig) {
     },
 
     /**
-     * [Sprint 2 D5] Stripe サブスクリプションをキャンセルする。
+     * [Sprint 2 D5] Stripe サブスクリプションをキャンセルする (#41)。
+     * atPeriodEnd=true: 期末キャンセル予約 (cancel_at_period_end=true)
+     * atPeriodEnd=false: 即時キャンセル。
+     *   cancel_at_period_end フラグの更新だけでは Stripe 側は解約されないため、
+     *   subscriptions.cancel() で即座に解約する。
      */
     async cancelSubscription(
       stripeSubscriptionId: string,
       atPeriodEnd: boolean,
     ): Promise<Result<void>> {
       try {
-        await stripe.subscriptions.update(stripeSubscriptionId, {
-          cancel_at_period_end: atPeriodEnd,
-        });
+        if (atPeriodEnd) {
+          await stripe.subscriptions.update(stripeSubscriptionId, {
+            cancel_at_period_end: true,
+          });
+        } else {
+          await stripe.subscriptions.cancel(stripeSubscriptionId);
+        }
         return ok(undefined);
       } catch (e: unknown) {
         return mapStripeError(e);
@@ -288,6 +305,103 @@ export function createStripeAdapter(config: StripeAdapterConfig) {
       return ok({
         stripeCustomerId: customerId,
         stripeSubscriptionId: subscriptionId,
+      });
+    },
+
+    /**
+     * [#24] customer.subscription.updated イベントを解析する。
+     * current_period_end 等の実値を継続更新するために使用する。
+     */
+    parseSubscriptionUpdated(event: Stripe.Event): Result<
+      {
+        stripeCustomerId: string;
+        stripeSubscriptionId: string;
+        currentPeriodStart: string;
+        currentPeriodEnd: string;
+        cancelAtPeriodEnd: boolean;
+      },
+      AppError
+    > {
+      if (event.type !== "customer.subscription.updated") {
+        return err({
+          code: "VALIDATION_ERROR",
+          message: `想定外のイベントタイプ: ${event.type}`,
+          retryable: false,
+        });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapters/* 内は許可
+      const subscription = event.data.object as any;
+      const customerId =
+        typeof subscription.customer === "string" ? subscription.customer : "";
+      const subscriptionId =
+        typeof subscription.id === "string" ? subscription.id : "";
+      const currentPeriodStartUnix: unknown = subscription.current_period_start;
+      const currentPeriodEndUnix: unknown = subscription.current_period_end;
+      const cancelAtPeriodEnd: unknown = subscription.cancel_at_period_end;
+
+      if (
+        !customerId ||
+        !subscriptionId ||
+        typeof currentPeriodStartUnix !== "number" ||
+        typeof currentPeriodEndUnix !== "number"
+      ) {
+        return err({
+          code: "BILLING_INVALID_RECEIPT",
+          message: "customer.subscription.updated イベントのフィールドが不正です",
+          retryable: false,
+        });
+      }
+
+      return ok({
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscriptionId,
+        currentPeriodStart: new Date(currentPeriodStartUnix * 1000).toISOString(),
+        currentPeriodEnd: new Date(currentPeriodEndUnix * 1000).toISOString(),
+        cancelAtPeriodEnd: cancelAtPeriodEnd === true,
+      });
+    },
+
+    /**
+     * [#24] invoice.paid イベントを解析する。
+     * 更新分のサブスクリプション周期を current_period_end に反映するために使用する。
+     */
+    parseInvoicePaid(event: Stripe.Event): Result<
+      {
+        stripeCustomerId: string;
+        stripeSubscriptionId: string;
+        currentPeriodEnd: string;
+      },
+      AppError
+    > {
+      if (event.type !== "invoice.paid") {
+        return err({
+          code: "VALIDATION_ERROR",
+          message: `想定外のイベントタイプ: ${event.type}`,
+          retryable: false,
+        });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapters/* 内は許可
+      const invoice = event.data.object as any;
+      const customerId =
+        typeof invoice.customer === "string" ? invoice.customer : "";
+      const subscriptionId =
+        typeof invoice.subscription === "string" ? invoice.subscription : "";
+      const periodEndUnix: unknown = invoice.period_end;
+
+      if (!customerId || !subscriptionId || typeof periodEndUnix !== "number") {
+        return err({
+          code: "BILLING_INVALID_RECEIPT",
+          message: "invoice.paid イベントのフィールドが不正です",
+          retryable: false,
+        });
+      }
+
+      return ok({
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscriptionId,
+        currentPeriodEnd: new Date(periodEndUnix * 1000).toISOString(),
       });
     },
   };

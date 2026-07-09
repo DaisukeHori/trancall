@@ -4,7 +4,9 @@
  * adapters/* 内では型アサーション例外許可（CLAUDE.md より）。
  *
  * - App Store Server Notifications V2 の signedTransactionInfo を解析
- * - 冪等性キー: signedTransactionInfo（JWT トークン文字列）
+ * - 冪等性キー: notificationUUID（Apple 通知固有の UUID。VARCHAR(200) に収まる）
+ *   ※ signedTransactionInfo (JWS 全文、数 KB) は webhook_events.external_event_id
+ *     (VARCHAR(200)) を超過するため使用しない (#22)
  * - JWS 署名検証は apps/server 側に委ねる（billing adapter はペイロード解析のみ）
  *
  * productId マッピング: iap-adapter.ts の APPLE_IAP_PRODUCT_ID_MAP (canonical) を参照。
@@ -58,7 +60,7 @@ const AppleTransactionInfoSchema = z.object({
 export const APPLE_PRODUCT_ID_MAP: Record<string, PlanTier> = APPLE_IAP_PRODUCT_ID_MAP;
 
 export interface AppleIapWebhookResult {
-  /** 冪等性キー（signedTransactionInfo） */
+  /** 冪等性キー（notificationUUID）。#22: signedTransactionInfo は VARCHAR(200) 超過のため不使用 */
   idempotencyKey: string;
   notificationType: string;
   originalTransactionId: string;
@@ -116,7 +118,7 @@ export function createAppleIapAdapter() {
           : null;
 
       return ok({
-        idempotencyKey: signedTransactionInfo,
+        idempotencyKey: notification.notificationUUID,
         notificationType: notification.notificationType,
         originalTransactionId: transaction.originalTransactionId,
         productId: transaction.productId,

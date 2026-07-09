@@ -8,6 +8,7 @@
 import { z } from "zod";
 import {
   type Result,
+  type AppError,
   type UserId,
   type TranslationSessionId,
   ok,
@@ -20,7 +21,7 @@ import type {
   SubscriptionState,
   RecordUsageCommand,
   PlanTier,
-  PurchaseChannel,
+  SubscriptionRow,
 } from "./schemas.js";
 import { PLAN_CONFIGS, RecordUsageCommand as RecordUsageCommandSchema } from "./schemas.js";
 import type { SubscriptionRepository } from "./repositories/subscription-repository.js";
@@ -59,6 +60,24 @@ const recordSchema = z.record(z.string(), z.unknown());
 function toRecord(value: unknown): Record<string, unknown> {
   const parsed = recordSchema.safeParse(value);
   return parsed.success ? parsed.data : {};
+}
+
+/**
+ * [#42] updatePlan の Result エラーが「重複トランザクション (冪等)」を示すかを判定する。
+ *
+ * updatePlan は例外を投げない設計のため、DB 側の UNIQUE 制約違反等は Result のエラーとして
+ * 返ってくる。DB 層 (apps/server, 別ワークストリーム) のエラーマッピング実装に依存しすぎない
+ * よう、code (BILLING_IAP_DUPLICATE_TRANSACTION canonical code) / httpStatus(409) / message
+ * の複数シグナルで判定する。
+ */
+function isDuplicateTransactionError(error: AppError): boolean {
+  const normalizedMessage = error.message.toLowerCase();
+  return (
+    error.code === "BILLING_IAP_DUPLICATE_TRANSACTION" ||
+    error.httpStatus === 409 ||
+    normalizedMessage.includes("unique") ||
+    normalizedMessage.includes("duplicate")
+  );
 }
 
 // =============================================================================
@@ -226,6 +245,37 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     reservationRepo,
   });
 
+  /**
+   * [#24] stripe_subscription_id からユーザー (行) を解決する。
+   * SubscriptionRepository.findByStripeSubscriptionId はオプショナルのため、
+   * 未実装の repository では ok(null) を返しライフサイクル同期をスキップする。
+   */
+  async function resolveUserByStripeSubscriptionId(
+    stripeSubscriptionId: string,
+  ): Promise<Result<{ userId: UserId; row: SubscriptionRow } | null>> {
+    if (!subscriptionRepo.findByStripeSubscriptionId) {
+      console.warn(
+        "[BillingFacade] SubscriptionRepository.findByStripeSubscriptionId が未実装のため" +
+          " Stripe ライフサイクル同期をスキップしました",
+      );
+      return ok(null);
+    }
+
+    const rowResult = await subscriptionRepo.findByStripeSubscriptionId(stripeSubscriptionId);
+    if (!rowResult.ok) return rowResult;
+    if (rowResult.data === null) return ok(null);
+
+    const userIdResult = brandUserId(rowResult.data.user_id);
+    if (!userIdResult.success) {
+      return err({
+        code: "BILLING_INVALID_RECEIPT",
+        message: "サブスクリプション行の user_id が UUID 形式でありません",
+        retryable: false,
+      });
+    }
+    return ok({ userId: userIdResult.data, row: rowResult.data });
+  }
+
   return {
     // =========================================================================
     // サブスクリプション状態取得
@@ -337,7 +387,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       // 3. イベントタイプ別処理
       try {
         if (event.type === "checkout.session.completed") {
-          const parsed = stripeAdapter.parseCheckoutCompleted(event);
+          const parsed = await stripeAdapter.parseCheckoutCompleted(event);
           if (!parsed.ok) {
             await webhookEventRepo.markFailed(webhookId, parsed.error.message);
             return parsed;
@@ -354,7 +404,8 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
               retryable: false,
             });
           }
-          await subscriptionRepo.updatePlan(
+
+          const updateResult = await subscriptionRepo.updatePlan(
             userIdResult.data,
             {
               planTier: d.tier,
@@ -366,15 +417,108 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
               cancelAtPeriodEnd: false,
             },
           );
+          // [#42] DB 更新失敗時は markProcessed せず failed マークし、Stripe 側のリトライを活かす
+          if (!updateResult.ok) {
+            await webhookEventRepo.markFailed(webhookId, updateResult.error.message);
+            return updateResult;
+          }
+        } else if (event.type === "customer.subscription.updated") {
+          // [#24] current_period_end / cancel_at_period_end の実値を継続同期する
+          const parsed = stripeAdapter.parseSubscriptionUpdated(event);
+          if (!parsed.ok) {
+            await webhookEventRepo.markFailed(webhookId, parsed.error.message);
+            return parsed;
+          }
+
+          const d = parsed.data;
+          const resolved = await resolveUserByStripeSubscriptionId(d.stripeSubscriptionId);
+          if (!resolved.ok) {
+            await webhookEventRepo.markFailed(webhookId, resolved.error.message);
+            return resolved;
+          }
+
+          if (resolved.data !== null) {
+            const { userId: targetUserId, row } = resolved.data;
+            const updateResult = await subscriptionRepo.updatePlan(targetUserId, {
+              planTier: row.plan_tier,
+              purchaseChannel: row.purchase_channel,
+              stripeSubscriptionId: row.stripe_subscription_id,
+              stripeCustomerId: row.stripe_customer_id,
+              iapOriginalTransactionId: row.iap_original_transaction_id,
+              currentPeriodStart: d.currentPeriodStart,
+              currentPeriodEnd: d.currentPeriodEnd,
+              cancelAtPeriodEnd: d.cancelAtPeriodEnd,
+            });
+            if (!updateResult.ok) {
+              await webhookEventRepo.markFailed(webhookId, updateResult.error.message);
+              return updateResult;
+            }
+          }
         } else if (event.type === "customer.subscription.deleted") {
+          // [#24] サブスク終了 → Free プランに戻す (簡易実装だった箇所を実装)
           const parsed = stripeAdapter.parseSubscriptionDeleted(event);
           if (!parsed.ok) {
             await webhookEventRepo.markFailed(webhookId, parsed.error.message);
             return parsed;
           }
-          // サブスク削除: Free プランに戻す（簡易実装）
-          // 実際の実装では stripe_subscription_id からユーザーを検索
-          // ここでは markProcessed のみ
+
+          const d = parsed.data;
+          const resolved = await resolveUserByStripeSubscriptionId(d.stripeSubscriptionId);
+          if (!resolved.ok) {
+            await webhookEventRepo.markFailed(webhookId, resolved.error.message);
+            return resolved;
+          }
+
+          if (resolved.data !== null) {
+            const { userId: targetUserId } = resolved.data;
+            const now = new Date();
+            const periodEnd = new Date(now);
+            periodEnd.setMonth(periodEnd.getMonth() + 1);
+            const updateResult = await subscriptionRepo.updatePlan(targetUserId, {
+              planTier: "free",
+              purchaseChannel: "free",
+              stripeSubscriptionId: null,
+              stripeCustomerId: null,
+              iapOriginalTransactionId: null,
+              cancelAtPeriodEnd: false,
+              currentPeriodStart: now.toISOString(),
+              currentPeriodEnd: periodEnd.toISOString(),
+            });
+            if (!updateResult.ok) {
+              await webhookEventRepo.markFailed(webhookId, updateResult.error.message);
+              return updateResult;
+            }
+          }
+        } else if (event.type === "invoice.paid") {
+          // [#24] 更新分の請求が確定した際に current_period_end を延長同期する
+          const parsed = stripeAdapter.parseInvoicePaid(event);
+          if (!parsed.ok) {
+            await webhookEventRepo.markFailed(webhookId, parsed.error.message);
+            return parsed;
+          }
+
+          const d = parsed.data;
+          const resolved = await resolveUserByStripeSubscriptionId(d.stripeSubscriptionId);
+          if (!resolved.ok) {
+            await webhookEventRepo.markFailed(webhookId, resolved.error.message);
+            return resolved;
+          }
+
+          if (resolved.data !== null) {
+            const { userId: targetUserId, row } = resolved.data;
+            const updateResult = await subscriptionRepo.updatePlan(targetUserId, {
+              planTier: row.plan_tier,
+              purchaseChannel: row.purchase_channel,
+              stripeSubscriptionId: row.stripe_subscription_id,
+              stripeCustomerId: row.stripe_customer_id,
+              iapOriginalTransactionId: row.iap_original_transaction_id,
+              currentPeriodEnd: d.currentPeriodEnd,
+            });
+            if (!updateResult.ok) {
+              await webhookEventRepo.markFailed(webhookId, updateResult.error.message);
+              return updateResult;
+            }
+          }
         }
 
         await webhookEventRepo.markProcessed(webhookId);
@@ -567,39 +711,60 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       userId: UserId,
       transaction: IapTransactionResult,
     ): Promise<Result<SubscriptionState>> {
-      // 1. JWS 検証 (Phase 1a: デコード + productId 解決 + 有効期限チェック)
+      // 0. fromTier を updatePlan 実行前に取得する (#29: 実行後に読むと常に fromTier===toTier になるバグ)
+      const beforeResult = await subscriptionRepo.findByUserId(userId);
+      const fromTier = beforeResult.ok ? beforeResult.data.plan_tier : "free";
+
+      // 1. JWS 署名検証 (x5c チェーン) + デコード + productId 解決 + 有効期限チェック
       const verifyResult = await iapAdapter.verifyIapTransaction(transaction);
       if (!verifyResult.ok) return verifyResult;
 
       const verified = verifyResult.data;
 
-      // 2. subscriptions を updatePlan (UNIQUE 制約で重複排除)
-      const now = new Date();
-      const periodEnd = transaction.expirationDate
-        ? new Date(transaction.expirationDate)
-        : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-      try {
-        await subscriptionRepo.updatePlan(userId, {
-          planTier: verified.tier,
-          purchaseChannel: "iap_apple",
-          iapOriginalTransactionId: verified.originalTransactionId,
-          currentPeriodStart: now.toISOString(),
-          currentPeriodEnd: periodEnd.toISOString(),
-          cancelAtPeriodEnd: false,
-        });
-      } catch (e: unknown) {
-        // UNIQUE 制約違反 (originalTransactionId 重複) → 冪等: OK として処理
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes("unique") || msg.includes("duplicate")) {
-          // 既存状態を取得して返す
+      // 1.5. [#40] insert (updatePlan) 前に既存 originalTransactionId を照会し重複排除する
+      // (DB 側の UNIQUE 制約は別ワークストリームが追加する想定。ここではコード側の事前チェック)
+      if (subscriptionRepo.findByIapOriginalTransactionId) {
+        const existingResult = await subscriptionRepo.findByIapOriginalTransactionId(
+          verified.originalTransactionId,
+        );
+        if (!existingResult.ok) return existingResult;
+        if (existingResult.data !== null && existingResult.data.user_id !== userId) {
+          // 別ユーザーが既にこの originalTransactionId を保有 → 不正/共有購入の疑い
+          return err({
+            code: "BILLING_IAP_RECEIPT_INVALID",
+            message:
+              "この Apple originalTransactionId は既に別ユーザーに割り当てられています",
+            retryable: false,
+            provider: "apple_iap",
+          });
+        }
+        if (existingResult.data !== null && existingResult.data.user_id === userId) {
+          // 同一ユーザーの再送 (冪等) → 現在の状態をそのまま返す
           return subscriptionService.getSubscription(userId);
         }
-        return err({
-          code: "INTERNAL_ERROR",
-          message: `IAP トランザクション記録中にエラーが発生しました: ${msg}`,
-          retryable: true,
-        });
+      }
+
+      // 2. subscriptions を updatePlan (検証済みペイロードの expirationDate のみ使用。#40)
+      const now = new Date();
+      const periodEnd = verified.expirationDate
+        ? new Date(verified.expirationDate)
+        : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const updateResult = await subscriptionRepo.updatePlan(userId, {
+        planTier: verified.tier,
+        purchaseChannel: "iap_apple",
+        iapOriginalTransactionId: verified.originalTransactionId,
+        currentPeriodStart: now.toISOString(),
+        currentPeriodEnd: periodEnd.toISOString(),
+        cancelAtPeriodEnd: false,
+      });
+      if (!updateResult.ok) {
+        // [#42] updatePlan は例外を投げない設計。UNIQUE 制約違反等の重複エラーのみ冪等として吸収し、
+        // それ以外のエラーはそのまま呼び出し元に伝播する。
+        if (isDuplicateTransactionError(updateResult.error)) {
+          return subscriptionService.getSubscription(userId);
+        }
+        return updateResult;
       }
 
       // 3. 更新後の状態を取得
@@ -607,8 +772,6 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       if (!stateResult.ok) return stateResult;
 
       // 4. DomainEvent 発行 (billing.subscription_upgraded)
-      const currentSubResult = await subscriptionRepo.findByUserId(userId);
-      const fromTier = currentSubResult.ok ? currentSubResult.data.plan_tier : "free";
       await publishSubscriptionUpgraded(eventBus, {
         userId,
         fromTier,
@@ -628,7 +791,7 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
     ): Promise<Result<{ redirectUrl: string }>> {
       // 1. Stripe Checkout Session 作成 (stripe_web ではなく storekit_external チャネル)
       const checkoutResult = await stripeWebCheckoutAdapter.createCheckoutSession(
-        userId as string,
+        userId,
         targetTier,
         "storekit_external",
       );
@@ -655,34 +818,57 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       userId: UserId,
       redirect: StoreKitExternalRedirectResult,
     ): Promise<Result<SubscriptionState>> {
-      // 1. redirectToken の TTL + 二重消費防止検証
-      const validateResult =
-        await externalPurchaseAdapter.validateAndConsumeRedirectToken(redirect);
+      // 1. redirectToken の所有者一致 (#44) + TTL + 二重消費防止検証
+      const validateResult = await externalPurchaseAdapter.validateAndConsumeRedirectToken(
+        userId,
+        redirect,
+      );
       if (!validateResult.ok) return validateResult;
 
-      const { targetTier } = validateResult.data;
+      const { targetTier, stripeSessionId } = validateResult.data;
 
-      // 2. サブスクリプションを更新 (storekit_external チャネル)
+      // 2. [#44] Stripe Checkout Session を照会し、決済完了とサブスク ID を確認する。
+      // クライアント自己申告値 (redirect.stripeSubscriptionId) は信用しない。
+      const sessionResult =
+        await stripeWebCheckoutAdapter.retrieveCheckoutSession(stripeSessionId);
+      if (!sessionResult.ok) return sessionResult;
+
+      if (
+        sessionResult.data.paymentStatus !== "paid" ||
+        sessionResult.data.subscriptionId === null
+      ) {
+        return err({
+          code: "BILLING_PAYMENT_FAILED",
+          message: "Stripe Checkout Session の決済が完了していません",
+          retryable: false,
+        });
+      }
+      const verifiedStripeSubscriptionId = sessionResult.data.subscriptionId;
+
+      // 3. fromTier を updatePlan 実行前に取得する (#29: 実行後に読むと常に fromTier===toTier になるバグ)
+      const beforeResult = await subscriptionRepo.findByUserId(userId);
+      const fromTier = beforeResult.ok ? beforeResult.data.plan_tier : "free";
+
+      // 4. サブスクリプションを更新 (storekit_external チャネル。Stripe 照会結果由来の ID を使用)
       const now = new Date();
       const periodEnd = new Date(now);
       periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-      await subscriptionRepo.updatePlan(userId, {
+      const updateResult = await subscriptionRepo.updatePlan(userId, {
         planTier: targetTier,
         purchaseChannel: "storekit_external",
-        stripeSubscriptionId: redirect.stripeSubscriptionId,
+        stripeSubscriptionId: verifiedStripeSubscriptionId,
         currentPeriodStart: now.toISOString(),
         currentPeriodEnd: periodEnd.toISOString(),
         cancelAtPeriodEnd: false,
       });
+      if (!updateResult.ok) return updateResult; // [#42]
 
-      // 3. 更新後の状態を取得
+      // 5. 更新後の状態を取得
       const stateResult = await subscriptionService.getSubscription(userId);
       if (!stateResult.ok) return stateResult;
 
-      // 4. DomainEvent 発行
-      const currentSubResult = await subscriptionRepo.findByUserId(userId);
-      const fromTier = currentSubResult.ok ? currentSubResult.data.plan_tier : "free";
+      // 6. DomainEvent 発行
       await publishSubscriptionUpgraded(eventBus, {
         userId,
         fromTier,
@@ -705,10 +891,12 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       if (!subResult.ok) return subResult;
 
       const row = subResult.data;
-      const channel = row.purchase_channel as PurchaseChannel;
+      const channel = row.purchase_channel;
       const fromTier = row.plan_tier;
 
-      // 2. IAP チャネルでの即時キャンセルは不可
+      // 2. IAP チャネルでの即時キャンセルは不可 (Apple/Google には server から即時解約する API が
+      // 存在しないため、期末キャンセル (アプリ内フラグのみ更新) のみ許容し、実際の解約は
+      // ユーザーが Store 側の設定アプリで行う。#41)
       if (!atPeriodEnd && (channel === "iap_apple" || channel === "iap_google")) {
         return err({
           code: "BILLING_INVALID_PLAN_CHANGE",
@@ -724,34 +912,62 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
         return subscriptionService.getSubscription(userId);
       }
 
+      // 4. [#41] Stripe 裏付けのチャネル (stripe_web / storekit_external) は
+      // 必ず Stripe 側にもキャンセルを伝播する。IAP チャネルは Store 側 API が存在しないため
+      // ローカルのアプリ内フラグ更新のみで整合させる (2. のガードにより、ここに到達する IAP は
+      // atPeriodEnd=true の場合のみ)。
+      if (channel === "stripe_web" || channel === "storekit_external") {
+        if (row.stripe_subscription_id === null) {
+          return err({
+            code: "INTERNAL_ERROR",
+            message: "Stripe subscription_id が見つからないためキャンセルできません",
+            retryable: false,
+          });
+        }
+        const stripeCancelResult = await stripeAdapter.cancelSubscription(
+          row.stripe_subscription_id,
+          atPeriodEnd,
+        );
+        if (!stripeCancelResult.ok) return stripeCancelResult;
+      }
+
       if (atPeriodEnd) {
-        // 期末キャンセル: cancelAtPeriodEnd=true をセット
-        await subscriptionRepo.updatePlan(userId, {
+        // 期末キャンセル: cancelAtPeriodEnd=true のみ変更する。
+        // [#41] stripe_subscription_id / iap_original_transaction_id を明示的に現在値で
+        // 渡すことで、updatePlan 実装側の「未指定フィールドは null 化する」挙動による
+        // CHECK 制約 (purchase_channel_id_consistency) 違反を防ぐ。
+        const updateResult = await subscriptionRepo.updatePlan(userId, {
           planTier: row.plan_tier,
           purchaseChannel: channel,
+          stripeSubscriptionId: row.stripe_subscription_id,
+          stripeCustomerId: row.stripe_customer_id,
+          iapOriginalTransactionId: row.iap_original_transaction_id,
           cancelAtPeriodEnd: true,
         });
+        if (!updateResult.ok) return updateResult; // [#42]
       } else {
-        // 即時キャンセル: Free プランに戻す (Stripe / 非 IAP のみ)
+        // 即時キャンセル: Free プランに戻す (Stripe / 非 IAP のみ、2. のガードで保証済み)
         const now = new Date();
         const periodEnd = new Date(now);
         periodEnd.setMonth(periodEnd.getMonth() + 1);
-        await subscriptionRepo.updatePlan(userId, {
+        const updateResult = await subscriptionRepo.updatePlan(userId, {
           planTier: "free",
           purchaseChannel: "free",
           stripeSubscriptionId: null,
           stripeCustomerId: null,
+          iapOriginalTransactionId: null,
           cancelAtPeriodEnd: false,
           currentPeriodStart: now.toISOString(),
           currentPeriodEnd: periodEnd.toISOString(),
         });
+        if (!updateResult.ok) return updateResult; // [#42]
       }
 
-      // 4. 更新後の状態を取得
+      // 5. 更新後の状態を取得
       const stateResult = await subscriptionService.getSubscription(userId);
       if (!stateResult.ok) return stateResult;
 
-      // 5. DomainEvent 発行 (billing.subscription_canceled)
+      // 6. DomainEvent 発行 (billing.subscription_canceled)
       await publishSubscriptionCanceled(eventBus, {
         userId,
         fromTier,
@@ -794,30 +1010,39 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
         return ok({ restoredCount: 0, subscription: null });
       }
 
+      // [#40] insert (updatePlan) 前に既存 originalTransactionId を照会し重複排除する
+      if (subscriptionRepo.findByIapOriginalTransactionId) {
+        const existingResult = await subscriptionRepo.findByIapOriginalTransactionId(
+          latestTransaction.originalTransactionId,
+        );
+        if (!existingResult.ok) return existingResult;
+        if (existingResult.data !== null && existingResult.data.user_id !== userId) {
+          return err({
+            code: "BILLING_IAP_RECEIPT_INVALID",
+            message:
+              "この Apple originalTransactionId は既に別ユーザーに割り当てられています",
+            retryable: false,
+            provider: "apple_iap",
+          });
+        }
+      }
+
       const now = new Date();
       const periodEnd = latestTransaction.expirationDate
         ? new Date(latestTransaction.expirationDate)
         : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      try {
-        await subscriptionRepo.updatePlan(userId, {
-          planTier: latestTransaction.tier,
-          purchaseChannel: "iap_apple",
-          iapOriginalTransactionId: latestTransaction.originalTransactionId,
-          currentPeriodStart: now.toISOString(),
-          currentPeriodEnd: periodEnd.toISOString(),
-          cancelAtPeriodEnd: false,
-        });
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        // UNIQUE 制約違反 (同一 originalTransactionId) → 冪等
-        if (!msg.includes("unique") && !msg.includes("duplicate")) {
-          return err({
-            code: "INTERNAL_ERROR",
-            message: `Restore Purchases 処理中にエラーが発生しました: ${msg}`,
-            retryable: true,
-          });
-        }
+      const updateResult = await subscriptionRepo.updatePlan(userId, {
+        planTier: latestTransaction.tier,
+        purchaseChannel: "iap_apple",
+        iapOriginalTransactionId: latestTransaction.originalTransactionId,
+        currentPeriodStart: now.toISOString(),
+        currentPeriodEnd: periodEnd.toISOString(),
+        cancelAtPeriodEnd: false,
+      });
+      // [#42] updatePlan は例外を投げない設計。重複エラーのみ冪等として吸収する。
+      if (!updateResult.ok && !isDuplicateTransactionError(updateResult.error)) {
+        return updateResult;
       }
 
       const stateResult = await subscriptionService.getSubscription(userId);

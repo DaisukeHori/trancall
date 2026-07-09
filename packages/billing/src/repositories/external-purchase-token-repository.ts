@@ -98,12 +98,12 @@ export function createSupabaseExternalPurchaseTokenRepository(
       ttlMinutes: number,
     ): Promise<Result<ExternalPurchaseTokenRow>> {
       const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- supabase client
+      /* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- supabase (any) 境界 */
       const { data, error } = await supabase
         .schema(SCHEMA)
         .from(TABLE)
         .insert({
-          user_id: userId as string,
+          user_id: userId,
           token,
           target_tier: targetTier,
           stripe_session_id: stripeSessionId,
@@ -112,12 +112,14 @@ export function createSupabaseExternalPurchaseTokenRepository(
         })
         .select()
         .single();
+      /* eslint-enable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 
       if (error !== null) {
         return {
           ok: false,
           error: {
             code: "INTERNAL_ERROR",
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- supabase (any) 境界
             message: `ExternalPurchaseToken 作成失敗: ${String(error.message)}`,
             retryable: true,
           },
@@ -127,13 +129,14 @@ export function createSupabaseExternalPurchaseTokenRepository(
     },
 
     async findByToken(token: string): Promise<Result<ExternalPurchaseTokenRow>> {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      /* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- supabase (any) 境界 */
       const { data, error } = await supabase
         .schema(SCHEMA)
         .from(TABLE)
         .select("*")
         .eq("token", token)
         .single();
+      /* eslint-enable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 
       if (error !== null) {
         return {
@@ -150,7 +153,7 @@ export function createSupabaseExternalPurchaseTokenRepository(
 
     async markUsed(token: string): Promise<Result<true>> {
       // 二重消費防止: used=false の行のみ更新。影響行数 0 は使用済み or 存在しない。
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      /* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- supabase (any) 境界 */
       const { data, error } = await supabase
         .schema(SCHEMA)
         .from(TABLE)
@@ -158,12 +161,14 @@ export function createSupabaseExternalPurchaseTokenRepository(
         .eq("token", token)
         .eq("used", false)
         .select("id");
+      /* eslint-enable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 
       if (error !== null) {
         return {
           ok: false,
           error: {
             code: "INTERNAL_ERROR",
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- supabase (any) 境界
             message: `markUsed 失敗: ${String(error.message)}`,
             retryable: true,
           },
@@ -171,7 +176,6 @@ export function createSupabaseExternalPurchaseTokenRepository(
       }
 
       // data が空配列 → 影響行数 0 → 使用済み or 存在しない
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (!Array.isArray(data) || data.length === 0) {
         return {
           ok: false,
@@ -189,7 +193,7 @@ export function createSupabaseExternalPurchaseTokenRepository(
 
     async cleanupExpired(): Promise<Result<number>> {
       const now = new Date().toISOString();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      /* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- supabase (any) 境界 */
       const { data, error } = await supabase
         .schema(SCHEMA)
         .from(TABLE)
@@ -197,18 +201,19 @@ export function createSupabaseExternalPurchaseTokenRepository(
         .lt("expires_at", now)
         .eq("used", false)
         .select("id");
+      /* eslint-enable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 
       if (error !== null) {
         return {
           ok: false,
           error: {
             code: "INTERNAL_ERROR",
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- supabase (any) 境界
             message: `cleanupExpired 失敗: ${String(error.message)}`,
             retryable: true,
           },
         };
       }
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const count = Array.isArray(data) ? data.length : 0;
       return { ok: true, data: count };
     },

@@ -51,7 +51,7 @@ export async function publishSubscriptionUpgraded(
   const event: BillingSubscriptionUpgradedEvent = {
     eventId: crypto.randomUUID(),
     occurredAt: new Date().toISOString(),
-    aggregateId: params.userId as string,
+    aggregateId: params.userId,
     type: "billing.subscription_upgraded",
     payload: {
       userId: params.userId,
@@ -79,7 +79,7 @@ export async function publishSubscriptionCanceled(
   const event: BillingSubscriptionCanceledEvent = {
     eventId: crypto.randomUUID(),
     occurredAt: new Date().toISOString(),
-    aggregateId: params.userId as string,
+    aggregateId: params.userId,
     type: "billing.subscription_canceled",
     payload: {
       userId: params.userId,

@@ -166,7 +166,7 @@ export function createStripeWebCheckoutAdapter(config: StripeWebCheckoutConfig) 
         // 既存 Subscription の次回請求日取得
         const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
         const nextBillingDate = new Date(
-          (subscription.current_period_end as number) * 1000,
+          subscription.current_period_end * 1000,
         ).toISOString();
 
         // 目標プランの Price ID を取得 (free はここに到達しないが型安全のため確認)
@@ -215,6 +215,36 @@ export function createStripeWebCheckoutAdapter(config: StripeWebCheckoutConfig) 
         return ok(preview);
       } catch (e: unknown) {
         return mapStripeError(e, "BILLING_UPGRADE_PREVIEW_FAILED");
+      }
+    },
+
+    /**
+     * [#44] Stripe Checkout Session を照会し、決済完了状態を確認する。
+     * External Purchase 完了処理 (completeExternalPurchase) で、クライアントの
+     * 自己申告値 (redirect.stripeSubscriptionId) を信用せず、Stripe 側の実状態を
+     * 正とするために使用する。
+     */
+    async retrieveCheckoutSession(
+      sessionId: string,
+    ): Promise<
+      Result<{
+        paymentStatus: Stripe.Checkout.Session.PaymentStatus;
+        status: Stripe.Checkout.Session.Status | null;
+        subscriptionId: string | null;
+      }>
+    > {
+      try {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        const subscriptionId =
+          typeof session.subscription === "string" ? session.subscription : null;
+
+        return ok({
+          paymentStatus: session.payment_status,
+          status: session.status,
+          subscriptionId,
+        });
+      } catch (e: unknown) {
+        return mapStripeError(e, "BILLING_PAYMENT_FAILED");
       }
     },
   };
