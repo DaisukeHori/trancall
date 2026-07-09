@@ -31,11 +31,7 @@ import { SubtitleOverlayLive } from "../components/subtitle-overlay-live.js";
 import { endCall as apiEndCall } from "../api/room-api.js";
 import { getCallKeep } from "../lib/callkit/index.js";
 import { connectToRoom, MicrophonePermissionDeniedError, type RoomHandle } from "../lib/livekit/connect.js";
-import {
-  makeSubtitleDataChannelHandler,
-  SUBTITLE_DATA_CHANNEL_TOPIC,
-} from "../lib/livekit/subtitles.js";
-import { handleTranslationStatusPayload } from "../lib/livekit/translation-status.js";
+import { subscribeTranslationDataChannel } from "../lib/livekit/data-channel-subscription.js";
 import { usePermissionStore } from "../stores/permission-store.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { CallStackParamList } from "../navigation/call-overlay.js";
@@ -89,7 +85,6 @@ export function InCallScreen({ route, navigation }: Props) {
   const toggleTranslationAction = useCallStore((state) => state.toggleTranslation);
   const endCallAction = useCallStore((state) => state.endCall);
   const tickDuration = useCallStore((state) => state.tickDuration);
-  const setTranslationStatus = useCallStore((state) => state.setTranslationStatus);
   const setCallError = useCallStore((state) => state.setError);
   const resetSubtitles = useSubtitleStore((state) => state.reset);
   const receivePartialDelta = useSubtitleStore((state) => state.receivePartialDelta);
@@ -99,6 +94,8 @@ export function InCallScreen({ route, navigation }: Props) {
   // (Expo Go / このリポジトリの現状) では connectToRoom が reject し、
   // roomHandleRef は null のままになる (device-verification-required)。
   const roomHandleRef = useRef<RoomHandle | null>(null);
+  // translation.status Data Channel の購読解除関数 (cleanup でリーク防止)
+  const dataChannelUnsubscribeRef = useRef<(() => void) | null>(null);
 
   const myLanguage = profile?.native_language ?? "ja";
   const langPair = `${callerLanguage.toUpperCase()} → ${myLanguage.toUpperCase()}`;
@@ -149,14 +146,15 @@ export function InCallScreen({ route, navigation }: Props) {
         }
         roomHandleRef.current = room;
 
-        const subtitleHandler = makeSubtitleDataChannelHandler(receivePartialDelta);
-        room.subscribeToDataChannel((data, topic) => {
-          if (topic === SUBTITLE_DATA_CHANNEL_TOPIC) {
-            subtitleHandler(data, topic);
-            return;
-          }
-          handleTranslationStatusPayload(data, { setDegraded, setRecovered });
-        });
+        // translation.status Data Channel (module-contracts.md §3.4 canonical topic) を購読。
+        // degraded/recovered → 翻訳ステータスバッジ、subtitle.delta → ライブ字幕オーバーレイ。
+        // 通話ライフサイクル (この useEffect の join/leave) に紐付けて subscribe/cleanup する。
+        dataChannelUnsubscribeRef.current = subscribeTranslationDataChannel(
+          room,
+          { setDegraded, setRecovered },
+          receivePartialDelta,
+          myLanguage,
+        );
       })
       .catch((error: unknown) => {
         console.warn("[InCallScreen] connectToRoom failed", error);
@@ -169,13 +167,16 @@ export function InCallScreen({ route, navigation }: Props) {
 
     return () => {
       cancelled = true;
+      dataChannelUnsubscribeRef.current?.();
+      dataChannelUnsubscribeRef.current = null;
       const room = roomHandleRef.current;
       roomHandleRef.current = null;
       if (room != null) {
         void room.disconnect();
       }
     };
-    // livekitToken/livekitUrl は route.params から一度だけ読む (再接続は行わない)
+    // livekitToken/livekitUrl/myLanguage は route.params/profile から接続時点の値を一度だけ読む
+    // (再接続は行わない)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -229,12 +230,6 @@ export function InCallScreen({ route, navigation }: Props) {
       reconnectLoopRef.current?.stop();
     };
   }, [translationStatus, prevStatus, statusOpacity, reconnectPulse, t]);
-
-  // Simulate translation status from LiveKit Data Channel
-  // Real integration: connect.ts subscribeToDataChannel → translation events
-  useEffect(() => {
-    setTranslationStatus("translating");
-  }, [setTranslationStatus]);
 
   // recovered バッジを 3 秒後に消去するタイマー
   useEffect(() => {
