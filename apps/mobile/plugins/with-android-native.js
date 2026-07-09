@@ -1,4 +1,4 @@
-const { withAndroidManifest, withDangerousMod } = require("expo/config-plugins");
+const { withAndroidManifest, withAppBuildGradle, withDangerousMod } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
@@ -28,7 +28,23 @@ const path = require("path");
  *
  * ⚠️ device-verification-required: manifest merge の実際の解決結果は
  *   Gradle ビルドで検証していない (native-call-bridge-impl-status.md 参照)。
+ *
+ * PR #75 Codex レビュー P1 対応 (native-call-bridge-impl-status.md §6/§7 G-4/G-5):
+ *   - `withConditionalGoogleServicesFile`: 実 `google-services.json` が配置されている
+ *     場合のみ `android.googleServicesFile` を設定する。未配置のまま固定パスを
+ *     app.json に書くと、Expo 標準の `AndroidConfig.GoogleServices.withGoogleServicesFile`
+ *     (常に適用される `withDefaultPlugins` 経由) がファイルコピーに失敗し
+ *     `expo prebuild` / EAS Build がコンパイル前に落ちる (未設定より悪い)。
+ *   - `withHmacSecretBuildConfigField`: `BuildConfig.TRANCALL_PUSH_HMAC_SECRET` を
+ *     `app/build.gradle` の `defaultConfig` に注入する。値は環境変数
+ *     `TRANCALL_PUSH_HMAC_SECRET` (EAS Secret 経由でビルド時に注入される想定) から
+ *     Gradle 評価時に読み、未設定時は空文字にフォールバックしてビルド自体は通す
+ *     (`FcmService.getHmacSecret()` 側で空文字は null 相当として安全に drop する)。
  */
+
+const PROJECT_ROOT = path.join(__dirname, "..");
+const GOOGLE_SERVICES_FILENAME = "google-services.json";
+const HMAC_SECRET_FIELD_NAME = "TRANCALL_PUSH_HMAC_SECRET";
 
 const ANDROID_TEMPLATES_DIR = path.join(__dirname, "templates", "android");
 const PACKAGE_PATH = ["tech", "hori", "trancall"];
@@ -41,6 +57,64 @@ function copyTemplateFile(destAbsPath, templateRelPath) {
   fs.mkdirSync(path.dirname(destAbsPath), { recursive: true });
   fs.copyFileSync(src, destAbsPath);
 }
+
+/**
+ * `apps/mobile/google-services.json` が実在する場合のみ
+ * `config.android.googleServicesFile` を設定する (Codex P1-1)。
+ *
+ * 実ファイルを配置していない開発中は完全に未設定のままにし、
+ * `AndroidConfig.GoogleServices.withGoogleServicesFile` がコピー処理で
+ * 例外を投げないようにする。実ファイルを配置した瞬間から app.json を
+ * 編集しなくても自動的に有効化される。
+ */
+const withConditionalGoogleServicesFile = (config) => {
+  const realFilePath = path.join(PROJECT_ROOT, GOOGLE_SERVICES_FILENAME);
+  if (fs.existsSync(realFilePath)) {
+    config.android = config.android ?? {};
+    config.android.googleServicesFile = `./${GOOGLE_SERVICES_FILENAME}`;
+  }
+  return config;
+};
+
+/**
+ * `android/app/build.gradle` の `defaultConfig` に
+ * `buildConfigField "String", "TRANCALL_PUSH_HMAC_SECRET", ...` を注入する (Codex P1-2)。
+ *
+ * 値は Gradle 評価時に `System.getenv("TRANCALL_PUSH_HMAC_SECRET")` を読み、
+ * 未設定なら空文字 `""` にフォールバックする (ビルドは常に通す)。
+ * AGP 8+ で BuildConfig 生成が既定で無効化されている場合に備え、
+ * `buildFeatures { buildConfig true }` も未設定なら合わせて注入する。
+ */
+const withHmacSecretBuildConfigField = (config) => {
+  return withAppBuildGradle(config, (mod) => {
+    if (mod.modResults.language !== "groovy") {
+      // Kotlin DSL (build.gradle.kts) は未サポート。現行テンプレートは groovy 前提。
+      return mod;
+    }
+
+    let contents = mod.modResults.contents;
+
+    if (!contents.includes("buildConfig true") && !contents.includes("buildConfig = true")) {
+      contents = contents.replace(
+        /android\s*{/,
+        (match) => `${match}\n    buildFeatures {\n        buildConfig true\n    }\n`,
+      );
+    }
+
+    if (!contents.includes(`"${HMAC_SECRET_FIELD_NAME}"`)) {
+      const buildConfigFieldLine =
+        `        buildConfigField "String", "${HMAC_SECRET_FIELD_NAME}", ` +
+        `"\\"\${System.getenv('${HMAC_SECRET_FIELD_NAME}') ?: ''}\\""\n`;
+      contents = contents.replace(
+        /defaultConfig\s*{/,
+        (match) => `${match}\n${buildConfigFieldLine}`,
+      );
+    }
+
+    mod.modResults.contents = contents;
+    return mod;
+  });
+};
 
 const withAndroidNativeFiles = (config) => {
   return withDangerousMod(config, [
@@ -109,8 +183,10 @@ const withAndroidCallServices = (config) => {
 
 /** @type {import("expo/config-plugins").ConfigPlugin} */
 const withAndroidNative = (config) => {
+  config = withConditionalGoogleServicesFile(config);
   config = withAndroidCallServices(config);
   config = withAndroidNativeFiles(config);
+  config = withHmacSecretBuildConfigField(config);
   return config;
 };
 

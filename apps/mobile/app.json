@@ -136,8 +136,7 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.VIBRATE"
-      ],
-      "googleServicesFile": "./google-services.json.PLACEHOLDER-REQUIRES-REAL-FIREBASE-CONFIG"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

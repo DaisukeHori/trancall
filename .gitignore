@@ -10,3 +10,7 @@ coverage/
 *.log
 .claude/
 .vercel
+
+# Firebase config (実プロジェクト固有 + 秘密情報のためコミット禁止。
+# 配置すると apps/mobile/plugins/with-android-native.js が自動検知し有効化する)
+apps/mobile/google-services.json
