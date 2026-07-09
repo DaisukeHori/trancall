@@ -13,6 +13,11 @@ const path = require("path");
  * 対象:
  *   - ios/CallBridge/HmacValidator.swift      (templates/ios/CallBridge からコピー)
  *   - ios/CallBridge/PushKitDelegate.swift    (templates/ios/CallBridge からコピー)
+ *   - ios/CallBridge/CallBridgeProvider.swift (templates/ios/CallBridge からコピー、Stage 2:
+ *                                               CXProvider/CXProviderDelegate 本体。
+ *                                               modules/call-bridge/ios/CallBridgeModule.swift
+ *                                               (Expo Module) の CallBridgeProviding プロトコルに
+ *                                               準拠し、`import CallBridge` で連携する)
  *   - ios/TranCall/TranCall.entitlements      (withEntitlementsPlist で aps-environment を merge)
  *   - ios/TranCall/PrivacyInfo.xcprivacy      (app.json `ios.privacyManifests` 経由。
  *                                               Expo 標準の withPrivacyInfo mod が
@@ -37,6 +42,7 @@ const IOS_TEMPLATES_DIR = path.join(__dirname, "templates", "ios");
 const IOS_TEMPLATE_FILES = [
   { dest: ["CallBridge", "HmacValidator.swift"], template: "CallBridge/HmacValidator.swift" },
   { dest: ["CallBridge", "PushKitDelegate.swift"], template: "CallBridge/PushKitDelegate.swift" },
+  { dest: ["CallBridge", "CallBridgeProvider.swift"], template: "CallBridge/CallBridgeProvider.swift" },
 ];
 
 function copyTemplateFile(destAbsPath, templateRelPath) {

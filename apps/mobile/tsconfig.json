@@ -31,6 +31,8 @@
     "App.tsx",
     "src/**/*.ts",
     "src/**/*.tsx",
+    "modules/**/*.ts",
+    "modules/**/*.tsx",
     "__tests__/**/*.ts",
     "__tests__/**/*.tsx",
     "../../packages/ui-kit/src/**/*.ts",

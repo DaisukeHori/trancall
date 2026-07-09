@@ -29,6 +29,7 @@
     "expo-audio": "~1.1.1",
     "expo-file-system": "~19.0.23",
     "expo-localization": "~17.0.9",
+    "expo-modules-core": "~3.0.30",
     "expo-notifications": "~0.32.17",
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",

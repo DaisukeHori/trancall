@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import PushKit
 import CallKit
+import CallBridge // Stage 2: CallBridgeModule.emitXxx (JS への event 配信) 用
 
 /// VoIP Push (PushKit) 受信デリゲート実装
 ///
@@ -80,7 +81,22 @@ class PushKitDelegate: NSObject, PKPushRegistryDelegate {
         provider.reportNewIncomingCall(with: callUUID, update: update) { error in
             if let error = error {
                 print("[PushKitDelegate] reportNewIncomingCall error: \(error.localizedDescription)")
+                return
             }
+            // #H-3: JS 側 (call-overlay.tsx の IncomingCall screen) へ着信を通知する。
+            // languagePair ("ja-en" 形式) から targetLang を抽出、無ければ callerLanguage を fallback に使う。
+            let callerLanguage = (trancall["callerLanguage"] as? String) ?? ""
+            let languagePair = (trancall["languagePair"] as? String) ?? ""
+            let targetLang = languagePair.split(separator: "-").last.map(String.init) ?? callerLanguage
+            CallBridgeModule.emitIncomingCall(
+                uuid: callUUID.uuidString,
+                callerId: (trancall["callerId"] as? String) ?? "",
+                callerName: callerName,
+                callerTrancallId: callerTrancallId,
+                roomId: (trancall["roomId"] as? String) ?? "",
+                sourceLang: callerLanguage,
+                targetLang: targetLang
+            )
         }
     }
 
@@ -96,7 +112,8 @@ class PushKitDelegate: NSObject, PKPushRegistryDelegate {
             .map { String(format: "%02.2hhx", $0) }
             .joined()
         print("[PushKitDelegate] VoIP token updated: \(token)")
-        // TODO: JS bridge 経由でトークンをサーバーに通知する (Sprint 3 Phase 1a)
+        // #H-3: JS 側 (src/lib/callkit/voip-push.ts 経由でサーバーに登録) へ通知する
+        CallBridgeModule.emitDeviceToken(token: token, platform: "ios")
     }
 
     func pushRegistry(

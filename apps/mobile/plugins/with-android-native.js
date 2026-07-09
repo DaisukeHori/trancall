@@ -8,24 +8,26 @@ const path = require("path");
  * `expo prebuild` (特に `--clean` や EAS Build の Continuous Native Generation) は
  * `android/` ディレクトリを再生成するため、Sprint 3 で手動配置した native ファイルが
  * 消失する (docs/sprint3-known-issues.md §2.18 相当、Android 版)。
- * 本プラグインでその再配置 + service 宣言を自動化する。
+ * 本プラグインでその再配置 + FcmService の service 宣言を自動化する。
  *
- * サービスクラス名は docs/native-call-bridge.md §5.1 の設計 canonical に統一する
- * (docs/sprint3-known-issues.md §2.14 で未確定だった `.CallConnectionService` vs
- * `.TranCallConnectionService` の揺れを解消):
- *   - `.CallConnectionService`  (Telecom SelfManaged ConnectionService — Sprint 4 で実装予定、
- *                                 現時点では manifest 宣言のみ先行)
- *   - `.CallForegroundService`  (通話中 ForegroundService — 同上)
- *   - `.FcmService`             (FCM data message 受信。実装済 Kotlin クラス名に合わせる。
- *                                 設計書 §5.1 の `.TranCallFirebaseMessagingService` という
- *                                 表記より、実装済ファイル `FcmService.kt` の実クラス名を優先し
- *                                 plugin と実装を一致させる — docs/sprint3-known-issues.md §2.13)
+ * Stage 2 更新: `.CallConnectionService` / `.CallForegroundService` は
+ * modules/call-bridge/android/ (Expo local module) に実装を移設し、
+ * その AndroidManifest.xml (library 自身のマニフェスト) で宣言するよう変更した。
+ * Android の Gradle manifest merger が library の <service> 宣言を自動的に
+ * app module のマニフェストへマージするため、本プラグインでの重複宣言は不要になった
+ * (expo-audio 等の公式 Expo Module も同じパターンを採用— 実装時に検証済)。
+ * クラス名は docs/native-call-bridge.md §5.1 の設計 canonical
+ * (`.CallConnectionService`, `.CallForegroundService`) のまま
+ * `tech.hori.trancall.callbridge` 名前空間で解決される
+ * (docs/sprint3-known-issues.md §2.14 の揺れを解消)。
  *
- * ⚠️ device-verification-required:
- *   `.CallConnectionService` / `.CallForegroundService` は Sprint 4 (Stage 2) で
- *   Kotlin 実装をスキャフォールドする (native-call-bridge-impl-status.md 参照)。
- *   本プラグインが manifest に宣言する時点ではまだ実クラスが存在しない場合があり、
- *   実 Gradle ビルドでの解決は未検証。
+ *   - `.FcmService`  (FCM data message 受信。実装済 Kotlin クラス名に合わせる。
+ *                      設計書 §5.1 の `.TranCallFirebaseMessagingService` という
+ *                      表記より、実装済ファイル `FcmService.kt` の実クラス名を優先し
+ *                      plugin と実装を一致させる — docs/sprint3-known-issues.md §2.13)
+ *
+ * ⚠️ device-verification-required: manifest merge の実際の解決結果は
+ *   Gradle ビルドで検証していない (native-call-bridge-impl-status.md 参照)。
  */
 
 const ANDROID_TEMPLATES_DIR = path.join(__dirname, "templates", "android");
@@ -87,30 +89,6 @@ const withAndroidCallServices = (config) => {
         app.service.push(entry);
       }
     };
-
-    // --- CallConnectionService (Telecom SelfManaged ConnectionService, native-call-bridge.md §5.1/§5.4) ---
-    addServiceIfMissing({
-      $: {
-        "android:name": ".CallConnectionService",
-        "android:foregroundServiceType": "phoneCall|microphone",
-        "android:permission": "android.permission.BIND_TELECOM_CONNECTION_SERVICE",
-        "android:exported": "true",
-      },
-      "intent-filter": [
-        {
-          action: [{ $: { "android:name": "android.telecom.ConnectionService" } }],
-        },
-      ],
-    });
-
-    // --- CallForegroundService (通話中 ForegroundService, native-call-bridge.md §5.5) ---
-    addServiceIfMissing({
-      $: {
-        "android:name": ".CallForegroundService",
-        "android:foregroundServiceType": "phoneCall",
-        "android:exported": "false",
-      },
-    });
 
     // --- FcmService (Kotlin class: tech.hori.trancall.FcmService, native-call-bridge.md §5.3) ---
     addServiceIfMissing({

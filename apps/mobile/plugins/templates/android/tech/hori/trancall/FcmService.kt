@@ -1,8 +1,14 @@
 package tech.hori.trancall
 
+import android.net.Uri
+import android.os.Bundle
+import android.telecom.TelecomManager
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import tech.hori.trancall.callbridge.CallBridgeModule
+import tech.hori.trancall.callbridge.CallConnectionService
+import tech.hori.trancall.callbridge.PhoneAccounts
 import java.time.Instant
 import java.time.format.DateTimeParseException
 
@@ -34,7 +40,8 @@ class FcmService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         Log.d(TAG, "FCM token refreshed: ${token.take(16)}...")
-        // TODO: JS bridge 経由でトークンをサーバーに通知する (Sprint 3 Phase 1a)
+        // #H-3: JS bridge 経由でトークンをサーバーに通知する
+        CallBridgeModule.emitDeviceToken(token = token, platform = "android")
     }
 
     // MARK: - Private
@@ -83,22 +90,62 @@ class FcmService : FirebaseMessagingService() {
             callerName       = callerName,
             callerTrancallId = callerTrancallId,
             roomId           = roomId,
+            callerId         = data["callerId"] ?: "",
+            callerLanguage   = data["callerLanguage"] ?: "",
+            languagePair     = data["languagePair"] ?: "",
         )
     }
 
     /**
-     * TelecomManager.addNewIncomingCall を呼び ConnectionService に通知する。
-     * 実装は Sprint 3 Phase 1a でネイティブブリッジ完成後に完全実装予定。
-     * 現在はログ出力のみ (skeleton)。
+     * TelecomManager.addNewIncomingCall を呼び CallConnectionService (call-bridge module) に通知する。
+     * Stage 2: modules/call-bridge/android/.../CallConnectionService.kt を参照。
+     *
+     * 設計参照: docs/native-call-bridge.md §5.3
      */
     private fun reportIncomingCall(
         uuid: String,
         callerName: String,
         callerTrancallId: String,
         roomId: String,
+        callerId: String,
+        callerLanguage: String,
+        languagePair: String,
     ) {
         Log.i(TAG, "Incoming call verified — uuid=$uuid caller=$callerTrancallId roomId=$roomId callerName=$callerName")
-        // TODO: TelecomManager.addNewIncomingCall + ConnectionService 起動 (native-call-bridge.md §5)
+
+        val telecomManager = getSystemService(TELECOM_SERVICE) as? TelecomManager
+        if (telecomManager == null) {
+            Log.e(TAG, "TelecomManager unavailable — dropping")
+            return
+        }
+
+        val extras = Bundle().apply {
+            putString(CallConnectionService.EXTRA_UUID, uuid)
+            putString(CallConnectionService.EXTRA_CALLER_NAME, callerName)
+            putString(CallConnectionService.EXTRA_CALLER_TRANCALL_ID, callerTrancallId)
+            putString(CallConnectionService.EXTRA_ROOM_ID, roomId)
+        }
+        val callExtras = Bundle().apply {
+            putParcelable(
+                TelecomManager.EXTRA_INCOMING_CALL_ADDRESS,
+                Uri.fromParts("trancall", callerTrancallId, null),
+            )
+            putBundle(TelecomManager.EXTRA_INCOMING_CALL_EXTRAS, extras)
+        }
+        telecomManager.addNewIncomingCall(PhoneAccounts.handle(applicationContext), callExtras)
+
+        // #H-3: JS 側 (call-overlay.tsx の IncomingCall screen) へ着信を通知する。
+        // languagePair ("ja-en" 形式) から targetLang を抽出、無ければ callerLanguage を fallback に使う。
+        val targetLang = languagePair.split("-").lastOrNull() ?: callerLanguage
+        CallBridgeModule.emitIncomingCall(
+            uuid = uuid,
+            callerId = callerId,
+            callerName = callerName,
+            callerTrancallId = callerTrancallId,
+            roomId = roomId,
+            sourceLang = callerLanguage,
+            targetLang = targetLang,
+        )
     }
 
     /**

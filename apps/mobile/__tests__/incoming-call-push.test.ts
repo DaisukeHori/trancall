@@ -31,6 +31,13 @@ vi.mock("@react-navigation/native", () => ({
   }),
 }));
 
+// use-incoming-call-push.ts は Stage 2 で modules/call-bridge (expo-modules-core 依存) を
+// import するようになった。expo-modules-core の実パッケージは JSI native runtime 依存のため
+// vitest (node 環境) では読み込めない (hmac-validator.test.ts と同方針で wholesale mock)。
+vi.mock("expo-modules-core", () => ({
+  requireOptionalNativeModule: () => null,
+}));
+
 import { navigateToIncomingCall } from "../src/hooks/use-incoming-call-push.js";
 
 const PAYLOAD = {

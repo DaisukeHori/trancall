@@ -1,23 +1,26 @@
 /**
  * HmacValidator — TypeScript ラッパー
  *
- * NativeModules.HmacValidator.validateCallPayload を呼ぶ薄い層。
- * Expo Go など native module が未インストールの環境では false を返す fallback。
+ * #H-3: modules/call-bridge (CallBridge Expo Module, "TranCallBridge" native module) 経由で
+ * validateCallPayload を呼ぶ薄い層。Expo Go など native module が未インストールの環境では
+ * false を返す fallback。
  *
  * 設計参照: docs/notification-detail.md §3 (HMAC 仕様 canonical)
  *           docs/native-call-bridge.md §12.1 (Mobile 検証フロー)
  *
- * native 実装:
+ * native 実装 (CallBridgeProviding.validateCallPayload 経由):
  *   iOS:     apps/mobile/ios/CallBridge/HmacValidator.swift
- *   Android: apps/mobile/android/app/src/main/java/tech/hori/trancall/HmacValidator.kt
+ *            (modules/call-bridge/ios/CallBridgeModule.swift の AsyncFunction から呼ばれる)
+ *   Android: modules/call-bridge/android/.../HmacValidator.kt
+ *            (modules/call-bridge/android/.../CallBridgeModule.kt の AsyncFunction から呼ばれる)
  *
- * Sprint 3 Phase 1a で apps/mobile/modules/call-bridge/ の ExpoModule に統合後、
- * このラッパーは requireNativeModule('HmacValidator') を使うよう更新予定。
+ * ⚠️ device-verification-required: Stage 2 で apps/mobile/modules/call-bridge/ の
+ * ExpoModule ("TranCallBridge") に統合済み。実機ビルド未検証。
  */
+import { requireOptionalNativeModule } from "expo-modules-core";
 
 /**
- * HmacValidator native module の型定義。
- * 型宣言は src/types/native-modules.d.ts でも公開している。
+ * HmacValidator native module の型定義 (TranCallBridge native module の validateCallPayload と同形)。
  */
 export type HmacValidatorNativeModule = {
   validateCallPayload: (
@@ -45,16 +48,9 @@ function resolveNativeModule(): HmacValidatorNativeModule | null {
     return _nativeModuleOverride;
   }
 
-  // 本番: react-native NativeModules から取得
-  // require を使うことで環境によっては undefined になるケースを安全に扱う
-  try {
-    const rn = require("react-native") as { NativeModules?: Record<string, unknown> }; // eslint-disable-line @typescript-eslint/no-require-imports
-    const mod = rn.NativeModules?.["HmacValidator"];
-    if (mod == null) return null;
-    return mod as HmacValidatorNativeModule;
-  } catch {
-    return null;
-  }
+  // 本番: CallBridge Expo Module ("TranCallBridge") から取得。
+  // requireOptionalNativeModule は native module 未リンク時に例外を投げず null を返す。
+  return requireOptionalNativeModule<HmacValidatorNativeModule>("TranCallBridge");
 }
 
 /**
@@ -73,8 +69,8 @@ export async function validateCallPayload(
   if (nativeModule == null) {
     // Expo Go / native module 未インストール環境では false を返す (fallback)
     console.warn(
-      "[HmacValidator] NativeModules.HmacValidator is not available. " +
-        "Returning false (Expo Go or native module not installed).",
+      "[HmacValidator] TranCallBridge native module is not available. " +
+        "Returning false (Expo Go or native build not performed).",
     );
     return false;
   }

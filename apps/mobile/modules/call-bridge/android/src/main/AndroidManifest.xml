@@ -1,0 +1,31 @@
+<!--
+  ⚠️ device-verification-required: Gradle manifest merge を実機/エミュレータビルドで
+  検証していない。Android の標準 manifest merger により、この library module の
+  <service> 宣言は app module (apps/mobile/android/app) の AndroidManifest.xml に
+  自動マージされる想定 (expo-audio 等の実装パターンを参考、native-call-bridge.md §5.1/§5.4/§5.5)。
+
+  class 名は tech.hori.trancall.callbridge 名前空間 (このモジュールの namespace) 相対で解決される。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
+  <application>
+    <!-- Telecom SelfManaged ConnectionService (§5.1/§5.4) -->
+    <service
+      android:name=".CallConnectionService"
+      android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.telecom.ConnectionService" />
+      </intent-filter>
+    </service>
+
+    <!-- 通話中 ForegroundService (§5.5, Android 12+/14+ の 5 秒 startForeground 制約対応) -->
+    <service
+      android:name=".CallForegroundService"
+      android:foregroundServiceType="phoneCall"
+      android:exported="false" />
+  </application>
+</manifest>
