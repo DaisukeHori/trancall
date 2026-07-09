@@ -407,12 +407,12 @@ export function SupportScreen(_props: SupportScreenProps) {
           ]}
         >
           {isSubmitting ? (
-            <ActivityIndicator color={c.bgPrimary} />
+            <ActivityIndicator color={c.textOnColor} />
           ) : (
             <Text
               style={[
                 styles.submitButtonText,
-                { color: isSubmitEnabled ? "#FFFFFF" : c.textTertiary },
+                { color: isSubmitEnabled ? c.textOnColor : c.textTertiary },
               ]}
             >
               {t("support.submit")}

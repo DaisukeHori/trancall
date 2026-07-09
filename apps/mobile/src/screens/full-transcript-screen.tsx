@@ -417,6 +417,7 @@ export function FullTranscriptScreen({ navigation, route }: Props) {
               styles.modalSheet,
               {
                 backgroundColor: c.bgPrimary,
+                shadowColor: c.shadowColor,
                 borderTopLeftRadius: theme.radii[16],
                 borderTopRightRadius: theme.radii[16],
                 paddingHorizontal: s[24],
@@ -592,7 +593,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    shadowColor: "#000000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,

@@ -1,4 +1,4 @@
-import { ConfigPlugin, withAndroidManifest } from "@expo/config-plugins";
+import { ConfigPlugin, withAndroidManifest } from "expo/config-plugins";
 
 /**
  * Expo Config Plugin: Android Manifest へ ConnectionService / FCM service 宣言を追加する。

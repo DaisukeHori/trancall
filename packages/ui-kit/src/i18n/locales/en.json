@@ -555,6 +555,8 @@
   },
   "faq": {
     "title": "FAQ",
+    "expandHint": "Tap to show the answer",
+    "collapseHint": "Tap to collapse",
     "category": {
       "account": "Account",
       "call": "Calls",

@@ -93,9 +93,9 @@ export function InCallScreen({ route, navigation }: Props) {
   const reconnectPulse = useRef(new Animated.Value(1)).current;
   const reconnectLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // Cost estimate (placeholder)
+  // Cost estimate (placeholder — 実際の billing store 結線は Phase 2 で対応予定)
   const remainingMin = 60;
-  const plan = "Free";
+  const plan = t("billing.plans.free.label");
 
   // Set active on mount — intentional empty deps (run once on mount only)
   useEffect(() => {

@@ -19,6 +19,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Avatar, Badge, useTheme, callTokens } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { useCallStore } from "../stores/call-store.js";
@@ -139,7 +140,12 @@ export function IncomingCallScreen({ route, navigation }: Props) {
     >
       {/* Status header */}
       <View style={[styles.header, { paddingTop: s[48] }]}>
-        <Text style={[styles.headerText, { color: c.textSecondary }]}>
+        <Text
+          style={[
+            styles.headerText,
+            { color: c.textSecondary, fontSize: theme.typography.caption.fontSize },
+          ]}
+        >
           {t("call.incomingCall")} · {t("call.translationReady")}
         </Text>
       </View>
@@ -170,7 +176,14 @@ export function IncomingCallScreen({ route, navigation }: Props) {
 
       {/* Caller name */}
       <Text
-        style={[styles.callerName, { color: c.subtitleText, marginTop: s[24] }]}
+        style={[
+          styles.callerName,
+          {
+            color: c.subtitleText,
+            marginTop: s[24],
+            fontSize: theme.typography.heading1.fontSize,
+          },
+        ]}
         accessibilityRole="header"
       >
         {callerName}
@@ -204,7 +217,7 @@ export function IncomingCallScreen({ route, navigation }: Props) {
               },
             ]}
           >
-            <Text style={[styles.actionIcon, { color: c.subtitleText }]}>X</Text>
+            <Ionicons name="close" size={28} color={c.subtitleText} />
           </Pressable>
           <Text style={[styles.actionLabel, { color: c.textSecondary, marginTop: s[8] }]}>
             {t("call.decline")}
@@ -227,7 +240,7 @@ export function IncomingCallScreen({ route, navigation }: Props) {
               },
             ]}
           >
-            <Text style={[styles.actionIcon, { color: c.subtitleText }]}>C</Text>
+            <Ionicons name="call" size={26} color={c.subtitleText} />
           </Pressable>
           <Text style={[styles.actionLabel, { color: c.textSecondary, marginTop: s[8] }]}>
             {t("call.accept")}
@@ -247,7 +260,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerText: {
-    fontSize: 13,
     letterSpacing: 0.3,
   },
   avatarSection: {
@@ -273,7 +285,6 @@ const styles = StyleSheet.create({
     borderRadius: 76,
   },
   callerName: {
-    fontSize: 28,
     fontWeight: "700",
     letterSpacing: -0.5,
     textAlign: "center",
@@ -296,10 +307,6 @@ const styles = StyleSheet.create({
   actionButton: {
     alignItems: "center",
     justifyContent: "center",
-  },
-  actionIcon: {
-    fontSize: 24,
-    fontWeight: "700",
   },
   actionLabel: {
     fontSize: 13,

@@ -6,7 +6,15 @@
  *
  * 実際の native 実装 (Swift / Kotlin) は Sprint 3 Phase 1a で完成予定。
  * ここではコンパイラが型を認識できるよう declare module を使用する。
+ *
+ * 注意: このファイルにトップレベルの import/export が無いと ambient script
+ * 扱いになり、以下の `declare module "react-native"` が module augmentation
+ * ではなく react-native の型定義全体を上書きする shim になってしまう
+ * (react-native の実際の named export が全て消失する)。
+ * 下記の `import "react-native"` により本ファイルを module にし、
+ * augmentation として正しく機能させる。
  */
+import "react-native";
 
 declare module "react-native" {
   interface NativeModulesStatic {

@@ -555,6 +555,8 @@
   },
   "faq": {
     "title": "よくある質問",
+    "expandHint": "タップして回答を表示",
+    "collapseHint": "タップして閉じる",
     "category": {
       "account": "アカウント",
       "call": "通話",
