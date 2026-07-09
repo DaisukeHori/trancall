@@ -24,7 +24,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import * as FileSystem from "expo-file-system";
+// SDK54 (expo-file-system v19) では legacy API (cacheDirectory / writeAsStringAsync /
+// EncodingType) は "expo-file-system/legacy" サブパスに移動 (#54)
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Badge, Button, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";

@@ -1,5 +1,6 @@
 // SCR-006 — Settings: Profile / Translation / Plan / Notifications / About / Account
 import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Alert,
   Platform,
@@ -127,7 +128,7 @@ function SettingsRow({
             </Text>
           )}
           {chevron === true && (
-            <Text style={[settingsStyles.chevron, { color: c.textTertiary }]}>›</Text>
+            <Ionicons name="chevron-forward" size={18} color={c.textTertiary} />
           )}
         </View>
       )}

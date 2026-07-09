@@ -1,5 +1,6 @@
 // SignUp screen — display name / email / password / nativeLanguage + consent
 import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -175,7 +176,7 @@ export function SignUpScreen({ navigation }: Props) {
                 ]}
               >
                 {consentAccepted && (
-                  <Text style={[styles.checkmark, { color: c.bgPrimary }]}>✓</Text>
+                  <Ionicons name="checkmark" size={16} color={c.bgPrimary} />
                 )}
               </View>
               <Text style={[styles.consentText, { color: c.textSecondary }]}>

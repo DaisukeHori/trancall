@@ -5,7 +5,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "TRANCALL_PUSH_HMAC_SECRET_SETUP_NOTE": "UNSET — run `eas secret:create --scope project --name TRANCALL_PUSH_HMAC_SECRET --value <secret>` (docs/native-call-bridge.md §12.1). Never put the real value literally in eas.json; EAS injects project-scoped secrets automatically as env vars during the build."
+      }
     },
     "e2e": {
       "distribution": "internal",
@@ -24,10 +27,16 @@
       "distribution": "internal",
       "ios": {
         "simulator": false
+      },
+      "env": {
+        "TRANCALL_PUSH_HMAC_SECRET_SETUP_NOTE": "UNSET — see docs/native-call-bridge-impl-status.md § FCM/EAS 前提設定"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "TRANCALL_PUSH_HMAC_SECRET_SETUP_NOTE": "UNSET — see docs/native-call-bridge-impl-status.md § FCM/EAS 前提設定"
+      }
     }
   },
   "submit": {

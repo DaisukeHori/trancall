@@ -11,6 +11,7 @@
  * 翻訳 stopped → danger Badge + 原音 fallback
  */
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   AccessibilityInfo,
   Animated,
@@ -29,6 +30,13 @@ import { useTranslationStatusStore } from "../stores/translation-status-store.js
 import { SubtitleOverlayLive } from "../components/subtitle-overlay-live.js";
 import { endCall as apiEndCall } from "../api/room-api.js";
 import { getCallKeep } from "../lib/callkit/index.js";
+import { connectToRoom, MicrophonePermissionDeniedError, type RoomHandle } from "../lib/livekit/connect.js";
+import {
+  makeSubtitleDataChannelHandler,
+  SUBTITLE_DATA_CHANNEL_TOPIC,
+} from "../lib/livekit/subtitles.js";
+import { handleTranslationStatusPayload } from "../lib/livekit/translation-status.js";
+import { usePermissionStore } from "../stores/permission-store.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { CallStackParamList } from "../navigation/call-overlay.js";
 
@@ -48,8 +56,8 @@ export function InCallScreen({ route, navigation }: Props) {
     callerName,
     callerLanguage,
     callerAvatarUri,
-    livekitToken: _livekitToken,
-    livekitUrl: _livekitUrl,
+    livekitToken,
+    livekitUrl,
     translationEnabled: initialTranslationEnabled,
     callUuid,
   } = route.params;
@@ -65,6 +73,8 @@ export function InCallScreen({ route, navigation }: Props) {
   const degradedReason = useTranslationStatusStore((state) => state.degradedReason);
   const justRecovered = useTranslationStatusStore((state) => state.justRecovered);
   const clearJustRecovered = useTranslationStatusStore((state) => state.clearJustRecovered);
+  const setDegraded = useTranslationStatusStore((state) => state.setDegraded);
+  const setRecovered = useTranslationStatusStore((state) => state.setRecovered);
 
   const callState = useCallStore((state) => state.state);
   const isMuted = useCallStore((state) => state.isMuted);
@@ -80,7 +90,15 @@ export function InCallScreen({ route, navigation }: Props) {
   const endCallAction = useCallStore((state) => state.endCall);
   const tickDuration = useCallStore((state) => state.tickDuration);
   const setTranslationStatus = useCallStore((state) => state.setTranslationStatus);
+  const setCallError = useCallStore((state) => state.setError);
   const resetSubtitles = useSubtitleStore((state) => state.reset);
+  const receivePartialDelta = useSubtitleStore((state) => state.receivePartialDelta);
+  const setDeniedPermission = usePermissionStore((state) => state.setDeniedPermission);
+
+  // LiveKit RoomHandle — @livekit/react-native が未インストールの環境
+  // (Expo Go / このリポジトリの現状) では connectToRoom が reject し、
+  // roomHandleRef は null のままになる (device-verification-required)。
+  const roomHandleRef = useRef<RoomHandle | null>(null);
 
   const myLanguage = profile?.native_language ?? "ja";
   const langPair = `${callerLanguage.toUpperCase()} → ${myLanguage.toUpperCase()}`;
@@ -107,6 +125,58 @@ export function InCallScreen({ route, navigation }: Props) {
     return () => {
       resetSubtitles();
     };
+  }, []);
+
+  // LiveKit Room 接続 — connect.ts (native-call-bridge.md §3.2.2 step 8: JS 側で room.connect)
+  //
+  // ⚠️ device-verification-required: `@livekit/react-native` は本リポジトリに未インストール
+  // (依存追加の是非は native-call-bridge-impl-status.md §H-2 参照)。未インストール環境では
+  // connectToRoom が reject し、以下は catch されて lastError に日本語メッセージが設定されるのみで
+  // 画面はクラッシュしない。依存追加後は実機ビルドで音声疎通を検証する必要がある。
+  useEffect(() => {
+    if (livekitUrl == null || livekitUrl.length === 0) {
+      console.warn("[InCallScreen] livekitUrl is missing — skipping LiveKit connect");
+      return;
+    }
+
+    let cancelled = false;
+
+    void connectToRoom({ serverUrl: livekitUrl, token: livekitToken })
+      .then((room) => {
+        if (cancelled) {
+          void room.disconnect();
+          return;
+        }
+        roomHandleRef.current = room;
+
+        const subtitleHandler = makeSubtitleDataChannelHandler(receivePartialDelta);
+        room.subscribeToDataChannel((data, topic) => {
+          if (topic === SUBTITLE_DATA_CHANNEL_TOPIC) {
+            subtitleHandler(data, topic);
+            return;
+          }
+          handleTranslationStatusPayload(data, { setDegraded, setRecovered });
+        });
+      })
+      .catch((error: unknown) => {
+        console.warn("[InCallScreen] connectToRoom failed", error);
+        if (error instanceof MicrophonePermissionDeniedError) {
+          setDeniedPermission("microphone");
+          return;
+        }
+        setCallError(t("call.connectionFailed"));
+      });
+
+    return () => {
+      cancelled = true;
+      const room = roomHandleRef.current;
+      roomHandleRef.current = null;
+      if (room != null) {
+        void room.disconnect();
+      }
+    };
+    // livekitToken/livekitUrl は route.params から一度だけ読む (再接続は行わない)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Duration ticker
@@ -209,9 +279,25 @@ export function InCallScreen({ route, navigation }: Props) {
     }
   };
 
+  const handleToggleMute = useCallback(() => {
+    const nextMuted = !isMuted;
+    toggleMuteAction();
+    roomHandleRef.current?.setMicrophoneMuted(nextMuted).catch((error: unknown) => {
+      console.warn("[InCallScreen] setMicrophoneMuted failed", error);
+    });
+  }, [isMuted, toggleMuteAction]);
+
   const handleEndCall = useCallback(async () => {
     if (callUuid != null) {
       getCallKeep().endCall(callUuid);
+    }
+
+    const room = roomHandleRef.current;
+    roomHandleRef.current = null;
+    if (room != null) {
+      await room.disconnect().catch((error: unknown) => {
+        console.warn("[InCallScreen] room.disconnect failed", error);
+      });
     }
 
     endCallAction();
@@ -295,7 +381,7 @@ export function InCallScreen({ route, navigation }: Props) {
         {/* Mute */}
         <View style={styles.controlItem}>
           <Pressable
-            onPress={toggleMuteAction}
+            onPress={handleToggleMute}
             accessibilityLabel={isMuted ? t("call.unmute") : t("call.mute")}
             accessibilityRole="button"
             accessibilityState={{ selected: isMuted }}
@@ -336,7 +422,7 @@ export function InCallScreen({ route, navigation }: Props) {
               },
             ]}
           >
-            <Text style={[styles.endCallIcon, { color: c.subtitleText }]}>X</Text>
+            <Ionicons name="close" size={24} color={c.subtitleText} />
           </Pressable>
           <Text style={[styles.controlLabel, { color: c.textSecondary }]}>
             {t("call.endCall")}

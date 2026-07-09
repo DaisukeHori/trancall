@@ -5,6 +5,7 @@
  * 翻訳 ON バッジと語ペア常時表示
  */
 import React, { useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Pressable,
   SafeAreaView,
@@ -112,7 +113,7 @@ export function CallingScreen({ route, navigation }: Props) {
             },
           ]}
         >
-          <Text style={[styles.cancelIcon, { color: c.subtitleText }]}>X</Text>
+          <Ionicons name="close" size={24} color={c.subtitleText} />
         </Pressable>
         <Text style={[styles.cancelLabel, { color: c.textSecondary, marginTop: s[8] }]}>
           {t("common.cancel")}
