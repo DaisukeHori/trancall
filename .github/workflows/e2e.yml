@@ -11,7 +11,10 @@ on:
 
 jobs:
   ios:
-    runs-on: macos-14
+    # React Native 0.81 は Xcode >= 16.1 を要求する。macos-14 ランナーの既定 Xcode は 15.4 のため
+    # macos-15 (既定 Xcode 16.x) を使用する (PR #75 CI実測: macos-14 で "React Native requires
+    # XCode >= 16.1. Found 15.4." により Podfile 評価が失敗することを確認)。
+    runs-on: macos-15
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4

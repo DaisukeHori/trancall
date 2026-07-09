@@ -116,6 +116,39 @@ const withHmacSecretBuildConfigField = (config) => {
   });
 };
 
+/**
+ * `FcmService.kt` は `com.google.firebase.messaging.FirebaseMessagingService` /
+ * `RemoteMessage` を参照するが、Expo の google-services 連携 (`withConditionalGoogleServicesFile`)
+ * は `google-services.json` の配置と `com.google.gms.google-services` プラグイン適用のみを行い、
+ * `firebase-messaging` 自体の Gradle 依存は追加しない。これが無いと `FirebaseMessagingService`
+ * が解決できず、継承する `Context`/`Service` メンバー (getSystemService 等) まで軒並み
+ * unresolved になり `compileDebugKotlin` が失敗する (CI実測: PR #75 android job で確認)。
+ * `dependencies { }` に BoM 経由で `firebase-messaging` を注入する。
+ */
+const withFirebaseMessagingDependency = (config) => {
+  return withAppBuildGradle(config, (mod) => {
+    if (mod.modResults.language !== "groovy") {
+      return mod;
+    }
+
+    let contents = mod.modResults.contents;
+
+    if (!contents.includes("firebase-messaging")) {
+      const depLines =
+        `    implementation platform("com.google.firebase:firebase-bom:33.7.0")\n` +
+        `    implementation "com.google.firebase:firebase-messaging"\n`;
+      if (/dependencies\s*{/.test(contents)) {
+        contents = contents.replace(/dependencies\s*{/, (match) => `${match}\n${depLines}`);
+      } else {
+        contents += `\ndependencies {\n${depLines}}\n`;
+      }
+    }
+
+    mod.modResults.contents = contents;
+    return mod;
+  });
+};
+
 const withAndroidNativeFiles = (config) => {
   return withDangerousMod(config, [
     "android",
@@ -187,6 +220,7 @@ const withAndroidNative = (config) => {
   config = withAndroidCallServices(config);
   config = withAndroidNativeFiles(config);
   config = withHmacSecretBuildConfigField(config);
+  config = withFirebaseMessagingDependency(config);
   return config;
 };
 
