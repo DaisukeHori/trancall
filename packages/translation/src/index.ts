@@ -12,6 +12,7 @@ export type { TranslationFacade, TranslationFacadeDeps } from "./facade.js";
 
 // Schemas (公開)
 export {
+  TranslationSessionEndedReasonSchema,
   LiveSubtitleDeltaSchema,
   TranslationSessionRecordSchema,
   AgentMetricsRecordSchema,
@@ -29,6 +30,7 @@ export {
 } from "./schemas.js";
 
 export type {
+  TranslationSessionEndedReason,
   LiveSubtitleDelta,
   TranslationSessionRecord,
   AgentMetricsRecord,

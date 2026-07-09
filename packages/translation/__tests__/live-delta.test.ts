@@ -45,7 +45,9 @@ describe("LiveSubtitleDeltaSchema", () => {
     }
   });
 
-  it("timestamp が負値の場合はバリデーションエラー", () => {
+  // #17/#51: transcript 側 LiveSubtitleDeltaSchema (canonical) に合わせて timestamp は
+  // z.number() のみ (nonnegative 制約なし) に統一したため、負値も構文的にはパース成功する。
+  it("timestamp は number であればパース成功する（transcript 側 canonical に合わせ nonnegative 制約なし）", () => {
     const result = LiveSubtitleDeltaSchema.safeParse({
       roomId: validRoomId,
       participantId: validParticipantId,
@@ -56,6 +58,21 @@ describe("LiveSubtitleDeltaSchema", () => {
       language: "en",
       isFinal: false,
       timestamp: -1,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("speakerName / originalDelta / translatedDelta が空文字の場合はバリデーションエラー (transcript 側 canonical に合わせ min(1))", () => {
+    const result = LiveSubtitleDeltaSchema.safeParse({
+      roomId: validRoomId,
+      participantId: validParticipantId,
+      translationSessionId: null,
+      speakerName: "",
+      originalDelta: "Test",
+      translatedDelta: "テスト",
+      language: "en",
+      isFinal: false,
+      timestamp: 1716000000000,
     });
     expect(result.success).toBe(false);
   });

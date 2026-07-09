@@ -22,6 +22,12 @@ const creatorId = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440001");
 const inviteeId1 = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440002");
 const inviteeId2 = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440003");
 
+// #52: createCall opts に追加された callerName/languagePair/callerLanguage は
+// 呼び出し元 (server route) が auth/profile から解決して渡す想定のテスト用ダミー値
+const TEST_CALLER_NAME = "テスト太郎";
+const TEST_LANGUAGE_PAIR = "ja → en";
+const TEST_CALLER_LANGUAGE = "ja";
+
 function makeService(overrides?: {
   canStart?: boolean;
   createRoomOk?: boolean;
@@ -53,7 +59,7 @@ describe("CallLifecycleService.createCall", () => {
   it("正常系: RoomState を返し status='waiting'", async () => {
     const { service } = makeService();
     const result = await service.createCall(creatorId, [inviteeId1], {
-      translationEnabled: true,
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
 
     expect(result.ok).toBe(true);
@@ -71,7 +77,7 @@ describe("CallLifecycleService.createCall", () => {
   it("billing.canStartCall が失敗 → BILLING_INSUFFICIENT_BALANCE", async () => {
     const { service } = makeService({ canStart: false });
     const result = await service.createCall(creatorId, [inviteeId1], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
 
     expect(result.ok).toBe(false);
@@ -82,7 +88,7 @@ describe("CallLifecycleService.createCall", () => {
   it("media.createRoom が失敗 → ROOM_MEDIA_CREATE_FAILED + room は ended になる", async () => {
     const { service, roomRepo } = makeService({ createRoomOk: false });
     const result = await service.createCall(creatorId, [inviteeId1], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
 
     expect(result.ok).toBe(false);
@@ -98,7 +104,7 @@ describe("CallLifecycleService.createCall", () => {
   it("invitee 2 人に sendIncomingCall が並列で呼ばれる", async () => {
     const { service, notification } = makeService();
     const result = await service.createCall(creatorId, [inviteeId1, inviteeId2], {
-      translationEnabled: true,
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
 
     expect(result.ok).toBe(true);
@@ -108,7 +114,7 @@ describe("CallLifecycleService.createCall", () => {
   it("invitee なしでも createCall は成功する", async () => {
     const { service, notification } = makeService();
     const result = await service.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
 
     expect(result.ok).toBe(true);
@@ -117,7 +123,7 @@ describe("CallLifecycleService.createCall", () => {
 
   it("room.created イベントが発行される", async () => {
     const { service, eventBus } = makeService();
-    await service.createCall(creatorId, [inviteeId1], { translationEnabled: true });
+    await service.createCall(creatorId, [inviteeId1], { translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE, });
 
     expect(eventBus.published).toHaveLength(1);
     const event = eventBus.published[0] as { type: string };
@@ -132,7 +138,7 @@ describe("CallLifecycleService.createCall", () => {
     });
 
     const result = await service.createCall(creatorId, [inviteeId1], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(result.ok).toBe(true);
   });
@@ -147,7 +153,7 @@ describe("CallLifecycleService.endCall", () => {
     const { service, roomRepo } = makeService();
     // createCall で room を作成
     const createResult = await service.createCall(creatorId, [inviteeId1], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -168,7 +174,7 @@ describe("CallLifecycleService.endCall", () => {
   it("waiting → ended も可能", async () => {
     const { service } = makeService();
     const createResult = await service.createCall(creatorId, [inviteeId1], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -184,7 +190,7 @@ describe("CallLifecycleService.endCall", () => {
   it("既に ended の room を endCall すると冪等で OK", async () => {
     const { service } = makeService();
     const createResult = await service.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -212,7 +218,7 @@ describe("CallLifecycleService.endCall", () => {
   it("endCall 後に participants の left_at が設定される", async () => {
     const { service, participantRepo } = makeService();
     const createResult = await service.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -234,7 +240,7 @@ describe("CallLifecycleService.endCall", () => {
     vi.mocked(media.deleteRoom).mockRejectedValue(new Error("LiveKit timeout"));
 
     const createResult = await service.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -247,7 +253,7 @@ describe("CallLifecycleService.endCall", () => {
   it("room.participant_left イベントが参加者数分発行される", async () => {
     const { service, eventBus } = makeService();
     const createResult = await service.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;

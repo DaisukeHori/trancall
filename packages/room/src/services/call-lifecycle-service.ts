@@ -28,11 +28,27 @@ export interface CallLifecycleServiceDeps {
   eventBus: EventBus;
 }
 
+/**
+ * #52: 着信 Push (IncomingCallNotification) の callerName/languagePair/callerLanguage は
+ * min(1) 必須フィールドであり、room facade は auth/profile への依存を持たないため
+ * 自力で解決できない。呼び出し元 (apps/server の room-routes、auth facade で
+ * creatorId → 表示名/言語設定を解決できる層) が実際の値を渡す「呼び出し側が渡す」構造にする。
+ */
+export interface CreateCallOptions {
+  translationEnabled: boolean;
+  /** 着信 Push の callerName に使用する発信者の表示名 (UUID ではない) */
+  callerName: string;
+  /** 着信 Push の languagePair に使用する言語ペア表示 (例: "ja → en") */
+  languagePair: string;
+  /** 着信 Push の callerLanguage に使用する発信者の言語コード (例: "ja") */
+  callerLanguage: string;
+}
+
 export interface CallLifecycleService {
   createCall(
     creatorId: UserId,
     inviteeIds: UserId[],
-    opts: { translationEnabled: boolean },
+    opts: CreateCallOptions,
   ): Promise<Result<RoomState>>;
 
   endCall(roomId: RoomId): Promise<Result<RoomState>>;
@@ -115,26 +131,47 @@ export function createCallLifecycleService(
       }
 
       // 5. invitee 全員に sendIncomingCall (並列、best-effort)
+      // #52: callerName/languagePair/callerLanguage は呼び出し元 (server route) が
+      // auth/profile 解決済みの値を opts 経由で渡す (room facade は auth に依存しないため自己解決不可)。
       const timestamp = new Date().toISOString();
       const incomingNotification: IncomingCallNotification = {
         roomId,
         uuid: randomUUID(), // CallKit 用 UUID (roomId とは独立)
         callerId: creatorId, // 発信者の内部ユーザー ID
-        callerName: creatorId, // server 側で profile を引いて置換する想定
+        callerName: opts.callerName,
         callerAvatarUrl: null,
         callerTrancallId: creatorId,
         roomType: "audio",
         translationEnabled: opts.translationEnabled,
-        languagePair: "",
-        callerLanguage: "",
+        languagePair: opts.languagePair,
+        callerLanguage: opts.callerLanguage,
         timestamp,
       };
 
-      await Promise.allSettled(
+      // best-effort: sendIncomingCall の失敗は createCall 自体を失敗させない。
+      // ただし握り潰しっぱなしにはせず、結果を明示的に warn ログへ出す。
+      const notifyResults = await Promise.allSettled(
         inviteeIds.map((inviteeId) =>
           notification.sendIncomingCall(inviteeId, incomingNotification),
         ),
       );
+      notifyResults.forEach((result, index) => {
+        const inviteeId = inviteeIds[index];
+        if (result.status === "rejected") {
+          console.warn("[room] sendIncomingCall failed (best-effort, call continues)", {
+            roomId,
+            inviteeId,
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          });
+        } else if (!result.value.ok) {
+          console.warn("[room] sendIncomingCall returned error (best-effort, call continues)", {
+            roomId,
+            inviteeId,
+            errorCode: result.value.error.code,
+            errorMessage: result.value.error.message,
+          });
+        }
+      });
 
       // 6. EventBus.publish room.created
       const event = createRoomCreatedEvent({
