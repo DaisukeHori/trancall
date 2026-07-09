@@ -15,6 +15,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Button, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 
@@ -49,7 +50,6 @@ export function PermissionNotificationsScreen({
       accessibilityViewIsModal
     >
       <View style={[styles.container, { paddingHorizontal: s[24] }]}>
-        {/* Icon placeholder */}
         <View
           style={[
             styles.iconContainer,
@@ -62,7 +62,7 @@ export function PermissionNotificationsScreen({
           accessibilityRole="image"
           accessibilityLabel={t("permissions.notificationDeniedTitle")}
         >
-          <Text style={[styles.iconText, { color: c.warning }]}>bell</Text>
+          <Ionicons name="notifications-off" size={32} color={c.warning} />
         </View>
 
         {/* Title */}
@@ -84,28 +84,30 @@ export function PermissionNotificationsScreen({
         </Text>
 
         {/* Allow button → opens system settings */}
-        <Button
-          variant="primary"
-          size="lg"
-          onPress={handleAllow}
-          accessibilityLabel={t("permissions.notificationDeniedAction")}
-          accessibilityRole="button"
-          style={styles.button}
-        >
-          {t("permissions.notificationDeniedAction")}
-        </Button>
+        <View style={styles.button}>
+          <Button
+            variant="primary"
+            size="lg"
+            onPress={handleAllow}
+            accessibilityLabel={t("permissions.notificationDeniedAction")}
+            accessibilityRole="button"
+          >
+            {t("permissions.notificationDeniedAction")}
+          </Button>
+        </View>
 
         {/* Cancel button */}
-        <Button
-          variant="ghost"
-          size="md"
-          onPress={onCancel}
-          accessibilityLabel={t("permissions.openSettingsCancel")}
-          accessibilityRole="button"
-          style={[styles.button, { marginTop: s[12] }]}
-        >
-          {t("permissions.openSettingsCancel")}
-        </Button>
+        <View style={[styles.button, { marginTop: s[12] }]}>
+          <Button
+            variant="ghost"
+            size="md"
+            onPress={onCancel}
+            accessibilityLabel={t("permissions.openSettingsCancel")}
+            accessibilityRole="button"
+          >
+            {t("permissions.openSettingsCancel")}
+          </Button>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -129,10 +131,6 @@ const styles = StyleSheet.create({
     height: 80,
     alignItems: "center",
     justifyContent: "center",
-  },
-  iconText: {
-    fontSize: 32,
-    fontWeight: "700",
   },
   title: {
     fontSize: 20,

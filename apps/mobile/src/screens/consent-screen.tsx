@@ -124,7 +124,7 @@ function ScopeRow({ view, checked, onToggle }: ScopeRowProps) {
           ]}
         >
           {checked ? (
-            <Text style={[rowStyles.checkmark, { color: "#FFFFFF" }]}>✓</Text>
+            <Text style={[rowStyles.checkmark, { color: c.textOnColor }]}>✓</Text>
           ) : null}
         </View>
 
@@ -136,7 +136,7 @@ function ScopeRow({ view, checked, onToggle }: ScopeRowProps) {
             </Text>
             {view.isRequired ? (
               <View style={[rowStyles.requiredBadge, { backgroundColor: c.danger }]}>
-                <Text style={rowStyles.requiredBadgeText}>
+                <Text style={[rowStyles.requiredBadgeText, { color: c.textOnColor }]}>
                   {t("consent.required")}
                 </Text>
               </View>
@@ -205,7 +205,6 @@ const rowStyles = StyleSheet.create({
     paddingVertical: 2,
   },
   requiredBadgeText: {
-    color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "600",
   },

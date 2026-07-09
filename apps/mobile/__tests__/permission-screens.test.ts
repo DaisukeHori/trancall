@@ -39,6 +39,10 @@ vi.mock("react-native", () => ({
   View: "View",
 }));
 
+vi.mock("@expo/vector-icons", () => ({
+  Ionicons: "Ionicons",
+}));
+
 vi.mock("@trancall/ui-kit", () => ({
   Button: "Button",
   useTheme: () => ({

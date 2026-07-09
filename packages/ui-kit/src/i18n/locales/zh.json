@@ -555,6 +555,8 @@
   },
   "faq": {
     "title": "常见问题",
+    "expandHint": "点击查看答案",
+    "collapseHint": "点击收起",
     "category": {
       "account": "账号",
       "call": "通话",

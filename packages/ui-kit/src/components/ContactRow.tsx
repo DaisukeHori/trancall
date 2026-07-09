@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Avatar } from "./Avatar.js";
 import { useTheme } from "../theme/index.js";
+import { useTranslation } from "../i18n/index.js";
 
 export interface ContactRowProps {
   name: string;
@@ -24,6 +25,7 @@ export function ContactRow({
 }: ContactRowProps) {
   const theme = useTheme();
   const c = theme.colors;
+  const { t } = useTranslation();
 
   return (
     <TouchableOpacity
@@ -61,14 +63,14 @@ export function ContactRow({
         </Text>
       </View>
       <TouchableOpacity
-        accessibilityLabel={isFavorite ? "Remove from favorites" : "Add to favorites"}
+        accessibilityLabel={isFavorite ? t("contactProfile.unfavorite") : t("contactProfile.favorite")}
         accessibilityRole="button"
         accessibilityState={{ selected: isFavorite }}
         onPress={onFavoritePress}
         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
         style={styles.star}
       >
-        <Text style={{ fontSize: 20, color: isFavorite ? "#FF9500" : c.border }}>
+        <Text style={{ fontSize: 20, color: isFavorite ? c.warning : c.border }}>
           {isFavorite ? "★" : "☆"}
         </Text>
       </TouchableOpacity>

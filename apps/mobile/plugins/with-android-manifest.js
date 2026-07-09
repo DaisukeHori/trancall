@@ -1,4 +1,4 @@
-const { withAndroidManifest } = require("@expo/config-plugins");
+const { withAndroidManifest } = require("expo/config-plugins");
 
 /**
  * Expo Config Plugin: Android Manifest へ ConnectionService / FCM service 宣言を追加する。

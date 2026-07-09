@@ -63,7 +63,7 @@ export function PlanCard({
               { backgroundColor: c.primary, borderRadius: theme.radii.full },
             ]}
           >
-            <Text style={styles.badgeText}>✓</Text>
+            <Text style={[styles.badgeText, { color: c.textOnColor }]}>✓</Text>
           </View>
         )}
       </View>
@@ -118,7 +118,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   badgeText: {
-    color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
   },

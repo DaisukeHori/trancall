@@ -69,6 +69,7 @@ function AccordionItem({
   isOpen,
   onToggle,
 }: AccordionItemProps) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const c = theme.colors;
 
@@ -86,7 +87,7 @@ function AccordionItem({
         accessibilityLabel={question}
         accessibilityRole="button"
         accessibilityState={{ expanded: isOpen }}
-        accessibilityHint={isOpen ? "タップして閉じる" : "タップして回答を表示"}
+        accessibilityHint={isOpen ? t("faq.collapseHint") : t("faq.expandHint")}
         onPress={onToggle}
         style={({ pressed }) => [
           accordionStyles.questionRow,

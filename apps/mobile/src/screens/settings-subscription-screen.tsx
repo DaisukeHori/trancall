@@ -573,7 +573,7 @@ export function SettingsSubscriptionScreen() {
                           { backgroundColor: c.primary },
                         ]}
                       >
-                        <Text style={recommendedStyles.badgeText}>
+                        <Text style={[recommendedStyles.badgeText, { color: c.textOnColor }]}>
                           {t("billing.subscription.recommended")}
                         </Text>
                       </View>
@@ -704,7 +704,7 @@ export function SettingsSubscriptionScreen() {
           accessibilityRole="none"
           accessibilityLiveRegion="polite"
         >
-          <ActivityIndicator size="large" color="#FFFFFF" />
+          <ActivityIndicator size="large" color={c.textOnColor} />
         </View>
       )}
 
@@ -734,7 +734,6 @@ const recommendedStyles = StyleSheet.create({
     marginBottom: 4,
   },
   badgeText: {
-    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "600",
   },
