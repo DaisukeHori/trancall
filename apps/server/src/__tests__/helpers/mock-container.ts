@@ -283,6 +283,41 @@ export function createMockContainer(): AppContainer {
     validateLiveDelta: vi.fn().mockReturnValue(ok({})),
   };
 
+  // #46: RoomReservationSessionRepository mock — 実際の Map で状態を持ち、room-routes.ts の
+  // POST /api/rooms (save) → POST /api/rooms/:id/leave (findByRoomId) の往復を実挙動として
+  // 検証できるようにする (#53 テスト、単なる vi.fn().mockResolvedValue の静的スタブでは
+  // sessionId の対応付けを検証できないため)。
+  const roomReservationSessionStore = new Map<
+    string,
+    { userId: string; sessionId: string }
+  >();
+  const roomReservationSessionRepo = {
+    save: vi.fn(async (params: { roomId: string; userId: string; sessionId: string }) => {
+      roomReservationSessionStore.set(params.roomId, {
+        userId: params.userId,
+        sessionId: params.sessionId,
+      });
+      return ok(true);
+    }),
+    findByRoomId: vi.fn(async (roomId: string) => {
+      const row = roomReservationSessionStore.get(roomId);
+      return ok(
+        row
+          ? {
+              roomId,
+              userId: row.userId,
+              sessionId: row.sessionId,
+              createdAt: new Date().toISOString(),
+            }
+          : null,
+      );
+    }),
+    deleteByRoomId: vi.fn(async (roomId: string) => {
+      roomReservationSessionStore.delete(roomId);
+      return ok(true);
+    }),
+  };
+
   // Room facade mock
   const room = {
     createCall: vi.fn().mockResolvedValue(ok(makeRoomState())),
@@ -304,6 +339,7 @@ export function createMockContainer(): AppContainer {
     transcript,
     translation,
     room,
+    roomReservationSessionRepo,
   } as unknown as AppContainer;
 }
 

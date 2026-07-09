@@ -66,6 +66,15 @@ const ConfigSchema = z.object({
   STOREKIT_EXTERNAL_ISSUER_ID: z.string().optional(),
   STOREKIT_EXTERNAL_KEY_ID: z.string().optional(),
   STOREKIT_EXTERNAL_PRIVATE_KEY: z.string().optional(),
+
+  // #40/#23: StoreKit 2 IAP トランザクション検証 (packages/billing の IapAdapter) 用設定。
+  // 未設定時は IapAdapter がチェーン内署名リンクの整合性のみ検証し、bundleId/environment/
+  // ルート証明書の突合は行わない (packages/billing/src/adapters/iap-adapter.ts の JSDoc 参照)。
+  // STOREKIT_EXTERNAL_APPLE_BUNDLE_ID (External Purchase レポート用、別目的) とは独立した値。
+  IAP_APPLE_BUNDLE_ID: z.string().min(1).optional(),
+  IAP_APPLE_ENVIRONMENT: z.enum(["sandbox", "production"]).optional(),
+  /** Apple Root CA (PEM 形式、1 枚)。指定時のみ x5c チェーン最上位証明書のピン留め検証を行う。 */
+  APPLE_ROOT_CA_PEM: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

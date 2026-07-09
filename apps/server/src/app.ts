@@ -72,6 +72,7 @@ export async function buildApp(
     media: container.media,
     notification: container.notification,
     auth: container.auth,
+    roomReservationSessionRepo: container.roomReservationSessionRepo,
   });
   registerBillingRoutes(fastify, { billing: container.billing });
   registerTranscriptRoutes(fastify, { transcript: container.transcript });

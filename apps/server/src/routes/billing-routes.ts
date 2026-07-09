@@ -131,11 +131,13 @@ export function registerBillingRoutes(
   });
 
   // POST /api/billing/webhook/stripe (raw body needed for signature)
+  // #39: 署名検証には受信した生バイト列 (request.rawBody) を使う。JSON.stringify(request.body) に
+  // よる再シリアライズはキー順序・空白・数値表現の差異で正当な署名検証が失敗し得るため使わない。
+  // raw-body-parser.ts (#25) が全 JSON リクエストで request.rawBody に生文字列を保持しているため、
+  // 従来無効化されていた `config: { rawBody: true }` (どのプラグインからも参照されない dead な
+  // ルート設定だった) は不要になり削除した。
   fastify.post(
     "/api/billing/webhook/stripe",
-    {
-      config: { rawBody: true },
-    },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const signature = request.headers["stripe-signature"];
       if (typeof signature !== "string") {
@@ -145,9 +147,7 @@ export function registerBillingRoutes(
         });
       }
 
-      // rawBody を使う (fastify-rawbody または body を stringify)
-      const rawBody = JSON.stringify(request.body);
-      const result = await billing.handleStripeWebhook(rawBody, signature);
+      const result = await billing.handleStripeWebhook(request.rawBody, signature);
       if (!result.ok) {
         return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
       }
@@ -156,6 +156,16 @@ export function registerBillingRoutes(
   );
 
   // POST /api/billing/webhook/apple
+  // TODO(#23): Apple App Store Server Notifications V2 は JWS (signedPayload/signedTransactionInfo)
+  // で届くが、packages/billing の AppleIapAdapter.parseWebhookPayload はペイロードのデコードのみ
+  // 行い、署名 (x5c チェーン) 検証はしていない (JWS 検証は apps/server 側に委ねる設計、
+  // packages/billing/src/adapters/apple-iap-adapter.ts の JSDoc 参照)。x5c チェーン検証ロジックは
+  // packages/billing/src/adapters/iap-adapter.ts に実装済みだが private 関数のため apps/server から
+  // 再利用できない。config.IAP_APPLE_BUNDLE_ID / IAP_APPLE_ENVIRONMENT / APPLE_ROOT_CA_PEM は
+  // #40 (StoreKit 2 クライアント JWS 検証、container.ts の iapAdapter) 用に配線済みだが、本 Webhook
+  // 経路にはまだ適用していない。完全な署名検証を実装するには packages/billing 側で検証関数を
+  // export する変更が必要で、「packages/billing のインターフェースは変更しない」方針の本 PR
+  // (apps/server 配線のみ) のスコープ外のため未実装のまま残す。
   fastify.post("/api/billing/webhook/apple", async (request: FastifyRequest, reply: FastifyReply) => {
     const result = await billing.handleAppleIapWebhook(request.body);
     if (!result.ok) {
@@ -165,6 +175,10 @@ export function registerBillingRoutes(
   });
 
   // POST /api/billing/webhook/google
+  // TODO(#23): Google Play RTDN (Pub/Sub push) は通常 Google 発行の OIDC ID トークンを
+  // Authorization ヘッダーで送ってくる (audience/署名検証で呼び出し元を確認する) が、本エンドポイントは
+  // 現状そのトークンを検証していない。GooglePlayAdapter.parseWebhookPayload もペイロード解析のみ。
+  // 上記 Apple 同様、packages/billing のインターフェース変更を伴うため本 PR のスコープ外。
   fastify.post("/api/billing/webhook/google", async (request: FastifyRequest, reply: FastifyReply) => {
     const result = await billing.handleGoogleIapWebhook(request.body);
     if (!result.ok) {

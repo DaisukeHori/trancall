@@ -154,5 +154,61 @@ export function createSubscriptionRepository(
       );
       return ok(total);
     },
+
+    // #40: originalTransactionId の insert (updatePlan) 前の冪等重複排除チェックに使う。
+    // 見つからない場合はエラーではなく ok(null) を返す (packages/billing の JSDoc 契約通り)。
+    async findByIapOriginalTransactionId(
+      transactionId: string,
+    ): Promise<Result<SubscriptionRowType | null>> {
+      const { data, error } = await supabase
+        .schema("trancall_billing")
+        .from("subscriptions")
+        .select("*")
+        .eq("iap_original_transaction_id", transactionId)
+        .maybeSingle();
+
+      if (error) {
+        return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
+      }
+      if (!data) return ok(null);
+
+      const parsed = SubscriptionRow.safeParse(data);
+      if (!parsed.success) {
+        return err({
+          code: "INTERNAL_ERROR",
+          message: "DB から取得したサブスクリプションのスキーマが不正です",
+          retryable: false,
+        });
+      }
+      return ok(parsed.data);
+    },
+
+    // #24: Stripe ライフサイクル Webhook (customer.subscription.updated/deleted, invoice.paid)
+    // から対象ユーザーを特定するために使う。見つからない場合はエラーではなく ok(null) を返す。
+    async findByStripeSubscriptionId(
+      stripeSubscriptionId: string,
+    ): Promise<Result<SubscriptionRowType | null>> {
+      const { data, error } = await supabase
+        .schema("trancall_billing")
+        .from("subscriptions")
+        .select("*")
+        .eq("stripe_subscription_id", stripeSubscriptionId)
+        .maybeSingle();
+
+      if (error) {
+        return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
+      }
+      if (!data) return ok(null);
+
+      const parsed = SubscriptionRow.safeParse(data);
+      if (!parsed.success) {
+        return err({
+          code: "INTERNAL_ERROR",
+          message: "DB から取得したサブスクリプションのスキーマが不正です",
+          retryable: false,
+        });
+      }
+      return ok(parsed.data);
+    },
   };
 }

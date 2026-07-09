@@ -23,6 +23,7 @@ import type { UserId } from "@trancall/shared-kernel";
 import { randomUUID } from "node:crypto";
 import { getHttpStatus } from "../middleware/error-handler.js";
 import { logger } from "../logger.js";
+import type { RoomReservationSessionRepository } from "../adapters/repositories/billing/room-reservation-session-repository.supabase.js";
 
 const CreateRoomSchema = z.object({
   inviteeIds: z.array(z.uuid()).min(1).max(49),
@@ -50,20 +51,6 @@ const RoomParamsSchema = z.object({ id: z.string() });
 // 適用されるため実害は限定的) を確認した上でどちらかに合わせる必要がある。本 PR のスコープ外
 // のため値は変更せず、相違のみ明記する。
 const RESERVE_MINUTES = 60; // デフォルト予約分数
-
-/**
- * #53: roomId ↔ 予約 sessionId (TranslationSessionId) の対応表 (in-memory, per-instance)。
- *
- * billing.reserveMinutes は独立採番した sessionId を要求するが、どこにも roomId と
- * 紐付けて永続化していなかったため、/leave 時に roomId をそのまま sessionId として
- * reconcile していた (billing.ReservationRepository は findActiveBySessionId しか持たず
- * roomId 引きができない)。ReservationRepository へ roomId 引きメソッドを追加するには
- * packages/billing の契約変更 (スコープ外、別担当領域) が必要なため、apps/server 層で
- * このマッピングを保持する。billing-routes.ts の billingRateLimitMap と同様の
- * 既存パターン (in-memory, サーバーインスタンス再起動で失われる、本番は Redis 等へ
- * 置き換え検討) に倣う。
- */
-const roomSessionMap = new Map<string, string>();
 
 /** #52: 発信者プロフィール解決に失敗した場合のフォールバック値 (push 通知は best-effort) */
 const FALLBACK_CALLER_NAME = "TranCall User";
@@ -131,9 +118,17 @@ export function registerRoomRoutes(
     media: MediaFacade;
     notification: NotificationFacade;
     auth: AuthFacade;
+    /**
+     * #46/#53: roomId ↔ 予約 sessionId (TranslationSessionId) の対応表。DB (trancall_billing.
+     * room_reservation_sessions) ベース。旧実装は apps/server 内 in-memory Map
+     * (roomSessionMap) だったが、サーバー再起動やマルチインスタンス (Vercel 等) で
+     * 失われるため、apps/server/src/adapters/usage-metering-subscriber.ts (#46,
+     * translation.ended 購読者) からも同じテーブルを引けるよう DB ベースに置き換えた。
+     */
+    roomReservationSessionRepo: RoomReservationSessionRepository;
   },
 ): void {
-  const { room, billing, media, auth } = deps;
+  const { room, billing, media, auth, roomReservationSessionRepo } = deps;
 
   // GET /api/rooms/history — 通話履歴 (Sprint 3 T-10)
   // NOTE: 静的パスを /api/rooms/:id より前に登録することで conflict を回避
@@ -193,12 +188,26 @@ export function registerRoomRoutes(
     const roomState = createResult.data;
 
     // billing.reserveMinutes (best-effort、失敗しても通話は継続)
-    // #53: 生成した sessionId を roomId に紐付けて保存する (/leave 時の reconcile で使う)。
+    // #53: 生成した sessionId を roomId に紐付けて保存する (/leave 時の reconcile と、
+    // #46 usage-metering-subscriber.ts の translation.ended → recordUsage で使う)。
     const sessionId = brandTranslationSessionId(randomUUID());
     if (sessionId.success && translationEnabled) {
       const reserveResult = await billing.reserveMinutes(request.userId, sessionId.data, RESERVE_MINUTES);
       if (reserveResult.ok) {
-        roomSessionMap.set(roomState.roomId, sessionId.data);
+        const saveResult = await roomReservationSessionRepo.save({
+          roomId: roomState.roomId,
+          userId: request.userId,
+          sessionId: sessionId.data,
+        });
+        if (!saveResult.ok) {
+          // best-effort: 対応付け保存に失敗しても通話自体は継続する。ただしこの場合
+          // /leave の reconcile と #46 usage metering は roomId から sessionId を解決できず
+          // スキップされる (通話は継続、課金記録のみ漏れる)。
+          logger.warn("room_reservation_sessions save failed (best-effort, call continues)", {
+            roomId: roomState.roomId,
+            errorCode: saveResult.error.code,
+          });
+        }
       } else {
         logger.warn("billing.reserveMinutes failed (best-effort, call continues)", {
           roomId: roomState.roomId,
@@ -299,8 +308,14 @@ export function registerRoomRoutes(
     // #53: 作成時に保存した sessionId を使って billing.reconcile する (roomId をそのまま
     // sessionId として使っていた旧実装は、予約時の sessionId と一致せず reconcile が
     // 常に対象レコードなしで失敗し、予約分数が解放されない「残高ロック」を起こしていた)。
-    const storedSessionIdRaw = roomSessionMap.get(roomIdResult.data);
-    roomSessionMap.delete(roomIdResult.data);
+    // #46: 対応付けは roomReservationSessionRepo (DB) から引く。ここでは行を削除しない
+    // (後から届く translation.ended (#46 usage-metering-subscriber.ts) が同じ対応付けを
+    // 必要とするため。詳細は supabase/migrations/00020_add_room_reservation_sessions_table.sql
+    // のコメント参照。そのため、ここでの reconcile が先に成功し、後から usage-metering-
+    // subscriber.ts が同じ sessionId で reconcile を再試行して「既に reconciled」エラーに
+    // なることがあるが best-effort のため実害はない)。
+    const mappingResult = await roomReservationSessionRepo.findByRoomId(roomIdResult.data);
+    const storedSessionIdRaw = mappingResult.ok ? mappingResult.data?.sessionId : undefined;
 
     if (storedSessionIdRaw !== undefined) {
       const sessionIdResult = brandTranslationSessionId(storedSessionIdRaw);
@@ -320,7 +335,6 @@ export function registerRoomRoutes(
     } else if (result.data.translationEnabled) {
       // translationEnabled=true の room で予約 sessionId が見つからない場合のみ警告する
       // (translationEnabled=false の room はそもそも reserveMinutes を呼んでいないため正常)。
-      // サーバー再起動で roomSessionMap が失われた場合もここに該当しうる (§先頭のコメント参照)。
       logger.warn("billing.reconcile skipped: no reservation sessionId found for room", {
         roomId: roomIdResult.data,
       });

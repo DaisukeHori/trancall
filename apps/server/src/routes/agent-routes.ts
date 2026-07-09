@@ -229,23 +229,11 @@ async function publishTranslationEndedEvent(
     return;
   }
 
-  // #49/#67: TranslationEndedEventSchema.payload.reason は現状 4 値のみ (module-contracts.md
-  // §7.4.2 で契約上は 5 値 (agent_publish_failed 追加) に拡張済みだが実装未同期、
-  // packages/translation 側の対応待ち、本 PR スコープ外)。5 値目は publish を見送る。
-  const { reason } = usage;
-  if (
-    reason !== "participant_left" &&
-    reason !== "agent_shutdown" &&
-    reason !== "openai_fatal_error" &&
-    reason !== "client_requested"
-  ) {
-    logger.warn(
-      "translation.ended publish skipped: reason not yet supported by TranslationEndedEventSchema (packages/translation 契約未同期)",
-      { agentJobId: event.agentJobId, reason },
-    );
-    return;
-  }
-
+  // #46/#49/#67: TranslationEndedEventSchema.payload.reason は
+  // packages/translation/src/events/translation-ended.ts で TranslationSessionEndedReasonSchema
+  // (5 値、agent_publish_failed 含む) を参照するよう同期済みのため、reason を絞り込まず
+  // そのまま渡す。agent_publish_failed (音声送出失敗) でも通話自体は発生しているため、
+  // #46 usage metering (translation.ended 購読者 = usage-metering-subscriber.ts) の対象とする。
   const domainEvent = createTranslationEndedEvent({
     sessionId: sessionIdResult.data,
     roomId: usage.roomId,
@@ -255,7 +243,7 @@ async function publishTranslationEndedEvent(
     billableSeconds: usage.billableSeconds,
     startedAt: usage.startedAt,
     endedAt: usage.endedAt,
-    reason,
+    reason: usage.reason,
   });
 
   await eventBus.publish(domainEvent);

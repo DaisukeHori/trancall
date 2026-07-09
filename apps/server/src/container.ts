@@ -52,6 +52,8 @@ import { createUsageRepository } from "./adapters/repositories/billing/usage-rep
 import { createReservationRepository } from "./adapters/repositories/billing/reservation-repository.supabase.js";
 import { createWebhookEventRepository } from "./adapters/repositories/billing/webhook-event-repository.supabase.js";
 import { createExternalPurchaseTokenRepository } from "./adapters/repositories/billing/external-purchase-token-repository.supabase.js";
+import { createRoomReservationSessionRepository } from "./adapters/repositories/billing/room-reservation-session-repository.supabase.js";
+import type { RoomReservationSessionRepository } from "./adapters/repositories/billing/room-reservation-session-repository.supabase.js";
 // Repositories — contact
 import { createContactRepository } from "./adapters/repositories/contact/contact-repository.supabase.js";
 import { createBlockRepository } from "./adapters/repositories/contact/block-repository.supabase.js";
@@ -82,6 +84,9 @@ import { buildApnsAdapter, buildFcmAdapter } from "./adapters/notification-adapt
 import { createEventBus } from "./adapters/event-bus.js";
 import type { EventBus } from "./adapters/event-bus.js";
 
+// #46: translation.ended 購読者 (usage metering)
+import { registerUsageMeteringSubscriber } from "./adapters/usage-metering-subscriber.js";
+
 import type { Config } from "./config.js";
 
 export interface AppContainer {
@@ -95,6 +100,8 @@ export interface AppContainer {
   transcript: TranscriptFacade;
   translation: TranslationFacade;
   room: RoomFacade;
+  /** #46: roomId ↔ billing 予約 sessionId 対応表。room-routes.ts が書き込み/読み取りに使う。 */
+  roomReservationSessionRepo: RoomReservationSessionRepository;
 }
 
 export function buildContainer(config: Config): AppContainer {
@@ -117,6 +124,7 @@ export function buildContainer(config: Config): AppContainer {
   const reservationRepo = createReservationRepository(supabase);
   const webhookEventRepo = createWebhookEventRepository(supabase);
   const externalPurchaseTokenRepo = createExternalPurchaseTokenRepository(supabase);
+  const roomReservationSessionRepo = createRoomReservationSessionRepository(supabase);
   // contact
   const contactRepo = createContactRepository(supabase);
   const blockRepo = createBlockRepository(supabase);
@@ -180,7 +188,21 @@ export function buildContainer(config: Config): AppContainer {
     successUrl: config.STRIPE_CHECKOUT_SUCCESS_URL ?? config.STRIPE_SUCCESS_URL,
     cancelUrl: config.STRIPE_CHECKOUT_CANCEL_URL ?? config.STRIPE_CANCEL_URL,
   });
-  const iapAdapter = createIapAdapter();
+  // #40: config.IAP_APPLE_BUNDLE_ID / IAP_APPLE_ENVIRONMENT / APPLE_ROOT_CA_PEM を IapAdapter に
+  // 配線する。未設定時は IapAdapter がチェーン内署名リンクの整合性のみ検証し、bundleId/
+  // environment/ルート証明書の突合はスキップする (packages/billing/src/adapters/iap-adapter.ts
+  // の JSDoc 通り)。IAP_APPLE_ENVIRONMENT は env の慣習に合わせ小文字 (sandbox/production) で
+  // 保持し、IapAdapterConfig が要求する大文字表記 (Sandbox/Production, Apple API のレスポンス値に
+  // 合わせた表記) に変換する。
+  const iapAdapter = createIapAdapter({
+    ...(config.IAP_APPLE_BUNDLE_ID ? { bundleId: config.IAP_APPLE_BUNDLE_ID } : {}),
+    ...(config.IAP_APPLE_ENVIRONMENT === "production"
+      ? { environment: "Production" }
+      : config.IAP_APPLE_ENVIRONMENT === "sandbox"
+        ? { environment: "Sandbox" }
+        : {}),
+    ...(config.APPLE_ROOT_CA_PEM ? { trustedRootCertsPem: [config.APPLE_ROOT_CA_PEM] } : {}),
+  });
   const externalPurchaseAdapter = createExternalPurchaseAdapter(externalPurchaseTokenRepo, {
     redirectTokenTtlMinutes: 5,
     externalSuccessUrl: config.STOREKIT_EXTERNAL_REPORT_URL ?? "trancall://billing/external-success",
@@ -188,6 +210,8 @@ export function buildContainer(config: Config): AppContainer {
       ? { appleExternalPurchaseApiUrl: config.STOREKIT_EXTERNAL_REPORT_URL }
       : {}),
   });
+  // #29: eventBus を渡すことで publishSubscriptionUpgraded / publishSubscriptionCanceled が
+  // console.log フォールバックではなく実際の EventBus 経由で publish されるようになる。
   const billing = createBillingFacade({
     subscriptionRepo,
     usageRepo,
@@ -200,6 +224,16 @@ export function buildContainer(config: Config): AppContainer {
     stripeWebCheckoutAdapter,
     iapAdapter,
     externalPurchaseAdapter,
+    eventBus,
+  });
+
+  // #46: translation.ended を購読して billing.recordUsage (+ reconcile) を呼ぶ。
+  // packages/billing/CLAUDE.md 「購読するドメインイベント: translation.ended」の実装。
+  // 設計判断の詳細は adapters/usage-metering-subscriber.ts 先頭のコメント参照。
+  registerUsageMeteringSubscriber(eventBus, {
+    billing,
+    auth,
+    roomReservationSessionRepo,
   });
 
   // contact
@@ -257,5 +291,6 @@ export function buildContainer(config: Config): AppContainer {
     transcript,
     translation,
     room,
+    roomReservationSessionRepo,
   };
 }
