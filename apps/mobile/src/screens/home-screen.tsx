@@ -110,6 +110,7 @@ export function HomeScreen({ navigation }: Props) {
         />
       ) : (
         <FlatList
+          testID="home-recent-list"
           data={filteredCalls}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (

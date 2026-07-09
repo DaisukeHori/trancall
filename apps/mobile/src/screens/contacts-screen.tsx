@@ -109,6 +109,7 @@ function SwipeableContactRow({
           }}
         >
           <ContactRow
+            testID={`contact-row-${item.trancallId}`}
             name={item.displayName}
             trancallId={item.trancallId}
             {...(item.avatarUrl != null ? { avatarUri: item.avatarUrl } : {})}
@@ -198,6 +199,7 @@ export function ContactsScreen({ navigation }: Props) {
             {t("contacts.title")}
           </Text>
           <Pressable
+            testID="add-contact-button"
             accessibilityLabel={t("contacts.addContact")}
             accessibilityRole="button"
             onPress={() => { navigation.navigate("AddContact"); }}

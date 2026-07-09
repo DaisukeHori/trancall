@@ -67,6 +67,7 @@ interface SettingsRowProps {
   danger?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
+  testID?: string;
 }
 
 function SettingsRow({
@@ -80,12 +81,14 @@ function SettingsRow({
   danger,
   onPress,
   accessibilityLabel,
+  testID,
 }: SettingsRowProps) {
   const theme = useTheme();
   const c = theme.colors;
 
   return (
     <Pressable
+      testID={testID}
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole={toggle ? "switch" : "button"}
       accessibilityState={toggle ? { checked: toggleValue } : undefined}
@@ -232,6 +235,7 @@ export function SettingsScreen(_props: Props) {
             mono
           />
           <SettingsRow
+            testID="settings-nativeLanguage-row"
             label={t("settings.nativeLanguage")}
             value={t(`language.${nativeLanguage}`)}
             chevron
@@ -316,6 +320,7 @@ export function SettingsScreen(_props: Props) {
             accessibilityLabel={t("settings.danger.signOut")}
           />
           <SettingsRow
+            testID="settings-deleteAccount-row"
             label={t("settings.danger.deleteAccount")}
             onPress={handleDeleteAccount}
             danger

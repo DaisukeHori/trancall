@@ -223,6 +223,41 @@ export function registerAuthRoutes(router: Router): void {
     res.status(200).json({ ok: true, data: buildUserProfile(session.userId) });
   });
 
+  // POST /api/account/delete — used by apps/mobile/src/screens/account-deletion-screen.tsx
+  // (Step 3 submit, apps/mobile/src/api/auth-api.ts deleteAccount()) via the E2E
+  // mock-auth path (apps/mobile/src/api/auth-api.ts isE2eTestMode()). Removes the
+  // fixture user + invalidates the session so a subsequent login fails, matching
+  // the real "account deleted" contract closely enough for E2E purposes.
+  router.post("/account/delete", (req: Request, res: Response) => {
+    const token = extractBearerToken(req);
+    if (!token) {
+      res.status(401).json({
+        ok: false,
+        error: { code: "UNAUTHORIZED", message: "Missing token", retryable: false },
+      });
+      return;
+    }
+
+    const session = getSessionByToken(token);
+    if (!session) {
+      res.status(401).json({
+        ok: false,
+        error: {
+          code: "AUTH_TOKEN_EXPIRED",
+          message: "Token expired or invalid",
+          retryable: false,
+        },
+      });
+      return;
+    }
+
+    const state = getState();
+    state.users = state.users.filter((u) => u.userId !== session.userId);
+    state.sessions.delete(token);
+
+    res.status(200).json({ ok: true, data: { success: true } });
+  });
+
   router.post("/auth/consent", (req: Request, res: Response) => {
     const token = extractBearerToken(req);
     if (!token) {

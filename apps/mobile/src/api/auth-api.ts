@@ -186,6 +186,139 @@ export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
 }
 
+// ============================================================================
+// E2E test-mode auth (apps/mock-server)
+// ============================================================================
+//
+// signInWithSupabase / signUpWithSupabase / getProfile above talk to real
+// Supabase Auth + apps/server. The Maestro E2E suite (apps/mobile/e2e/) runs
+// against apps/mock-server instead, using fixture accounts
+// (apps/mock-server/src/fixtures.ts) that only exist in the mock server's
+// in-memory state — they are not real Supabase users. Without this branch,
+// every E2E flow that logs in would call real Supabase with credentials it
+// doesn't recognize (or, since EXPO_PUBLIC_SUPABASE_URL is intentionally left
+// unset for E2E builds, would call createClient("") and fail before ever
+// reaching the network).
+//
+// This branch is gated on NODE_ENV === "test", which .github/workflows/e2e.yml
+// sets for the E2E-only build steps and which is never set for production
+// (EAS / app-store) builds. Production login/signup always uses the Supabase
+// path above, unchanged.
+
+const MockAuthUserSchema = z.object({
+  userId: z.string(),
+  email: z.string(),
+  displayName: z.string(),
+  nativeLanguage: OutputLanguage,
+  avatarUrl: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+const MockSignInEnvelopeSchema = z.object({
+  ok: z.literal(true),
+  data: z.object({
+    accessToken: z.string(),
+    refreshToken: z.string(),
+    user: MockAuthUserSchema,
+  }),
+});
+
+const MockProfileEnvelopeSchema = z.object({
+  ok: z.literal(true),
+  data: MockAuthUserSchema,
+});
+
+/** True only for the Maestro E2E build/run (see .github/workflows/e2e.yml). */
+export function isE2eTestMode(): boolean {
+  return process.env["NODE_ENV"] === "test";
+}
+
+function mockUserToProfile(user: z.infer<typeof MockAuthUserSchema>): UserProfile {
+  return {
+    id: user.userId,
+    email: user.email,
+    display_name: user.displayName,
+    native_language: user.nativeLanguage,
+    avatar_url: user.avatarUrl,
+    created_at: user.createdAt,
+  };
+}
+
+/**
+ * E2E test-mode sign-in — POST /api/auth/signin against apps/mock-server.
+ */
+export async function signInViaMockServer(
+  email: string,
+  password: string,
+): Promise<Result<SignInResult>> {
+  const result = await apiFetch(
+    "/api/auth/signin",
+    MockSignInEnvelopeSchema.transform((r) => r.data),
+    { method: "POST", body: { email, password } },
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: {
+      accessToken: result.data.accessToken,
+      refreshToken: result.data.refreshToken,
+      userId: result.data.user.userId,
+    },
+  };
+}
+
+/**
+ * E2E test-mode sign-up — POST /api/auth/signup against apps/mock-server.
+ */
+export async function signUpViaMockServer(
+  email: string,
+  password: string,
+  displayName: string,
+  nativeLanguage: OutputLanguage,
+): Promise<Result<SignInResult>> {
+  const result = await apiFetch(
+    "/api/auth/signup",
+    MockSignInEnvelopeSchema.transform((r) => r.data),
+    { method: "POST", body: { email, password, displayName, nativeLanguage } },
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: {
+      accessToken: result.data.accessToken,
+      refreshToken: result.data.refreshToken,
+      userId: result.data.user.userId,
+    },
+  };
+}
+
+/**
+ * E2E test-mode profile fetch — GET /api/auth/profile against apps/mock-server.
+ * (mock-server resolves the user from the bearer token; userId param kept for
+ * signature parity with getProfile().)
+ */
+export async function getProfileViaMockServer(
+  _userId: string,
+  accessToken: string,
+): Promise<Result<UserProfile>> {
+  const result = await apiFetch(
+    "/api/auth/profile",
+    MockProfileEnvelopeSchema.transform((r) => r.data),
+    { method: "GET", accessToken },
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: mockUserToProfile(result.data) };
+}
+
+/**
+ * E2E test-mode sign-out — mock-server sessions are in-memory and keyed by
+ * bearer token only; there is no server-side revoke endpoint, so this is a
+ * client-side no-op (caller still clears the persisted session).
+ */
+export async function signOutViaMockServer(): Promise<void> {
+  return Promise.resolve();
+}
+
 // --- Extended auth/profile endpoints ---
 
 export interface UpdateProfilePatch {

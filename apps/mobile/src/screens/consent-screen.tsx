@@ -107,6 +107,7 @@ function ScopeRow({ view, checked, onToggle }: ScopeRowProps) {
   return (
     <View style={[rowStyles.container, { borderBottomColor: c.border }]}>
       <Pressable
+        testID={`consent-${view.scope.replace(/_/g, "-")}-checkbox`}
         style={rowStyles.row}
         onPress={isReadOnly ? undefined : handleToggle}
         accessibilityRole="checkbox"

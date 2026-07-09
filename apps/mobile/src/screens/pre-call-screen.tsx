@@ -170,6 +170,7 @@ export function PreCallScreen({ route, navigation }: Props) {
             </Text>
           </View>
           <Switch
+            testID="translation-toggle"
             value={translationEnabled}
             onValueChange={setTranslationEnabled}
             accessibilityLabel={t("translation.enabled")}

@@ -9,6 +9,10 @@ env:
   E2E_USER_A_PASSWORD: E2ePassword!1
   E2E_USER_B_EMAIL: e2e_user_b@trancall.dev
   E2E_USER_B_PASSWORD: E2ePassword!2
+  # 01-signup.yaml 専用。E2E_USER_A_EMAIL は apps/mock-server/src/fixtures.ts に
+  # 既存ユーザーとして登録済みのため、新規サインアップに使うと 409 (Email already in use)
+  # になる。サインアップ検証には必ず未使用のこのメールを使うこと。
+  E2E_SIGNUP_EMAIL: e2e_signup_user@trancall.dev
   E2E_PEER_TRANCALL_ID: "@e2e_user_b"
   T_common_next: "Next"
   T_common_done: "Done"
@@ -38,6 +42,11 @@ env:
   T_call_decline: "Decline"
   T_callSummary_viewTranscript: "View transcript"
   T_transcript_exportPdf: "PDF"
+  # full-transcript-screen.tsx の実際の文言。exportPdf ("PDF") はどの画面要素の
+  # 文言とも完全一致しないため (実際は "Export" ボタン→モーダル内 "Export as PDF"
+  # ボタンの2段階)、実文言に合わせた変数を別途用意する。
+  T_transcript_export_button: "Export"
+  T_transcript_export_pdfOption: "Export as PDF"
   T_permissions_microphoneTitle: "Microphone Access"
   T_permissions_notificationTitle: "Notification Permission"
   T_consent_agree: "Agree and Continue"
@@ -45,3 +54,5 @@ env:
   T_settings_title: "Settings"
   T_settings_danger_signOut: "Sign Out"
   T_billing_upgradeToContinue: "Upgrade your plan to continue translation?"
+  T_precall_costEstimate_upgradeLabel: "Insufficient translation minutes"
+  T_precall_costEstimate_upgradeButton: "Upgrade Plan"

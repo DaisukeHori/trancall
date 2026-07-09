@@ -20,8 +20,8 @@ tags: [P0, call]
 - assertVisible:
     text: ${T_call_inCall}
 - assertVisible:
-    accessibilityLabel: ${T_call_endCall}
+    text: ${T_call_endCall}
 - tapOn:
-    accessibilityLabel: ${T_call_endCall}
+    id: "call-end-button"
 - assertVisible:
     text: ${T_callSummary_viewTranscript}

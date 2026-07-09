@@ -91,6 +91,7 @@ export function AddContactScreen({ navigation }: Props) {
       <View style={[styles.searchRow, { marginTop: s[16] }]}>
         <View style={styles.searchInput}>
           <Input
+            testID="addContact-search-input"
             placeholder={t("addContact.search.placeholder")}
             value={searchQuery}
             onChangeText={setSearchQuery}

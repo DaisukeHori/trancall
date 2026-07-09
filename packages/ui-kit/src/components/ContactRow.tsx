@@ -12,6 +12,7 @@ export interface ContactRowProps {
   onPress?: () => void;
   onFavoritePress?: () => void;
   accessibilityLabel?: string;
+  testID?: string;
 }
 
 export function ContactRow({
@@ -22,6 +23,7 @@ export function ContactRow({
   onPress,
   onFavoritePress,
   accessibilityLabel,
+  testID,
 }: ContactRowProps) {
   const theme = useTheme();
   const c = theme.colors;
@@ -29,6 +31,7 @@ export function ContactRow({
 
   return (
     <TouchableOpacity
+      testID={testID}
       accessibilityLabel={accessibilityLabel ?? `${name}, ${trancallId}`}
       accessibilityRole="button"
       onPress={onPress}

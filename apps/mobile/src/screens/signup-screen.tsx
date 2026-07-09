@@ -110,6 +110,7 @@ export function SignUpScreen({ navigation }: Props) {
           {/* Form */}
           <View style={[styles.form, { marginTop: s[24], gap: s[12] }]}>
             <Input
+              testID="displayName-input"
               label={t("auth.displayName")}
               placeholder={t("auth.placeholders.displayName")}
               value={displayName}
@@ -138,6 +139,7 @@ export function SignUpScreen({ navigation }: Props) {
             />
 
             <Input
+              testID="password-input"
               label={t("auth.password")}
               placeholder="••••••••"
               value={password}
@@ -159,6 +161,7 @@ export function SignUpScreen({ navigation }: Props) {
 
             {/* Consent checkbox */}
             <Pressable
+              testID="consent-checkbox"
               accessibilityLabel={t("auth.consent.checkboxLabel")}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: consentAccepted }}

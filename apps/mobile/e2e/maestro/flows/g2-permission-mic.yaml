@@ -1,6 +1,16 @@
 appId: tech.hori.trancall
 name: "gate_mic_permission — First call mic permission gate"
-tags: [P0, gate, permission]
+# Demoted from P0: two compounding issues. (1) The mic permission check
+# doesn't happen at PreCall's "Start Call" tap — it happens later, inside
+# apps/mobile/src/screens/in-call-screen.tsx's connectToRoom() effect
+# (MicrophonePermissionDeniedError → usePermissionStore.setDeniedPermission),
+# which only runs once InCallScreen mounts. (2) InCallScreen is never reached
+# for an outgoing call at all today — same Phase 2 signaling gap documented in
+# 05-in-call.yaml (apps/mobile/src/screens/calling-screen.tsx's stub effect).
+# So this flow's ordering doesn't match the app even once signaling lands;
+# needs to be rewritten to assert the permission screen after InCall mounts,
+# not right after tapping Start Call. Left in P2.
+tags: [P2, gate, permission]
 ---
 - launchApp:
     clearState: true
@@ -14,7 +24,7 @@ tags: [P0, gate, permission]
 - assertVisible:
     text: ${T_precall_title}
 - tapOn:
-    accessibilityLabel: ${T_call_startCall}
+    text: ${T_call_startCall}
 - assertVisible:
     text: ${T_permissions_microphoneTitle}
 - tapOn:

@@ -37,6 +37,10 @@ export function MainTabs() {
         options={{
           tabBarLabel: t("home.recentCalls"),
           tabBarAccessibilityLabel: t("home.recentCalls"),
+          // E2E (Maestro `id:` selector, apps/mobile/e2e/maestro/flows/) — testID を
+          // Maestro accessibility id として使うため、react-navigation v7 の
+          // tabBarButtonTestID を明示指定する。
+          tabBarButtonTestID: "tab-home",
         }}
       />
       <Tab.Screen
@@ -45,6 +49,7 @@ export function MainTabs() {
         options={{
           tabBarLabel: t("contacts.title"),
           tabBarAccessibilityLabel: t("contacts.title"),
+          tabBarButtonTestID: "tab-contacts",
         }}
       />
       <Tab.Screen
@@ -53,6 +58,7 @@ export function MainTabs() {
         options={{
           tabBarLabel: t("settings.title"),
           tabBarAccessibilityLabel: t("settings.title"),
+          tabBarButtonTestID: "tab-settings",
         }}
       />
     </Tab.Navigator>

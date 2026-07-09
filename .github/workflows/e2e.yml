@@ -62,21 +62,58 @@ jobs:
           xcrun simctl boot "$DEVICE_UDID" || true
           echo "SIMULATOR_UDID=$DEVICE_UDID" >> "$GITHUB_ENV"
 
-      - name: Build Expo app for E2E (iOS Simulator)
+      - name: Prebuild native iOS project
+        run: pnpm --filter @trancall/app-mobile exec expo prebuild --platform ios --no-install
+        env:
+          EXPO_PUBLIC_API_BASE_URL: http://localhost:4010
+          NODE_ENV: test
+
+      - name: Install CocoaPods dependencies
+        run: pod install
+        working-directory: apps/mobile/ios
+
+      - name: Build Expo app for E2E (iOS Simulator, unsigned debug)
         run: |
-          cd apps/mobile
-          pnpm exec expo build:ios --no-wait --type simulator || true
+          set -euo pipefail
+          cd apps/mobile/ios
+          WORKSPACE=$(ls -d ./*.xcworkspace | head -1)
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list 2>/dev/null | awk '/Schemes:/{flag=1; next} flag && NF{print $1; exit}')
+          if [ -z "$SCHEME" ]; then
+            echo "::error::Could not determine Xcode scheme from $WORKSPACE"
+            exit 1
+          fi
+          echo "Building workspace=$WORKSPACE scheme=$SCHEME"
+          # FORCE_BUNDLING=1: the RN "Bundle React Native code and images" build
+          # phase script normally skips embedding the JS bundle for Debug builds
+          # (it expects a live Metro dev server instead). CI has no Metro server
+          # running, so without this the app would show a "Could not connect to
+          # development server" screen instead of actually launching. This forces
+          # the bundle to be embedded like a Release build while keeping Debug
+          # configuration (and therefore no code signing requirement) otherwise.
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            FORCE_BUNDLING=1
         env:
           EXPO_PUBLIC_API_BASE_URL: http://localhost:4010
           NODE_ENV: test
 
       - name: Install app on simulator
         run: |
-          APP_PATH=$(find . -name "*.app" -path "*/ios-simulator/*" | head -1)
-          if [ -n "$APP_PATH" ]; then
-            xcrun simctl install "$SIMULATOR_UDID" "$APP_PATH"
+          set -euo pipefail
+          APP_PATH=$(find apps/mobile/ios/build -name "*.app" -path "*Debug-iphonesimulator*" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::No .app bundle found under apps/mobile/ios/build (Debug-iphonesimulator)"
+            exit 1
           fi
-        continue-on-error: true
+          echo "Installing $APP_PATH"
+          xcrun simctl install "$SIMULATOR_UDID" "$APP_PATH"
 
       - name: Run Maestro P0 flows
         run: |
@@ -147,6 +184,83 @@ jobs:
           curl -Ls "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generate placeholder google-services.json (E2E build only)
+        run: |
+          set -euo pipefail
+          # apps/mobile/plugins/with-android-native.js only wires
+          # android.googleServicesFile when this file physically exists
+          # (withConditionalGoogleServicesFile). Firebase Messaging is linked
+          # into the native Android project (FcmService.kt) regardless, so a
+          # debug `expo prebuild` + `gradlew assembleDebug` needs *some* valid
+          # google-services.json to be present or the google-services Gradle
+          # plugin / Firebase SDK init can fail. This is a placeholder built
+          # from public, non-secret fields only (no real Firebase project),
+          # generated here and never committed to the repo.
+          cat > apps/mobile/google-services.json <<'EOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "trancall-e2e-placeholder",
+              "storage_bucket": "trancall-e2e-placeholder.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": {
+                    "package_name": "tech.hori.trancall"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  { "current_key": "AIzaSyE2EPlaceholderKeyNotReal00000000000" }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+
+      - name: Prebuild native Android project
+        run: pnpm --filter @trancall/app-mobile exec expo prebuild --platform android --no-install
+        env:
+          EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:4010
+          NODE_ENV: test
+
+      - name: Build debug APK
+        # -PbundleInDebug=true: like iOS's FORCE_BUNDLING (see the iOS job),
+        # RN's Android Gradle plugin normally skips embedding the JS bundle
+        # into debug APKs and expects a live Metro dev server instead. CI has
+        # none running, so without this the app would fail to load its JS.
+        # This is the standard Expo/RN project property for forcing bundling
+        # in a debug build; unverified against this exact RN 0.81 / Expo
+        # SDK 54 Gradle template locally (no Android SDK in this environment)
+        # — if the debug APK still can't find its JS bundle at runtime, check
+        # apps/mobile/android/app/build.gradle's `react { }` block for the
+        # actual property name it reads.
+        run: ./gradlew assembleDebug -PbundleInDebug=true --no-daemon
+        working-directory: apps/mobile/android
+
+      - name: Locate debug APK
+        run: |
+          set -euo pipefail
+          APK_PATH=$(find apps/mobile/android -name "*.apk" -path "*debug*" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No debug APK found under apps/mobile/android"
+            exit 1
+          fi
+          echo "APK_PATH=$GITHUB_WORKSPACE/$APK_PATH" >> "$GITHUB_ENV"
+
       - name: Run Maestro P0 flows (Android Emulator)
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -155,17 +269,12 @@ jobs:
           arch: x86_64
           profile: pixel_6
           script: |
-            cd apps/mobile
-            pnpm exec expo export --platform android || true
-            cd ../..
-            maestro test apps/mobile/e2e/maestro/flows/ \
+            adb install -r "$APK_PATH"
+            maestro test "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/flows/" \
               --include-tags P0 \
-              --config apps/mobile/e2e/maestro/config.yaml \
+              --config "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/config.yaml" \
               --format junit \
-              --output maestro-results-android.xml
-        env:
-          EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:4010
-          NODE_ENV: test
+              --output "$GITHUB_WORKSPACE/maestro-results-android.xml"
 
       - name: Upload Maestro test results
         if: always()

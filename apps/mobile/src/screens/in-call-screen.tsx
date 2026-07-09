@@ -394,6 +394,7 @@ export function InCallScreen({ route, navigation }: Props) {
         {/* Mute */}
         <View style={styles.controlItem}>
           <Pressable
+            testID="call-mute-button"
             onPress={handleToggleMute}
             accessibilityLabel={isMuted ? t("call.unmute") : t("call.mute")}
             accessibilityRole="button"
@@ -422,6 +423,7 @@ export function InCallScreen({ route, navigation }: Props) {
         {/* End call — center, 56×56 */}
         <View style={styles.controlItem}>
           <Pressable
+            testID="call-end-button"
             onPress={() => { void handleEndCall(); }}
             accessibilityLabel={t("call.endCall")}
             accessibilityRole="button"
@@ -473,6 +475,7 @@ export function InCallScreen({ route, navigation }: Props) {
         {/* Translation toggle */}
         <View style={styles.controlItem}>
           <Pressable
+            testID="translation-toggle"
             onPress={toggleTranslationAction}
             accessibilityLabel={
               translationEnabled ? t("translation.disabled") : t("translation.enabled")

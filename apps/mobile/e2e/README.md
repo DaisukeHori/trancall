@@ -44,22 +44,37 @@ curl -X POST http://localhost:4010/api/__e2e__/reset
 
 ## Flow inventory
 
+CI runs `--include-tags P0` only. Flows demoted to P2 test behavior that
+isn't wired into the app yet (see the comment block at the top of each such
+flow file for the exact gap and the file:line it traces to) — they're kept
+up to date syntactically and are ready to re-promote to P0 once that product
+work lands.
+
 | File | Tag | Description |
 |---|---|---|
-| `01-signup.yaml` | P0, auth | Sign up → consent → Home |
+| `01-signup.yaml` | P0, auth | Sign up → Home (consent-after-signup step removed — unreachable, see file) |
 | `02-login.yaml` | P0, auth | Login → Home |
 | `03-create-room.yaml` | P0, contacts | Contacts browse + Add contact |
 | `04-incoming-call.yaml` | P0, call | Incoming call → Accept → InCall |
-| `05-in-call.yaml` | P0, call | InCall controls (mute / translation toggle) |
-| `06-end-call.yaml` | P0, call | Pre-call → Start → End call |
+| `05-in-call.yaml` | P2, call | InCall controls (mute / translation toggle) — blocked: outgoing call never auto-transitions Calling → InCall (Phase 2 signaling gap) |
+| `06-end-call.yaml` | P2, call | Pre-call → Start → End call — same Phase 2 signaling gap as 05 |
 | `07-recent-history.yaml` | P0, home | Home recent calls list |
-| `08-transcript-view.yaml` | P0, transcript | Call summary → Full transcript |
-| `09-transcript-export.yaml` | P0, transcript | Transcript export (PDF) |
-| `10-settings.yaml` | P0, settings | Settings: language change + sign out |
-| `g1-consent-screen.yaml` | P0, gate | Translation consent (caller) |
-| `g2-permission-mic.yaml` | P0, gate | Microphone permission gate |
-| `g3-billing-upgrade.yaml` | P0, gate | Billing insufficient balance → upgrade |
+| `08-transcript-view.yaml` | P2, transcript | Call summary → Full transcript — same Phase 2 signaling gap as 05 |
+| `09-transcript-export.yaml` | P2, transcript | Transcript export — same Phase 2 signaling gap as 05; export-step fixed independently |
+| `10-settings.yaml` | P0, settings | Settings: sign out (nativeLanguage-switch step removed — no picker screen exists, see file) |
+| `g1-consent-screen.yaml` | P2, gate | Translation consent (caller) — blocked: pre-call consent gate is never triggered (dead handleConsentError() wiring) |
+| `g2-permission-mic.yaml` | P2, gate | Microphone permission gate — wrong trigger point + Phase 2 signaling gap |
+| `g3-billing-upgrade.yaml` | P0, gate | Billing insufficient balance → upgrade CTA (rewritten to assert the real PreCallCostEstimate card, not a nonexistent screen) |
 | `g4-account-deletion.yaml` | P0, gate | Account deletion 4-step flow |
+
+Auth (login/signup/re-auth) is routed through `apps/mock-server`'s own
+`/api/auth/*` endpoints in E2E builds (`NODE_ENV=test`, set by
+`.github/workflows/e2e.yml`) instead of real Supabase — see
+`isE2eTestMode()` / `signInViaMockServer()` etc. in
+`apps/mobile/src/api/auth-api.ts`. Without this, every flow that logs in
+would fail immediately: `EXPO_PUBLIC_SUPABASE_URL` is intentionally unset for
+E2E builds, and the mock-server fixture accounts aren't real Supabase users
+anyway.
 
 ## E2E test users
 

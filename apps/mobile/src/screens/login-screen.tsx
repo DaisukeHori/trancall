@@ -109,6 +109,7 @@ export function LoginScreen({ navigation }: Props) {
             />
 
             <Input
+              testID="password-input"
               label={t("auth.password")}
               placeholder="••••••••"
               value={password}
