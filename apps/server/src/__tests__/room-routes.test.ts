@@ -149,6 +149,54 @@ describe("POST /api/rooms", () => {
     expect(opts?.languagePair.length).toBeGreaterThan(0);
     expect(opts?.languagePair).toContain("-");
   });
+
+  // 2巡目 finding1/4 二重防御 (#2): inviteeIds に自分自身 (認証済みユーザー) を含む
+  // リクエストは room.createCall を呼ぶ前に 400 で拒否される。
+  it("2巡目 finding1/4: inviteeIds に自分自身 (creatorId) を含むと 400 を返し room.createCall を呼ばない", async () => {
+    const createCallMock = vi.mocked(container.room.createCall);
+    createCallMock.mockClear();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/rooms",
+      headers: AUTH_HEADER,
+      payload: {
+        inviteeIds: [MOCK_USER_ID, "11011011-0110-4110-8110-110110110110"],
+        translationEnabled: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body) as { ok: boolean; error: { code: string } };
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+    expect(createCallMock).not.toHaveBeenCalled();
+  });
+
+  // 2巡目 finding1/4 二重防御 (#2): inviteeIds に重複がある場合もスキーマの refine で 400。
+  it("2巡目 finding1/4: inviteeIds に重複があると 400 を返す", async () => {
+    const createCallMock = vi.mocked(container.room.createCall);
+    createCallMock.mockClear();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/rooms",
+      headers: AUTH_HEADER,
+      payload: {
+        inviteeIds: [
+          "11011011-0110-4110-8110-110110110110",
+          "11011011-0110-4110-8110-110110110110",
+        ],
+        translationEnabled: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body) as { ok: boolean; error: { code: string } };
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+    expect(createCallMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/rooms/:id", () => {

@@ -158,6 +158,137 @@ describe("CallLifecycleService.createCall", () => {
     expect(invitee1Row?.role).toBe("member");
   });
 
+  // 2巡目 finding1/4 (regression): creatorId が inviteeIds に混入しても host 行が
+  // upsert (role='member'/joined_at=null) で上書きされず、host が自室から締め出されない。
+  it("2巡目 finding1/4: creatorId が inviteeIds に含まれても host 行が保持される", async () => {
+    const { service, participantRepo } = makeService();
+    const result = await service.createCall(creatorId, [creatorId, inviteeId1], {
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // 公開 RoomState.participants に host (creator) が残っている
+    expect(result.data.participants).toHaveLength(1);
+    expect(result.data.participants[0]?.userId).toBe(creatorId);
+    expect(result.data.participants[0]?.role).toBe("host");
+    expect(result.data.participants[0]?.joinedAt).not.toBeNull();
+
+    // 内部 repo でも host 行 (role='host', joined_at 設定済み) が保持されている
+    const rowsResult = await participantRepo.findByRoomId(result.data.roomId);
+    expect(rowsResult.ok).toBe(true);
+    if (!rowsResult.ok) return;
+
+    // creatorId は inviteeIds から除外されるため、host 行 (1) + invitee1 行 (1) = 2 行のみ
+    expect(rowsResult.data).toHaveLength(2);
+    const hostRow = rowsResult.data.find((r) => r.user_id === creatorId);
+    expect(hostRow?.role).toBe("host");
+    expect(hostRow?.joined_at).not.toBeNull();
+  });
+
+  it("2巡目 finding1/4: 重複した inviteeId は 1 回のみ事前登録される (二重登録されない)", async () => {
+    const { service, participantRepo, notification } = makeService();
+    const result = await service.createCall(creatorId, [inviteeId1, inviteeId1, inviteeId2], {
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const rowsResult = await participantRepo.findByRoomId(result.data.roomId);
+    expect(rowsResult.ok).toBe(true);
+    if (!rowsResult.ok) return;
+
+    // host (1) + invitee1 (1、重複排除) + invitee2 (1) = 3 行
+    expect(rowsResult.data).toHaveLength(3);
+    const invitee1Rows = rowsResult.data.filter((r) => r.user_id === inviteeId1);
+    expect(invitee1Rows).toHaveLength(1);
+
+    // 通知も重複排除されたユニークな invitee 数分のみ送られる
+    expect(notification.sendIncomingCall).toHaveBeenCalledTimes(2);
+  });
+
+  // 2巡目 finding3: invitee 事前登録の retryable (transient) 失敗は 1 回だけリトライされ、
+  // 成功すればその invitee は正しく join 可能な状態 (joined_at: null 行あり) になる。
+  it("2巡目 finding3: invitee 事前登録が retryable エラーで一時的に失敗しても 1 回リトライして成功する", async () => {
+    const { service, participantRepo } = makeService();
+    let inviteeUpsertCallCount = 0;
+    const originalUpsert = participantRepo.upsert.bind(participantRepo);
+    const upsertSpy = vi.spyOn(participantRepo, "upsert").mockImplementation(async (cmd) => {
+      if (cmd.userId === inviteeId1) {
+        inviteeUpsertCallCount += 1;
+        if (inviteeUpsertCallCount === 1) {
+          // 1 回目は transient (retryable) エラー。host (creatorId) の upsert には影響しない。
+          return {
+            ok: false,
+            error: { code: "PARTICIPANT_UPSERT_FAILED", message: "transient db error", retryable: true },
+          };
+        }
+      }
+      return originalUpsert(cmd);
+    });
+
+    const result = await service.createCall(creatorId, [inviteeId1], {
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // 1 回目失敗 + 2 回目 (リトライ) 成功 = invitee1 に対して upsert が 2 回呼ばれている
+    expect(inviteeUpsertCallCount).toBe(2);
+
+    // リトライで最終的に成功しているため、invitee 行 (joined_at: null) が存在する
+    const rowsResult = await participantRepo.findByRoomId(result.data.roomId);
+    expect(rowsResult.ok).toBe(true);
+    if (!rowsResult.ok) return;
+    const inviteeRow = rowsResult.data.find((r) => r.user_id === inviteeId1);
+    expect(inviteeRow).toBeDefined();
+    expect(inviteeRow?.joined_at).toBeNull();
+
+    upsertSpy.mockRestore();
+  });
+
+  it("2巡目 finding3: リトライ後も失敗した invitee は error ログに識別可能な形で記録され、通話作成自体は継続する (best-effort)", async () => {
+    const { service, participantRepo } = makeService();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const originalUpsert = participantRepo.upsert.bind(participantRepo);
+    const upsertSpy = vi.spyOn(participantRepo, "upsert").mockImplementation(async (cmd) => {
+      if (cmd.userId === inviteeId1) {
+        // 常に非 retryable エラー (リトライしても回復しない)
+        return {
+          ok: false,
+          error: { code: "PARTICIPANT_UPSERT_FAILED", message: "permanent db error", retryable: false },
+        };
+      }
+      return originalUpsert(cmd);
+    });
+
+    const result = await service.createCall(creatorId, [inviteeId1], {
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    // best-effort: invitee 事前登録が失敗しても createCall 自体は成功する
+    expect(result.ok).toBe(true);
+
+    // 失敗した invitee が識別可能な形 (roomId + inviteeId) で error ログされている
+    const errorCalls = errorSpy.mock.calls;
+    const perInviteeLog = errorCalls.find(
+      (call) => typeof call[1] === "object" && call[1] !== null && (call[1] as { inviteeId?: string }).inviteeId === inviteeId1,
+    );
+    expect(perInviteeLog).toBeDefined();
+
+    // 集計ログも出力されている (監視シグナル)
+    const summaryLog = errorCalls.find(
+      (call) => typeof call[0] === "string" && call[0].includes("集計"),
+    );
+    expect(summaryLog).toBeDefined();
+
+    errorSpy.mockRestore();
+    upsertSpy.mockRestore();
+  });
+
   it("notification が失敗しても createCall は成功する (best-effort)", async () => {
     const { service, notification } = makeService();
     vi.mocked(notification.sendIncomingCall).mockResolvedValue({

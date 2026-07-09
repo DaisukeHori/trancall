@@ -25,11 +25,21 @@ import { getHttpStatus } from "../middleware/error-handler.js";
 import { logger } from "../logger.js";
 import type { RoomReservationSessionRepository } from "../adapters/repositories/billing/room-reservation-session-repository.supabase.js";
 
-const CreateRoomSchema = z.object({
-  inviteeIds: z.array(z.uuid()).min(1).max(49),
-  roomType: z.enum(["audio", "video"]).default("audio"),
-  translationEnabled: z.boolean().default(true),
-});
+// 2巡目 finding1/4 二重防御 (#2): inviteeIds の重複はここで弾く。creatorId (request.userId)
+// はスキーマの parse 時点では未確定 (認証ミドルウェア通過後にしかわからない) のため、
+// 「自分自身を招待している」チェックはこのスキーマではなく POST /api/rooms ハンドラ側で行う。
+// facade 側 (call-lifecycle-service.ts) でも creatorId 除外 + 重複排除の最終防御を行うため、
+// ここでの拒否は「不正確なクライアント入力を早期に 400 で弾く」ためのもの。
+const CreateRoomSchema = z
+  .object({
+    inviteeIds: z.array(z.uuid()).min(1).max(49),
+    roomType: z.enum(["audio", "video"]).default("audio"),
+    translationEnabled: z.boolean().default(true),
+  })
+  .refine((data) => new Set(data.inviteeIds).size === data.inviteeIds.length, {
+    message: "inviteeIds に重複があります",
+    path: ["inviteeIds"],
+  });
 
 // Sprint 3 T-10 追加 (docs/api-spec.md GET /api/rooms/history)
 const RoomHistoryQuerySchema = z.object({
@@ -173,6 +183,16 @@ export function registerRoomRoutes(
         });
       }
       inviteeUserIds.push(r.data);
+    }
+
+    // 2巡目 finding1/4 二重防御 (#2): inviteeIds に自分自身 (creatorId) を含むリクエストは
+    // 明示的に 400 で拒否する。call-lifecycle-service.ts 側でも creatorId 除外 + 重複排除の
+    // 最終防御を行うが、ここで早期に弾くことでクライアントの実装ミスを分かりやすく検知できる。
+    if (inviteeUserIds.includes(request.userId)) {
+      return reply.status(400).send({
+        ok: false,
+        error: { code: "VALIDATION_ERROR", message: "inviteeIds に自分自身を含めることはできません", retryable: false },
+      });
     }
 
     // #52: 着信 Push の callerName/languagePair/callerLanguage は room facade が自己解決できない
