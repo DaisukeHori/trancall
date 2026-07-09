@@ -187,6 +187,42 @@ describe("CallLifecycleService.createCall", () => {
     expect(hostRow?.joined_at).not.toBeNull();
   });
 
+  // 3巡目確定#2 (再発防止): Postgres の user_id (UUID 型) は case-insensitive に正規化して
+  // 格納されるため、大文字化した creatorId が inviteeIds に混入しても「同一ユーザー」として
+  // 扱われるべきだが、旧実装は `!== creatorId` の case-sensitive な JS 文字列比較のため
+  // すり抜けていた (host lockout の再発)。facade の sanitize が case-insensitive に
+  // creatorId を除外することを検証する。
+  it("3巡目確定#2: 大文字化した creatorId (UUID) が inviteeIds に含まれても host 行が保持され、self-invitee は除外される (case-insensitive)", async () => {
+    const { service, participantRepo } = makeService();
+    const uppercasedCreatorId = UserIdSchema.parse(creatorId.toUpperCase());
+    const result = await service.createCall(creatorId, [uppercasedCreatorId, inviteeId1], {
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // 公開 RoomState.participants に host (creator) が role/joined_at を上書きされずに残っている
+    expect(result.data.participants).toHaveLength(1);
+    expect(result.data.participants[0]?.userId).toBe(creatorId);
+    expect(result.data.participants[0]?.role).toBe("host");
+    expect(result.data.participants[0]?.joinedAt).not.toBeNull();
+
+    const rowsResult = await participantRepo.findByRoomId(result.data.roomId);
+    expect(rowsResult.ok).toBe(true);
+    if (!rowsResult.ok) return;
+
+    // 大文字化した self-invitee は case-insensitive に除外されるため、
+    // host (1) + invitee1 (1) = 2 行のみ (大文字化 creatorId 用の行は作られない)。
+    expect(rowsResult.data).toHaveLength(2);
+    const selfInviteeRow = rowsResult.data.find((r) => r.user_id === uppercasedCreatorId);
+    expect(selfInviteeRow).toBeUndefined();
+
+    const hostRow = rowsResult.data.find((r) => r.user_id === creatorId);
+    expect(hostRow?.role).toBe("host");
+    expect(hostRow?.joined_at).not.toBeNull();
+  });
+
   it("2巡目 finding1/4: 重複した inviteeId は 1 回のみ事前登録される (二重登録されない)", async () => {
     const { service, participantRepo, notification } = makeService();
     const result = await service.createCall(creatorId, [inviteeId1, inviteeId1, inviteeId2], {

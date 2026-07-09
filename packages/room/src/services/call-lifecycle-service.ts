@@ -169,7 +169,18 @@ export function createCallLifecycleService(
       // 通知・イベント発行に使う (route 層の CreateRoomSchema/handler でも
       // 同種の入力を弾く二重防御を行うが、facade を直接呼ぶ経路 (agent-routes 等) も
       // あるためここでも防御する)。
-      const sanitizedInviteeIds = [...new Set(inviteeIds)].filter((id) => id !== creatorId);
+      //
+      // 3巡目確定#2 (再発防止): DB の user_id (Postgres UUID 型) は case-insensitive に
+      // 正規化して格納されるが、上記の `!== creatorId` は case-sensitive な JS 文字列比較
+      // のため、大文字化した creatorId を inviteeIds に混入させると素通りしてしまい
+      // host lockout が再発する。route 層 (CreateRoomSchema) で inviteeIds を小文字正規化
+      // しているが、facade は route を経由しない直接呼び出し経路もあるため、ここでも
+      // 独立して case-insensitive に正規化する (多層防御、route 側の正規化に依存しない)。
+      const normalizeUserId = (id: UserId): string => id.toLowerCase();
+      const normalizedCreatorId = normalizeUserId(creatorId);
+      const sanitizedInviteeIds = [
+        ...new Map(inviteeIds.map((id) => [normalizeUserId(id), id])).values(),
+      ].filter((id) => normalizeUserId(id) !== normalizedCreatorId);
 
       // best-effort: push 通知の失敗と同じ方針で、事前登録に失敗した invitee が
       // いても通話作成自体は失敗させない。ただし 2巡目 finding3: 失敗を握り潰さず

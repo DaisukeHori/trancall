@@ -173,6 +173,47 @@ describe("POST /api/rooms", () => {
     expect(createCallMock).not.toHaveBeenCalled();
   });
 
+  // 3巡目確定#2 (再発防止): Postgres の user_id (UUID 型) は case-insensitive に正規化して
+  // 格納されるため、大文字化した自分自身の UUID を inviteeIds に混入させても同一ユーザーとして
+  // 扱われるべきだが、旧実装は case-sensitive な文字列比較のため素通りし、facade で host 行が
+  // member/joined_at=null に上書きされる host lockout を引き起こしていた。
+  // MOCK_USER_ID ("11111111-1111-4111-8111-111111111111") は数字のみで toUpperCase() しても
+  // 変化しないため、英字を含む別の UUID で一時的に認証させて大文字化の効果を検証する。
+  it("3巡目確定#2: 大文字化した自分自身の UUID を inviteeIds に含むと 400 を返し room.createCall を呼ばない (case-insensitive)", async () => {
+    const createCallMock = vi.mocked(container.room.createCall);
+    createCallMock.mockClear();
+
+    const selfIdLower = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    vi.mocked(container.supabase.auth.getUser).mockResolvedValueOnce({
+      data: {
+        user: {
+          id: selfIdLower,
+          email: "case-test@example.com",
+          created_at: new Date().toISOString(),
+          email_confirmed_at: new Date().toISOString(),
+        },
+      },
+      error: null,
+    } as unknown as Awaited<ReturnType<typeof container.supabase.auth.getUser>>);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/rooms",
+      headers: AUTH_HEADER,
+      payload: {
+        // 自分自身 (selfIdLower) を大文字化して inviteeIds に混入させる
+        inviteeIds: [selfIdLower.toUpperCase(), "11011011-0110-4110-8110-110110110110"],
+        translationEnabled: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body) as { ok: boolean; error: { code: string } };
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+    expect(createCallMock).not.toHaveBeenCalled();
+  });
+
   // 2巡目 finding1/4 二重防御 (#2): inviteeIds に重複がある場合もスキーマの refine で 400。
   it("2巡目 finding1/4: inviteeIds に重複があると 400 を返す", async () => {
     const createCallMock = vi.mocked(container.room.createCall);

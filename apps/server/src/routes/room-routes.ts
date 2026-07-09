@@ -30,9 +30,16 @@ import type { RoomReservationSessionRepository } from "../adapters/repositories/
 // 「自分自身を招待している」チェックはこのスキーマではなく POST /api/rooms ハンドラ側で行う。
 // facade 側 (call-lifecycle-service.ts) でも creatorId 除外 + 重複排除の最終防御を行うため、
 // ここでの拒否は「不正確なクライアント入力を早期に 400 で弾く」ためのもの。
+//
+// 3巡目確定#2 (再発防止): DB の user_id (Postgres UUID 型) は case-insensitive に正規化して
+// 格納されるが、JS 側の文字列比較 (Set 重複判定、下の自分自身チェック、facade の
+// creatorId 除外) は case-sensitive なままだと、大文字化した UUID で上記の全チェックを
+// すり抜けられてしまう (host 行が member/joined_at=null で上書きされる host lockout 再発)。
+// 境界であるこのスキーマで inviteeIds を小文字に正規化し、以降の重複判定・自分自身
+// チェック・DB 書き込みを全て小文字で揃える。
 const CreateRoomSchema = z
   .object({
-    inviteeIds: z.array(z.uuid()).min(1).max(49),
+    inviteeIds: z.array(z.uuid().transform((s) => s.toLowerCase())).min(1).max(49),
     roomType: z.enum(["audio", "video"]).default("audio"),
     translationEnabled: z.boolean().default(true),
   })
@@ -188,7 +195,10 @@ export function registerRoomRoutes(
     // 2巡目 finding1/4 二重防御 (#2): inviteeIds に自分自身 (creatorId) を含むリクエストは
     // 明示的に 400 で拒否する。call-lifecycle-service.ts 側でも creatorId 除外 + 重複排除の
     // 最終防御を行うが、ここで早期に弾くことでクライアントの実装ミスを分かりやすく検知できる。
-    if (inviteeUserIds.includes(request.userId)) {
+    // 3巡目確定#2: inviteeIds は CreateRoomSchema で既に小文字正規化済みだが、request.userId
+    // (JWT 由来、常に小文字) との比較自体も case-insensitive にしておくことで、正規化経路の
+    // 変更に対しても頑健にする (多層防御)。
+    if (inviteeUserIds.some((id) => id.toLowerCase() === request.userId.toLowerCase())) {
       return reply.status(400).send({
         ok: false,
         error: { code: "VALIDATION_ERROR", message: "inviteeIds に自分自身を含めることはできません", retryable: false },
