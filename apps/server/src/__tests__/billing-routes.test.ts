@@ -13,6 +13,7 @@ import type { FastifyInstance } from "fastify";
 import { buildTestApp } from "./helpers/test-app.js";
 import { createMockContainer } from "./helpers/mock-container.js";
 import type { AppContainer } from "../container.js";
+import { signAppleJws, tamperJwsSignature } from "./helpers/apple-jws-fixture.js";
 
 const AUTH_HEADER = { authorization: "Bearer mock-valid-token" };
 
@@ -134,7 +135,26 @@ describe("POST /api/billing/webhook/stripe", () => {
 });
 
 describe("POST /api/billing/webhook/apple", () => {
-  it("Apple IAP webhook を処理できる", async () => {
+  // #23: App Store Server Notifications V2 は { signedPayload: "<JWS>" } 形式で届く。
+  // billing.handleAppleIapWebhook はモックされているため中身の意味論は検証しないが、
+  // route 側の x5c 署名検証 (verifyJwsSignature) は本物のロジックを通る。
+
+  it("正しく署名された signedPayload なら 200 を返す (署名検証を通過して billing facade に委譲される)", async () => {
+    const signedPayload = signAppleJws({ notificationType: "SUBSCRIBED" });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/billing/webhook/apple",
+      headers: {
+        "content-type": "application/json",
+      },
+      payload: { signedPayload },
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+
+  it("signedPayload が無いと 400 (VALIDATION_ERROR) を返す", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/billing/webhook/apple",
@@ -144,7 +164,45 @@ describe("POST /api/billing/webhook/apple", () => {
       payload: { notificationType: "SUBSCRIBED" },
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body) as { ok: boolean; error: { code: string } };
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("署名が改竄された signedPayload は 400 (BILLING_IAP_RECEIPT_INVALID) で拒否される", async () => {
+    const validJws = signAppleJws({ notificationType: "SUBSCRIBED" });
+    const tampered = tamperJwsSignature(validJws);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/billing/webhook/apple",
+      headers: {
+        "content-type": "application/json",
+      },
+      payload: { signedPayload: tampered },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body) as { ok: boolean; error: { code: string } };
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("BILLING_IAP_RECEIPT_INVALID");
+  });
+
+  it("x5c を含まない (壊れた) JWS は拒否される", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/billing/webhook/apple",
+      headers: {
+        "content-type": "application/json",
+      },
+      payload: { signedPayload: "not.a.jws" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body) as { ok: boolean; error: { code: string } };
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("BILLING_IAP_RECEIPT_INVALID");
   });
 });
 

@@ -328,6 +328,40 @@ export function createMockContainer(): AppContainer {
     getRoomHistory: vi.fn().mockResolvedValue(ok({ rooms: [], nextCursor: null })),
   };
 
+  // #27: account-routes.ts が退会/復元時にサブスクリプションの cancelAtPeriodEnd を
+  // 直接操作するために使う SubscriptionRepository のモック。
+  const subscriptionRow = {
+    id: "66666666-6666-4666-8666-666666666666",
+    user_id: MOCK_USER_ID,
+    plan_tier: "standard",
+    included_minutes: 120,
+    overage_rate_yen: 10,
+    monthly_price_yen: 1980,
+    transcript_retention_days: 30,
+    cancel_at_period_end: false,
+    purchase_channel: "stripe_web",
+    stripe_customer_id: "cus_test123",
+    stripe_subscription_id: "sub_test123",
+    iap_original_transaction_id: null,
+    current_period_start: new Date().toISOString(),
+    current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  const subscriptionRepo = {
+    findByUserId: vi.fn().mockResolvedValue(ok(subscriptionRow)),
+    upsert: vi.fn().mockResolvedValue(ok(subscriptionRow)),
+    updatePlan: vi.fn().mockResolvedValue(ok({ ...subscriptionRow, cancel_at_period_end: false })),
+    getUsedSecondsInPeriod: vi.fn().mockResolvedValue(ok(0)),
+    findByIapOriginalTransactionId: vi.fn().mockResolvedValue(ok(null)),
+    findByStripeSubscriptionId: vi.fn().mockResolvedValue(ok(null)),
+  };
+
+  // #23: billing-routes.ts の Apple Webhook 署名検証に使う IapAdapterConfig のモック。
+  // bundleId/environment/trustedRootCertsPem を指定しないため、署名検証は
+  // x5c チェーン内リンクの整合性のみをチェックする (テストの JWS フィクスチャと整合)。
+  const iapAdapterConfig = {};
+
   return {
     supabase: mockSupabase,
     eventBus,
@@ -340,6 +374,8 @@ export function createMockContainer(): AppContainer {
     translation,
     room,
     roomReservationSessionRepo,
+    subscriptionRepo,
+    iapAdapterConfig,
   } as unknown as AppContainer;
 }
 

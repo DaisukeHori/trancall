@@ -16,6 +16,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AuthFacade } from "@trancall/auth";
 import { getHttpStatus } from "../middleware/error-handler.js";
+import { createInMemoryRateLimitStore, createRateLimiter } from "../lib/rate-limit.js";
 
 const SignupSchema = z.object({
   email: z.email(),
@@ -73,8 +74,27 @@ export function registerAuthRoutes(
 ): void {
   const { supabase, auth } = deps;
 
+  // #34: signin/signup は認証不要 (auth-middleware で除外) なため、無制限だと
+  // credential stuffing / アカウント総当たりが可能だった。IP ベースで 10 req/min に制限する。
+  // NOTE: in-memory store は Vercel serverless ではインスタンスごとに分断されるため
+  // グローバルな制限としては実効性が限定的 (rate-limit.ts の JSDoc 参照)。
+  const authRateLimitStore = createInMemoryRateLimitStore();
+  const signupRateLimiter = createRateLimiter(authRateLimitStore, 10, 60_000);
+  const signinRateLimiter = createRateLimiter(authRateLimitStore, 10, 60_000);
+
   // POST /api/auth/signup
   fastify.post("/api/auth/signup", async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!signupRateLimiter.check(`signup:${request.ip}`)) {
+      return reply.status(429).send({
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: "リクエストが多すぎます。しばらくお待ちください。",
+          retryable: true,
+        },
+      });
+    }
+
     const parsed = SignupSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -136,6 +156,17 @@ export function registerAuthRoutes(
 
   // POST /api/auth/signin
   fastify.post("/api/auth/signin", async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!signinRateLimiter.check(`signin:${request.ip}`)) {
+      return reply.status(429).send({
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: "リクエストが多すぎます。しばらくお待ちください。",
+          retryable: true,
+        },
+      });
+    }
+
     const parsed = SigninSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({

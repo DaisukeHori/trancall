@@ -74,14 +74,18 @@ export async function buildApp(
     auth: container.auth,
     roomReservationSessionRepo: container.roomReservationSessionRepo,
   });
-  registerBillingRoutes(fastify, { billing: container.billing });
+  registerBillingRoutes(fastify, {
+    billing: container.billing,
+    iapAdapterConfig: container.iapAdapterConfig,
+  });
   registerTranscriptRoutes(fastify, { transcript: container.transcript });
   registerNotificationRoutes(fastify, { notification: container.notification });
-  registerSupportRoutes(fastify, {} as Record<string, never>);
+  registerSupportRoutes(fastify, { auth: container.auth });
   registerAccountRoutes(fastify, {
     supabase: container.supabase,
     billing: container.billing,
     eventBus: container.eventBus,
+    subscriptionRepo: container.subscriptionRepo,
   });
 
   // Agent 内部 API

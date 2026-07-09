@@ -20,6 +20,8 @@ const ERROR_CODE_TO_STATUS: Record<string, number> = {
   NOTIFICATION_DEVICE_TOKEN_INVALID: 400,
   // media.token.invalid_request: media facade の Zod バリデーション失敗 (クライアント起因)
   "media.token.invalid_request": 400,
+  // ACCOUNT_NOT_DELETED: #27 POST /api/account/restore — 退会リクエストなしで restore を呼んだ
+  ACCOUNT_NOT_DELETED: 400,
   // 401
   UNAUTHORIZED: 401,
   AUTH_INVALID_CREDENTIALS: 401,
@@ -48,6 +50,8 @@ const ERROR_CODE_TO_STATUS: Record<string, number> = {
   AUTH_CONSENT_VERSION_MISMATCH: 409,
   // 410
   ROOM_ALREADY_ENDED: 410,
+  // ACCOUNT_GRACE_PERIOD_EXPIRED: #27 POST /api/account/restore — 30日の猶予期間超過
+  ACCOUNT_GRACE_PERIOD_EXPIRED: 410,
   // 422
   AUTH_CONSENT_IRREVOCABLE: 422,
   TRANSCRIPT_EXPORT_EMPTY: 422,
@@ -70,6 +74,11 @@ const ERROR_CODE_TO_STATUS: Record<string, number> = {
   "media.token.profile_lookup_failed": 500,
   "media.token.metadata_invalid": 500,
   "media.token.jwt_sign_failed": 500,
+  // #34: consentRepo/legalDocRepo が DI されていない場合 (packages/auth/src/facade.ts)
+  AUTH_CONSENT_NOT_CONFIGURED: 500,
+  // #34: プロフィールデータが DB から取得後の再バリデーションに失敗 (packages/auth/src/facade.ts:244)
+  // 命名規則 (SCREAMING_SNAKE_CASE) 違反だが既存コードとの後方互換のため据え置き、map 登録のみ行う
+  "auth.profile.invalid_schema": 500,
   // 501
   TRANSCRIPT_EXPORT_NOT_IMPLEMENTED: 501,
   BILLING_NOT_IMPLEMENTED: 501,

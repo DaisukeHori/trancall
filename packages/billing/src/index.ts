@@ -124,9 +124,12 @@ export type {
 export {
   createIapAdapter,
   APPLE_IAP_PRODUCT_ID_MAP,
+  // #23: apps/server の Apple Webhook (signedPayload JWS) 署名検証で再利用するため export
+  verifyJwsSignature,
 } from "./adapters/iap-adapter.js";
 export type {
   IapAdapter,
+  IapAdapterConfig,
   VerifiedIapTransaction,
 } from "./adapters/iap-adapter.js";
 

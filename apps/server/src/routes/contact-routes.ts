@@ -15,6 +15,7 @@ import { z } from "zod";
 import type { ContactFacade } from "@trancall/contact";
 import { brandUserId } from "@trancall/shared-kernel";
 import { getHttpStatus } from "../middleware/error-handler.js";
+import { createInMemoryRateLimitStore, createRateLimiter } from "../lib/rate-limit.js";
 
 const AddContactSchema = z.object({
   contactUserId: z.uuid(),
@@ -40,6 +41,13 @@ export function registerContactRoutes(
   deps: { contact: ContactFacade },
 ): void {
   const { contact } = deps;
+
+  // #34: docs/security-detail.md canonical — /api/contacts/search は 10 req/min/user、
+  // /api/contacts/invite-link は 10 req/hour/user。
+  // NOTE: in-memory store は Vercel serverless ではインスタンスごとに分断されるため
+  // グローバルな制限としては実効性が限定的 (rate-limit.ts の JSDoc 参照)。
+  const searchRateLimiter = createRateLimiter(createInMemoryRateLimitStore(), 10, 60_000);
+  const inviteLinkRateLimiter = createRateLimiter(createInMemoryRateLimitStore(), 10, 60 * 60_000);
 
   // GET /api/contacts
   fastify.get("/api/contacts", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -92,6 +100,17 @@ export function registerContactRoutes(
 
   // GET /api/contacts/search
   fastify.get("/api/contacts/search", async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!searchRateLimiter.check(request.userId)) {
+      return reply.status(429).send({
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: "検索リクエストが多すぎます。しばらくお待ちください。",
+          retryable: true,
+        },
+      });
+    }
+
     const parsed = SearchQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -106,6 +125,17 @@ export function registerContactRoutes(
 
   // POST /api/contacts/invite-link
   fastify.post("/api/contacts/invite-link", async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!inviteLinkRateLimiter.check(request.userId)) {
+      return reply.status(429).send({
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: "招待リンクの発行上限に達しました。しばらくお待ちください。",
+          retryable: true,
+        },
+      });
+    }
+
     const result = await contact.createInviteLink(request.userId);
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });

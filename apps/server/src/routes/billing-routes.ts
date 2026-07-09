@@ -19,7 +19,8 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
-import type { BillingFacade } from "@trancall/billing";
+import type { BillingFacade, IapAdapterConfig } from "@trancall/billing";
+import { verifyJwsSignature } from "@trancall/billing";
 import { getHttpStatus } from "../middleware/error-handler.js";
 
 const CheckoutSchema = z.object({
@@ -70,11 +71,40 @@ const CancelSubscriptionSchema = z.object({
   atPeriodEnd: z.boolean().default(true),
 });
 
+// #23: Apple App Store Server Notifications V2 は `{ signedPayload: "<JWS>" }` 形式で届く。
+// JWS 自体の中身 (notificationType 等) は packages/billing の AppleNotificationPayloadSchema
+// (parseWebhookPayload 内部) が検証するため、ここでは外枠のみを検証する。
+const AppleWebhookBodySchema = z.object({
+  signedPayload: z.string().min(1),
+});
+
+/**
+ * JWS の payload 部 (2 番目のパート) を Base64URL デコードして JSON.parse する。
+ * 署名検証は verifyJwsSignature() で別途行うため、ここではデコードのみを行う
+ * (packages/billing/src/adapters/apple-iap-adapter.ts の decodeJwsPayload と同じ手法だが、
+ * Webhook 通知ペイロードのスキーマは packages/billing 側の
+ * AppleNotificationPayloadSchema が担うため、ここでは unknown を返すだけにとどめる)。
+ */
+function decodeJwsPayloadUnvalidated(jws: string): unknown | null {
+  const parts = jws.split(".");
+  const payloadPart = parts[1];
+  if (parts.length !== 3 || payloadPart === undefined) {
+    return null;
+  }
+  try {
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonString = Buffer.from(base64, "base64").toString("utf-8");
+    return JSON.parse(jsonString) as unknown;
+  } catch {
+    return null;
+  }
+}
+
 export function registerBillingRoutes(
   fastify: FastifyInstance,
-  deps: { billing: BillingFacade },
+  deps: { billing: BillingFacade; iapAdapterConfig: IapAdapterConfig },
 ): void {
-  const { billing } = deps;
+  const { billing, iapAdapterConfig } = deps;
 
   /**
    * Rate limit カウンター (in-memory, per-user, per-instance)
@@ -156,18 +186,48 @@ export function registerBillingRoutes(
   );
 
   // POST /api/billing/webhook/apple
-  // TODO(#23): Apple App Store Server Notifications V2 は JWS (signedPayload/signedTransactionInfo)
-  // で届くが、packages/billing の AppleIapAdapter.parseWebhookPayload はペイロードのデコードのみ
-  // 行い、署名 (x5c チェーン) 検証はしていない (JWS 検証は apps/server 側に委ねる設計、
-  // packages/billing/src/adapters/apple-iap-adapter.ts の JSDoc 参照)。x5c チェーン検証ロジックは
-  // packages/billing/src/adapters/iap-adapter.ts に実装済みだが private 関数のため apps/server から
-  // 再利用できない。config.IAP_APPLE_BUNDLE_ID / IAP_APPLE_ENVIRONMENT / APPLE_ROOT_CA_PEM は
-  // #40 (StoreKit 2 クライアント JWS 検証、container.ts の iapAdapter) 用に配線済みだが、本 Webhook
-  // 経路にはまだ適用していない。完全な署名検証を実装するには packages/billing 側で検証関数を
-  // export する変更が必要で、「packages/billing のインターフェースは変更しない」方針の本 PR
-  // (apps/server 配線のみ) のスコープ外のため未実装のまま残す。
+  // #23: Apple App Store Server Notifications V2 は `{ signedPayload: "<JWS>" }` 形式で届く。
+  // 実際に届く JWS の署名 (ES256 + x5c チェーン) を packages/billing から export された
+  // verifyJwsSignature() で検証してから、JWS payload をデコードして
+  // billing.handleAppleIapWebhook() (内部で AppleNotificationPayloadSchema によるペイロード
+  // スキーマ検証を行う) に渡す。config.IAP_APPLE_BUNDLE_ID / IAP_APPLE_ENVIRONMENT /
+  // APPLE_ROOT_CA_PEM (container.ts の iapAdapterConfig) は #40 の StoreKit 2 クライアント JWS
+  // 検証と同じ基準を Webhook 経路にも適用する (#10 の申し送り対応)。
   fastify.post("/api/billing/webhook/apple", async (request: FastifyRequest, reply: FastifyReply) => {
-    const result = await billing.handleAppleIapWebhook(request.body);
+    const parsedBody = AppleWebhookBodySchema.safeParse(request.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "signedPayload (JWS) が必要です",
+          retryable: false,
+        },
+      });
+    }
+
+    const { signedPayload } = parsedBody.data;
+
+    const signatureResult = verifyJwsSignature(signedPayload, iapAdapterConfig);
+    if (!signatureResult.ok) {
+      return reply
+        .status(getHttpStatus(signatureResult.error.code))
+        .send({ ok: false, error: signatureResult.error });
+    }
+
+    const decodedPayload = decodeJwsPayloadUnvalidated(signedPayload);
+    if (decodedPayload === null) {
+      return reply.status(400).send({
+        ok: false,
+        error: {
+          code: "BILLING_IAP_RECEIPT_INVALID",
+          message: "Apple Webhook の signedPayload デコードに失敗しました",
+          retryable: false,
+        },
+      });
+    }
+
+    const result = await billing.handleAppleIapWebhook(decodedPayload);
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }

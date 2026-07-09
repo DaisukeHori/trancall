@@ -242,8 +242,13 @@ function base64UrlToBuffer(input: string): Buffer {
  * 2. config.trustedRootCertsPem が指定されている場合、チェーン最上位の証明書が
  *    信頼済みルート証明書のいずれかと一致することを確認する (root pinning)
  * 3. leaf 証明書 (certs[0]) の公開鍵で JWS 本体 (header.payload) の署名を検証する
+ *
+ * #23: apps/server の Apple App Store Server Notifications V2 Webhook
+ * (signedPayload JWS) の署名検証にも再利用するため named export にしている。
+ * StoreKit 2 クライアント JWS も Webhook の signedPayload も同じ ES256 + x5c 形式のため
+ * 共通の検証ロジックで扱える (ペイロードのスキーマのみ呼び出し側で異なる)。
  */
-function verifyJwsSignature(
+export function verifyJwsSignature(
   jws: string,
   config: IapAdapterConfig,
 ): Result<void, AppError> {

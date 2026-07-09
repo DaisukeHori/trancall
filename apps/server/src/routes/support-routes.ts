@@ -5,11 +5,24 @@
  *
  * docs/support-flow.md §6 に基づく実装
  * Rate limit: 5 req / hour / userId (support-flow.md §6.2)
+ *
+ * Issue #28 (3 点):
+ * 1. HTML インジェクション: メール本文 (HTML) にユーザー入力 (subject/body/診断情報) を
+ *    エスケープなしで埋め込んでいたため、`<script>` 等を含む問い合わせが送信先の
+ *    メールクライアントで実行され得た。escapeHtml() を通してから埋め込む。
+ * 2. ESM で require 失敗: `"type": "module"` の下で `require("resend")` は常に
+ *    `require is not defined` で例外になり、必ず catch → 503 になっていた。
+ *    `resend` を依存に追加し、動的 `import("resend")` に変更した。
+ * 3. 返信先ダミー: auth-middleware は request.userId しかセットしないため
+ *    `request.userEmail` は常に undefined で "unknown@trancall.app" にフォールバックしていた。
+ *    AuthFacade.getProfile(userId) から実際のメールアドレスを取得する。
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { randomBytes, createHash } from "node:crypto";
+import type { AuthFacade } from "@trancall/auth";
+
 // =============================================================================
 // Zod スキーマ (docs/support-flow.md §6.1)
 // =============================================================================
@@ -66,9 +79,23 @@ function anonymizeUserId(userId: string): string {
   return createHash("sha256").update(userId).digest("hex").slice(0, 8);
 }
 
+/**
+ * HTML エスケープ (Issue #28)。
+ * ユーザー入力 (subject/body/診断情報/メールアドレス) を HTML メール本文に
+ * 埋め込む前に必ず通すこと。
+ */
+export function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 type SupportInquiry = z.infer<typeof SupportInquirySchema>;
 
-function buildEmailHtml(params: {
+export function buildEmailHtml(params: {
   inquiry: SupportInquiry;
   ticketId: string;
   anonymizedUserId: string;
@@ -83,8 +110,15 @@ function buildEmailHtml(params: {
     other: "その他",
   };
   const label = categoryLabel[inquiry.category] ?? inquiry.category;
-  const subjectText = inquiry.subject ?? "（なし）";
+  const subjectText = escapeHtml(inquiry.subject ?? "（なし）");
   const tierText = inquiry.diagnosticData.subscriptionTier ?? "不明";
+  const bodyHtml = escapeHtml(inquiry.body);
+  const appVersion = escapeHtml(inquiry.diagnosticData.appVersion);
+  const osVersion = escapeHtml(inquiry.diagnosticData.osVersion);
+  const deviceModel = escapeHtml(inquiry.diagnosticData.deviceModel);
+  const submittedAt = escapeHtml(inquiry.diagnosticData.submittedAt);
+  const locale = escapeHtml(inquiry.diagnosticData.locale);
+  const userEmailHtml = escapeHtml(userEmail);
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -96,28 +130,28 @@ function buildEmailHtml(params: {
   <p><strong>件名:</strong> ${subjectText}</p>
   <hr />
   <h3>本文</h3>
-  <pre style="white-space: pre-wrap; background: #f5f5f5; padding: 16px; border-radius: 8px;">${inquiry.body}</pre>
+  <pre style="white-space: pre-wrap; background: #f5f5f5; padding: 16px; border-radius: 8px;">${bodyHtml}</pre>
   <hr />
   <h3>診断情報 (自動添付)</h3>
   <table style="border-collapse: collapse; width: 100%;">
     <tr><td style="padding: 4px 8px;"><strong>User ID (匿名化)</strong></td><td>${anonymizedUserId}</td></tr>
-    <tr><td style="padding: 4px 8px;"><strong>アプリバージョン</strong></td><td>${inquiry.diagnosticData.appVersion}</td></tr>
-    <tr><td style="padding: 4px 8px;"><strong>OS / 端末</strong></td><td>${inquiry.diagnosticData.osVersion} / ${inquiry.diagnosticData.deviceModel}</td></tr>
-    <tr><td style="padding: 4px 8px;"><strong>送信日時</strong></td><td>${inquiry.diagnosticData.submittedAt} (UTC)</td></tr>
-    <tr><td style="padding: 4px 8px;"><strong>ロケール</strong></td><td>${inquiry.diagnosticData.locale}</td></tr>
+    <tr><td style="padding: 4px 8px;"><strong>アプリバージョン</strong></td><td>${appVersion}</td></tr>
+    <tr><td style="padding: 4px 8px;"><strong>OS / 端末</strong></td><td>${osVersion} / ${deviceModel}</td></tr>
+    <tr><td style="padding: 4px 8px;"><strong>送信日時</strong></td><td>${submittedAt} (UTC)</td></tr>
+    <tr><td style="padding: 4px 8px;"><strong>ロケール</strong></td><td>${locale}</td></tr>
     <tr><td style="padding: 4px 8px;"><strong>直近 7 日の通話数</strong></td><td>${inquiry.diagnosticData.callHistoryLast7d} 件</td></tr>
     <tr><td style="padding: 4px 8px;"><strong>プラン</strong></td><td>${tierText}</td></tr>
   </table>
   <hr />
   <p style="color: #999; font-size: 12px;">
     このメールは TranCall アプリから自動送信されました。
-    返信すると ${userEmail} に届きます。
+    返信すると ${userEmailHtml} に届きます。
   </p>
 </body>
 </html>`;
 }
 
-function buildEmailText(params: {
+export function buildEmailText(params: {
   inquiry: SupportInquiry;
   ticketId: string;
   anonymizedUserId: string;
@@ -148,8 +182,9 @@ function buildEmailText(params: {
 }
 
 /**
- * Resend SDK を動的 import でロードする (任意の DI 注入のため)
- * RESEND_API_KEY が未設定の場合はログのみ出力して ok を返す (テスト環境用)
+ * Resend SDK を動的 import でロードする (ESM の `"type": "module"` 下で `require()` が
+ * 使えないため #28、また任意の DI 差し替えを容易にするため)。
+ * RESEND_API_KEY が未設定の場合はログのみ出力して ok を返す (テスト環境用)。
  */
 async function sendSupportEmail(params: {
   userId: string;
@@ -180,9 +215,8 @@ async function sendSupportEmail(params: {
   }
 
   try {
-    // Resend SDK を動的 import (optional peer dependency)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Resend } = require("resend") as { Resend: new (key: string) => { emails: { send: (opts: Record<string, unknown>) => Promise<{ error: { message: string } | null }> } } };
+    // #28: ESM ("type": "module") では require() は使えないため動的 import に変更。
+    const { Resend } = await import("resend");
     const resend = new Resend(resendApiKey);
     const result = await resend.emails.send({
       from: "TranCall サポート <support-bot@trancall.app>",
@@ -209,8 +243,10 @@ async function sendSupportEmail(params: {
 
 export function registerSupportRoutes(
   fastify: FastifyInstance,
-  _deps: Record<string, never>,
+  deps: { auth: AuthFacade },
 ): void {
+  const { auth } = deps;
+
   /**
    * Rate limit カウンター (in-memory, per-user, per-instance)
    * support 5 req / hour — support-flow.md §6.2
@@ -261,10 +297,10 @@ export function registerSupportRoutes(
     const inquiry = parsed.data;
     const ticketId = generateTicketId();
 
-    // userId から userEmail を取得 (JWT のメタデータから、または Supabase Auth 経由)
-    // request.userEmail は auth-middleware で設定される想定
-    // 未設定の場合は "unknown@trancall.app" を代替として使用
-    const userEmail = (request as FastifyRequest & { userEmail?: string }).userEmail ?? "unknown@trancall.app";
+    // #28: request.userEmail は auth-middleware がセットしないため常に undefined だった。
+    // AuthFacade.getProfile(userId) から実際のメールアドレスを取得し、replyTo に使う。
+    const profileResult = await auth.getProfile(request.userId);
+    const userEmail = profileResult.ok ? profileResult.data.email : "unknown@trancall.app";
 
     // メール送信
     const emailResult = await sendSupportEmail({

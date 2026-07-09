@@ -17,7 +17,7 @@ import {
   createIapAdapter,
   createExternalPurchaseAdapter,
 } from "@trancall/billing";
-import type { BillingFacade } from "@trancall/billing";
+import type { BillingFacade, SubscriptionRepository, IapAdapterConfig } from "@trancall/billing";
 import {
   createContactFacade,
   createContactService,
@@ -102,6 +102,19 @@ export interface AppContainer {
   room: RoomFacade;
   /** #46: roomId ↔ billing 予約 sessionId 対応表。room-routes.ts が書き込み/読み取りに使う。 */
   roomReservationSessionRepo: RoomReservationSessionRepository;
+  /**
+   * #27: account-routes.ts の POST /api/account/restore がサブスクリプションの
+   * cancelAtPeriodEnd フラグを復元するために直接使う (BillingFacade には
+   * 「取消の取り消し」に相当するメソッドが存在しないため、apps/server が自ら
+   * 生成した SubscriptionRepository 実装を account-routes 側にも注入する)。
+   */
+  subscriptionRepo: SubscriptionRepository;
+  /**
+   * #23: billing-routes.ts の Apple Webhook (signedPayload JWS) 署名検証に使う。
+   * StoreKit 2 クライアント JWS 検証 (#40 iapAdapter) と同じ bundleId/environment/
+   * trustedRootCertsPem 設定を Webhook 経路にも適用し、両経路の検証基準を揃える。
+   */
+  iapAdapterConfig: IapAdapterConfig;
 }
 
 export function buildContainer(config: Config): AppContainer {
@@ -188,13 +201,16 @@ export function buildContainer(config: Config): AppContainer {
     successUrl: config.STRIPE_CHECKOUT_SUCCESS_URL ?? config.STRIPE_SUCCESS_URL,
     cancelUrl: config.STRIPE_CHECKOUT_CANCEL_URL ?? config.STRIPE_CANCEL_URL,
   });
-  // #40: config.IAP_APPLE_BUNDLE_ID / IAP_APPLE_ENVIRONMENT / APPLE_ROOT_CA_PEM を IapAdapter に
+  // #40/#23: config.IAP_APPLE_BUNDLE_ID / IAP_APPLE_ENVIRONMENT / APPLE_ROOT_CA_PEM を IapAdapter に
   // 配線する。未設定時は IapAdapter がチェーン内署名リンクの整合性のみ検証し、bundleId/
   // environment/ルート証明書の突合はスキップする (packages/billing/src/adapters/iap-adapter.ts
   // の JSDoc 通り)。IAP_APPLE_ENVIRONMENT は env の慣習に合わせ小文字 (sandbox/production) で
   // 保持し、IapAdapterConfig が要求する大文字表記 (Sandbox/Production, Apple API のレスポンス値に
   // 合わせた表記) に変換する。
-  const iapAdapter = createIapAdapter({
+  // #23: この設定オブジェクトは StoreKit 2 クライアント JWS 検証 (iapAdapter) だけでなく、
+  // billing-routes.ts の Apple Webhook (signedPayload JWS) 署名検証にも同じ基準で適用するため
+  // AppContainer 経由で再利用する (container 側で 1 箇所にまとめることで二重定義を防ぐ)。
+  const iapAdapterConfig: IapAdapterConfig = {
     ...(config.IAP_APPLE_BUNDLE_ID ? { bundleId: config.IAP_APPLE_BUNDLE_ID } : {}),
     ...(config.IAP_APPLE_ENVIRONMENT === "production"
       ? { environment: "Production" }
@@ -202,7 +218,8 @@ export function buildContainer(config: Config): AppContainer {
         ? { environment: "Sandbox" }
         : {}),
     ...(config.APPLE_ROOT_CA_PEM ? { trustedRootCertsPem: [config.APPLE_ROOT_CA_PEM] } : {}),
-  });
+  };
+  const iapAdapter = createIapAdapter(iapAdapterConfig);
   const externalPurchaseAdapter = createExternalPurchaseAdapter(externalPurchaseTokenRepo, {
     redirectTokenTtlMinutes: 5,
     externalSuccessUrl: config.STOREKIT_EXTERNAL_REPORT_URL ?? "trancall://billing/external-success",
@@ -292,5 +309,7 @@ export function buildContainer(config: Config): AppContainer {
     translation,
     room,
     roomReservationSessionRepo,
+    subscriptionRepo,
+    iapAdapterConfig,
   };
 }
