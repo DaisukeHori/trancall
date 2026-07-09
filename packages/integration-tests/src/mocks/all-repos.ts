@@ -484,12 +484,16 @@ export function makeWebhookEventRepository(): WebhookEventRepository {
   const events: WebhookEvent[] = [];
 
   return {
-    insertIdempotent: async (params): Promise<Result<{ event: WebhookEvent; isNew: boolean }>> => {
+    insertIdempotent: async (
+      params,
+    ): Promise<Result<{ event: WebhookEvent; isNew: boolean; alreadyProcessed: boolean }>> => {
       const existing = events.find(
         (e) => e.provider === params.provider && e.externalEventId === params.externalEventId,
       );
       if (existing !== undefined) {
-        return ok({ event: existing, isNew: false });
+        // [#42 確定1] isNew=false でも、既存行が markProcessed 未完了 (processedAt IS NULL) なら
+        // 実処理は完了していないため alreadyProcessed=false とし、呼び出し元の再処理を許容する。
+        return ok({ event: existing, isNew: false, alreadyProcessed: existing.processedAt !== null });
       }
       const now = new Date().toISOString();
       const event: WebhookEvent = {
@@ -503,7 +507,7 @@ export function makeWebhookEventRepository(): WebhookEventRepository {
         receivedAt: now,
       };
       events.push(event);
-      return ok({ event, isNew: true });
+      return ok({ event, isNew: true, alreadyProcessed: false });
     },
 
     markProcessed: async (id: string): Promise<Result<void>> => {

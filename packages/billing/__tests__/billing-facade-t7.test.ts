@@ -168,7 +168,10 @@ function makeMockReservationRepo(): ReservationRepository {
 
 function makeMockWebhookRepo(): WebhookEventRepository {
   return {
-    insertIdempotent: vi.fn().mockResolvedValue({ ok: true, data: { isNew: true, event: { id: "wh_001" } } }),
+    insertIdempotent: vi.fn().mockResolvedValue({
+      ok: true,
+      data: { isNew: true, alreadyProcessed: false, event: { id: "wh_001" } },
+    }),
     markProcessed: vi.fn().mockResolvedValue({ ok: true, data: true }),
     markFailed: vi.fn().mockResolvedValue({ ok: true, data: true }),
   } as unknown as WebhookEventRepository;

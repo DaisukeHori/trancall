@@ -377,8 +377,10 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       });
       if (!insertResult.ok) return insertResult;
 
-      // 既に処理済みなら OK を返す（冪等）
-      if (!insertResult.data.isNew) {
+      // [#42 確定1] 既に実処理まで完了済み (processed_at IS NOT NULL) の場合のみ OK を返す（冪等）。
+      // isNew=false (23505 衝突) でも alreadyProcessed=false なら、一過性エラーで markFailed
+      // されたまま未処理の行なので、Stripe 再送を機に下の処理へ進み updatePlan を再実行する。
+      if (insertResult.data.alreadyProcessed) {
         return ok(true);
       }
 
@@ -560,7 +562,8 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       });
       if (!insertResult.ok) return insertResult;
 
-      if (!insertResult.data.isNew) {
+      // [#42 確定1] alreadyProcessed=true (processed_at IS NOT NULL) のときのみ短絡する。
+      if (insertResult.data.alreadyProcessed) {
         return ok(true);
       }
 
@@ -614,7 +617,8 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       });
       if (!insertResult.ok) return insertResult;
 
-      if (!insertResult.data.isNew) {
+      // [#42 確定1] alreadyProcessed=true (processed_at IS NOT NULL) のときのみ短絡する。
+      if (insertResult.data.alreadyProcessed) {
         return ok(true);
       }
 

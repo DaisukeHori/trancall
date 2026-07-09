@@ -64,9 +64,12 @@ const subRow: SubscriptionRow = {
   updated_at: "2026-05-01T00:00:00.000Z",
 };
 
-function makeWebhookEvent(eventType: string): { event: WebhookEvent; isNew: boolean } {
+function makeWebhookEvent(
+  eventType: string,
+): { event: WebhookEvent; isNew: boolean; alreadyProcessed: boolean } {
   return {
     isNew: true,
+    alreadyProcessed: false,
     event: {
       id: "00000000-0000-4000-8000-000000000099",
       provider: "stripe",
