@@ -176,8 +176,7 @@ export function InCallScreen({ route, navigation }: Props) {
       }
     };
     // livekitToken/livekitUrl/myLanguage は route.params/profile から接続時点の値を一度だけ読む
-    // (再接続は行わない)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // (再接続は行わない)。依存配列は意図的に [] (マウント時に一度だけ実行する)
   }, []);
 
   // Duration ticker

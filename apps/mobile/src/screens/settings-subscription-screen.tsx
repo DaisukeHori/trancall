@@ -109,7 +109,7 @@ function CurrentPlanCard() {
           style={[
             currentCardStyles.progressFill,
             {
-              width: `${usagePercent}%` as `${number}%`,
+              width: `${usagePercent}%`,
               backgroundColor: usagePercent >= 90 ? c.warning : c.primary,
             },
           ]}

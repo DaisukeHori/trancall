@@ -27,6 +27,20 @@ type Props = NativeStackScreenProps<SettingsStackParamList, "AccountDeletion">;
 
 type Step = 1 | 2 | 3 | 4;
 
+/** Step を 1 つ戻す (1 未満にはならない)。型アサーションを使わず網羅的に分岐する。 */
+function decrementStep(step: Step): Step {
+  switch (step) {
+    case 2:
+      return 1;
+    case 3:
+      return 2;
+    case 4:
+      return 3;
+    case 1:
+      return 1;
+  }
+}
+
 const DELETION_REASONS = [
   "account_deletion.reason.not_using",
   "account_deletion.reason.privacy",
@@ -598,7 +612,7 @@ export function AccountDeletionScreen({ navigation }: Props) {
     if (step === 1) {
       navigation.goBack();
     } else {
-      setStep((s) => (s - 1) as Step);
+      setStep(decrementStep);
     }
   };
 

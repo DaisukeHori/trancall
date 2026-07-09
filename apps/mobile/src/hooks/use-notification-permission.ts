@@ -24,6 +24,6 @@ export function useNotificationPermissionRequest(): void {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // 依存配列は意図的に [] (マウント時に一度だけ実行する)
   }, []);
 }

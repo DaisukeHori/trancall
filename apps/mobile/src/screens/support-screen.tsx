@@ -35,9 +35,8 @@ function getAppVersion(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod: unknown = require("expo-application");
-    if (mod !== null && typeof mod === "object") {
-      const entry = Object.entries(mod).find(([k]) => k === "nativeApplicationVersion");
-      const v = entry?.[1];
+    if (mod !== null && typeof mod === "object" && "nativeApplicationVersion" in mod) {
+      const v = mod.nativeApplicationVersion;
       if (typeof v === "string") return v;
     }
   } catch {
@@ -50,9 +49,8 @@ function getOsVersion(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod: unknown = require("expo-device");
-    if (mod !== null && typeof mod === "object") {
-      const entry = Object.entries(mod).find(([k]) => k === "osVersion");
-      const v = entry?.[1];
+    if (mod !== null && typeof mod === "object" && "osVersion" in mod) {
+      const v = mod.osVersion;
       if (typeof v === "string") return v;
     }
   } catch {
@@ -65,9 +63,8 @@ function getDeviceModel(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod: unknown = require("expo-device");
-    if (mod !== null && typeof mod === "object") {
-      const entry = Object.entries(mod).find(([k]) => k === "modelName");
-      const v = entry?.[1];
+    if (mod !== null && typeof mod === "object" && "modelName" in mod) {
+      const v = mod.modelName;
       if (typeof v === "string") return v;
     }
   } catch {

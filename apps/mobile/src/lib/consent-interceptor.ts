@@ -31,7 +31,7 @@ export type ConsentErrorCode = (typeof CONSENT_ERROR_CODES)[number];
  * エラーコードが AUTH_CONSENT_* かどうかを判定する。
  */
 export function isConsentError(code: string): code is ConsentErrorCode {
-  return (CONSENT_ERROR_CODES as readonly string[]).includes(code);
+  return CONSENT_ERROR_CODES.some((consentCode) => consentCode === code);
 }
 
 /**

@@ -26,9 +26,11 @@ export const IAP_PRODUCT_IDS = {
 export type IapProductTier = keyof typeof IAP_PRODUCT_IDS;
 
 /** productId → tier のリバースマップ */
-const PRODUCT_ID_TO_TIER: Record<string, IapProductTier> = Object.fromEntries(
-  Object.entries(IAP_PRODUCT_IDS).map(([tier, id]) => [id, tier as IapProductTier]),
-);
+const PRODUCT_ID_TO_TIER: Record<string, IapProductTier> = {
+  [IAP_PRODUCT_IDS.light]: "light",
+  [IAP_PRODUCT_IDS.standard]: "standard",
+  [IAP_PRODUCT_IDS.business]: "business",
+};
 
 /** productId から tier を解決する */
 export function resolveProductTier(productId: string): IapProductTier | null {
@@ -73,7 +75,7 @@ interface RnIapModule {
   requestSubscription: (params: { sku: string; andDangerouslyFinishTransactionAutomaticallyIOS?: boolean }) => Promise<RnIapPurchase | RnIapPurchase[] | null | undefined>;
   purchaseUpdatedListener: (callback: (purchase: RnIapPurchase) => void) => { remove: () => void };
   purchaseErrorListener: (callback: (error: RnIapPurchaseError) => void) => { remove: () => void };
-  finishTransaction: (params: { purchase: RnIapPurchase; isConsumable?: boolean }) => Promise<string | void>;
+  finishTransaction: (params: { purchase: RnIapPurchase; isConsumable?: boolean }) => Promise<string | undefined>;
   initConnection: () => Promise<boolean>;
   endConnection: () => Promise<void>;
 }

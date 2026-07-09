@@ -161,7 +161,6 @@ export function SettingsScreen(_props: Props) {
   const navigation = useNavigation<SettingsNavigationProp>();
 
   const profile = useAuthStore((state) => state.profile);
-  const session = useAuthStore((state) => state.session);
   const logout = useAuthStore((state) => state.logout);
 
   const [showSubtitles, setShowSubtitles] = useState(true);
