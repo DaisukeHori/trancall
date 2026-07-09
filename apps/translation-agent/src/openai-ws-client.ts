@@ -161,6 +161,17 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
   private reconnectAttempts = 0;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  // #31: pong タイムアウト検知用
+  private pongTimeoutTimer: NodeJS.Timeout | null = null;
+  // #31: 再接続を開始した (open から離脱した) 時刻。open で null に戻す。
+  private reconnectingSince: number | null = null;
+
+  // #31: heartbeat の ping に対する pong が届かない場合の許容時間 (ms)。
+  // これを超えたら接続が死んでいるとみなし ws.terminate() で強制切断し再接続をトリガーする。
+  private static readonly PONG_TIMEOUT_MS = 10000;
+  // #31/翻訳パイプライン設計書 §10.2: 再接続を試み続けても 5 分以上接続できない場合は
+  // 諦めて fatal 状態に遷移する (TranslationSession 側が openai_fatal_error でセッションを終了する)。
+  private static readonly MAX_RECONNECT_DURATION_MS = 5 * 60 * 1000;
 
   constructor(private readonly config: OpenAIWsClientConfig) {
     super();
@@ -193,6 +204,8 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
     ws.on("open", () => {
       this.state = "open";
       this.reconnectAttempts = 0;
+      // #31: 接続成功したので再接続経過時間の計測をリセット
+      this.reconnectingSince = null;
       this.config.logger.info("OpenAI WS: 接続成功");
       this.sendSessionUpdate();
       this.startHeartbeat();
@@ -201,6 +214,11 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
 
     ws.on("message", (data: WebSocket.RawData) => {
       this.handleMessage(data);
+    });
+
+    // #31: heartbeat pong 受信 → pong タイムアウトタイマーを解除
+    ws.on("pong", () => {
+      this.clearPongTimeout();
     });
 
     ws.on("error", (error: Error) => {
@@ -387,6 +405,10 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
     this.heartbeatTimer = setInterval(() => {
       if (this.ws && this.state === "open") {
         this.ws.ping();
+        // #31: ping 送信のたびに pong タイムアウトタイマーを (再) スケジュールする。
+        // PONG_TIMEOUT_MS 以内に pong (ws.on("pong") で clearPongTimeout) が届かなければ
+        // 接続が死んでいるとみなし強制切断する (TCP レベルの半死接続を検知するため)。
+        this.schedulePongTimeout();
       }
     }, 30000);
   }
@@ -396,10 +418,52 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
+    this.clearPongTimeout();
+  }
+
+  /**
+   * #31: pong タイムアウト検知。
+   * PONG_TIMEOUT_MS 以内に pong が届かなければ接続を強制切断 (ws.terminate()) し、
+   * 通常の close イベント経由で再接続フローに合流させる。
+   */
+  private schedulePongTimeout(): void {
+    this.clearPongTimeout();
+    this.pongTimeoutTimer = setTimeout(() => {
+      this.config.logger.warn("OpenAI WS: pong タイムアウト、接続死亡とみなし強制切断", {
+        timeoutMs: OpenAIWsClient.PONG_TIMEOUT_MS,
+      });
+      this.ws?.terminate();
+    }, OpenAIWsClient.PONG_TIMEOUT_MS);
+  }
+
+  private clearPongTimeout(): void {
+    if (this.pongTimeoutTimer) {
+      clearTimeout(this.pongTimeoutTimer);
+      this.pongTimeoutTimer = null;
+    }
   }
 
   private scheduleReconnect(): void {
     this.state = "reconnecting";
+
+    // #31/翻訳パイプライン設計書 §10.2: 再接続開始時刻を記録し、
+    // MAX_RECONNECT_DURATION_MS (5分) を超えても接続できなければ諦めて fatal に遷移する。
+    if (this.reconnectingSince === null) {
+      this.reconnectingSince = Date.now();
+    }
+    const reconnectingElapsedMs = Date.now() - this.reconnectingSince;
+    if (reconnectingElapsedMs >= OpenAIWsClient.MAX_RECONNECT_DURATION_MS) {
+      this.state = "fatal";
+      this.config.logger.error("OpenAI WS: 再接続上限時間 (5分) 超過、致命的エラーとして停止", {
+        reconnectingElapsedMs,
+        attempts: this.reconnectAttempts,
+      });
+      // TranslationSession 側は close イベント + getState()==="fatal" を見て
+      // end("openai_fatal_error") する (既存の 4000-4999 fatal 経路と同じ扱い)
+      this.emit("close", "reconnect_timeout");
+      return;
+    }
+
     this.reconnectAttempts += 1;
     const delayMs = Math.min(60000, 1000 * 2 ** (this.reconnectAttempts - 1));
     this.config.logger.info("OpenAI WS: 再接続スケジュール", {

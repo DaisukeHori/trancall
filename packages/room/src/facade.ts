@@ -15,9 +15,11 @@ import type { RoomState } from "./schemas.js";
 import type { RoomRepository } from "./repositories/room-repository.js";
 import type { ParticipantRepository } from "./repositories/participant-repository.js";
 import type { EventBus } from "./event-bus.js";
-import { createCallLifecycleService } from "./services/call-lifecycle-service.js";
+import { createCallLifecycleService, type CreateCallOptions } from "./services/call-lifecycle-service.js";
 import { createJoinService } from "./services/join-service.js";
 import { buildRoomState } from "./services/state-builder.js";
+
+export type { CreateCallOptions } from "./services/call-lifecycle-service.js";
 
 // =============================================================================
 // インターフェース
@@ -63,7 +65,7 @@ export interface RoomFacade {
   createCall(
     creatorId: UserId,
     inviteeIds: UserId[],
-    opts: { translationEnabled: boolean },
+    opts: CreateCallOptions,
   ): Promise<Result<RoomState>>;
 
   joinCall(roomId: RoomId, userId: UserId): Promise<Result<RoomState>>;

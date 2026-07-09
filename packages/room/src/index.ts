@@ -14,6 +14,7 @@ export type {
   RoomHistoryParticipant,
   RoomHistoryResponse,
   GetRoomHistoryQuery,
+  CreateCallOptions,
 } from "./facade.js";
 
 // Schemas（モジュール境界の契約）

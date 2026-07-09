@@ -128,7 +128,13 @@ vi.mock("@livekit/rtc-node", () => {
   };
 });
 
-import { injectDependencies } from "../src/agent.js";
+import {
+  injectDependencies,
+  resolveParticipantId,
+  publishStatusChannelData,
+  TRANSLATION_STATUS_CHANNEL_TOPIC,
+  type SubtitleDeltaChannelPayload,
+} from "../src/agent.js";
 import { type InternalApiClient } from "../src/internal-api-client.js";
 import { type Logger } from "../src/logger.js";
 
@@ -237,5 +243,131 @@ describe("agent.ts T-14: degraded/recovered Data Channel payload", () => {
         internalApiClient: apiClient,
       });
     }).not.toThrow();
+  });
+});
+
+// =============================================================================
+// #50: participantId は participant.identity (UUID) を使う — sid は使わない
+// =============================================================================
+
+describe("agent.ts #50: resolveParticipantId", () => {
+  it("participant.identity (UUID) をそのまま返す", () => {
+    const identity = "550e8400-e29b-41d4-a716-446655440000";
+    expect(resolveParticipantId(identity)).toBe(identity);
+  });
+
+  it("戻り値は UUID 形式にマッチする (LiveKit SID 形式とは異なる)", () => {
+    const identity = "550e8400-e29b-41d4-a716-446655440000";
+    const sid = "PA_abcXYZ123"; // LiveKit 内部 SID の典型形式 (非UUID)
+    const resolved = resolveParticipantId(identity);
+    expect(resolved).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(resolved).not.toBe(sid);
+    expect(resolved).not.toMatch(/^PA_/);
+  });
+});
+
+// =============================================================================
+// #51: Data Channel topic 明示 + subtitle.delta publish
+// =============================================================================
+
+describe("agent.ts #51: translation.status Data Channel", () => {
+  it("TRANSLATION_STATUS_CHANNEL_TOPIC は apps/mobile 側の canonical topic と一致する", () => {
+    // apps/mobile/src/lib/livekit/translation-status.ts の
+    // TRANSLATION_STATUS_CHANNEL_TOPIC と同一文字列であることを固定する回帰テスト
+    expect(TRANSLATION_STATUS_CHANNEL_TOPIC).toBe("translation.status");
+  });
+
+  it("publishStatusChannelData は topic: translation.status + reliable: true で publishData を呼ぶ", () => {
+    const publishData = vi.fn().mockResolvedValue(undefined);
+    const localParticipant = { publishData } as unknown as import("@livekit/rtc-node").LocalParticipant;
+    const logger = makeLogger();
+
+    const payload: SubtitleDeltaChannelPayload = {
+      type: "subtitle.delta",
+      sessionId: "session-uuid-1234-5678-abcd-ef0123456789",
+      sourceLang: "ja",
+      targetLang: "en",
+      text: "こんにちは",
+      elapsedMs: 500,
+      isFinal: false,
+      timestamp: new Date().toISOString(),
+    };
+
+    publishStatusChannelData(localParticipant, payload, logger, { key: "test-key" });
+
+    expect(publishData).toHaveBeenCalledTimes(1);
+    const [dataArg, optionsArg] = publishData.mock.calls[0] as [Uint8Array, { reliable: boolean; topic: string }];
+    expect(optionsArg).toEqual({ reliable: true, topic: "translation.status" });
+
+    const decoded: unknown = JSON.parse(Buffer.from(dataArg).toString("utf-8"));
+    expect(decoded).toEqual(payload);
+  });
+
+  it("subtitle.delta payload は module-contracts.md §3.4 の schema フィールドを満たす", () => {
+    const payload: SubtitleDeltaChannelPayload = {
+      type: "subtitle.delta",
+      sessionId: "session-uuid-1234-5678-abcd-ef0123456789",
+      sourceLang: "ja",
+      targetLang: "en",
+      text: "テスト字幕",
+      elapsedMs: 250,
+      isFinal: true,
+      timestamp: new Date().toISOString(),
+    };
+
+    expect(payload.type).toBe("subtitle.delta");
+    expect(payload.sessionId).toBeTruthy();
+    expect(payload.sourceLang).toBeTruthy();
+    expect(payload.targetLang).toBeTruthy();
+    expect(typeof payload.text).toBe("string");
+    expect(payload.elapsedMs).toBeGreaterThanOrEqual(0);
+    expect(typeof payload.isFinal).toBe("boolean");
+    expect(payload.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("localParticipant が undefined の場合は publishData を呼ばない (エラーにもならない)", () => {
+    const logger = makeLogger();
+    const payload: SubtitleDeltaChannelPayload = {
+      type: "subtitle.delta",
+      sessionId: "session-uuid-1234-5678-abcd-ef0123456789",
+      sourceLang: "ja",
+      targetLang: "en",
+      text: "hello",
+      elapsedMs: 0,
+      isFinal: false,
+      timestamp: new Date().toISOString(),
+    };
+
+    expect(() => {
+      publishStatusChannelData(undefined, payload, logger, { key: "test-key" });
+    }).not.toThrow();
+  });
+
+  it("publishData が失敗しても warn ログのみで例外は投げない (best-effort)", async () => {
+    const publishData = vi.fn().mockRejectedValue(new Error("network error"));
+    const localParticipant = { publishData } as unknown as import("@livekit/rtc-node").LocalParticipant;
+    const logger = makeLogger();
+
+    const payload: SubtitleDeltaChannelPayload = {
+      type: "subtitle.delta",
+      sessionId: "session-uuid-1234-5678-abcd-ef0123456789",
+      sourceLang: "ja",
+      targetLang: "en",
+      text: "hello",
+      elapsedMs: 0,
+      isFinal: false,
+      timestamp: new Date().toISOString(),
+    };
+
+    expect(() => {
+      publishStatusChannelData(localParticipant, payload, logger, { key: "test-key" });
+    }).not.toThrow();
+
+    // マイクロタスクを流して catch ハンドラの実行を待つ
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Agent: translation.status Data Channel publish 失敗",
+      expect.objectContaining({ key: "test-key", payloadType: "subtitle.delta" }),
+    );
   });
 });
