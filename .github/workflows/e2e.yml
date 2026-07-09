@@ -87,9 +87,16 @@ jobs:
           set -euo pipefail
           cd apps/mobile/ios
           WORKSPACE=$(ls -d ./*.xcworkspace | head -1)
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list 2>/dev/null | awk '/Schemes:/{flag=1; next} flag && NF{print $1; exit}')
+          # CocoaPods統合済みworkspaceの `xcodebuild -list` は個別podのschemeも
+          # アルファベット順で列挙するため、先頭を単純に拾うと "boost" 等の無関係な
+          # pod schemeが選ばれてしまう (PR #75 CI実測: 実際に boost が選ばれ、
+          # BUILD SUCCEEDEDにもかかわらずTranCall.appが生成されなかった)。
+          # app.json の name から実際のアプリschemeを直接特定する。
+          APP_NAME=$(node -p "require('../app.json').expo.name")
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list 2>/dev/null | awk -v app="$APP_NAME" '/Schemes:/{flag=1; next} flag && $0==""{flag=0} flag { gsub(/^[ \t]+|[ \t]+$/, ""); if ($0==app) {print; exit} }')
           if [ -z "$SCHEME" ]; then
-            echo "::error::Could not determine Xcode scheme from $WORKSPACE"
+            echo "::error::Could not find Xcode scheme matching app name \"$APP_NAME\" in $WORKSPACE"
+            xcodebuild -workspace "$WORKSPACE" -list 2>/dev/null
             exit 1
           fi
           echo "Building workspace=$WORKSPACE scheme=$SCHEME"
@@ -289,13 +296,13 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          # reactivecircus/android-emulator-runner の `script:` はバックスラッシュ改行継続を
+          # 内部の sh ラッパーが正しく1コマンドとして結合せず、"Flow path does not exist:
+          # .../\" のように末尾に生の "\" が残る形で壊れる (PR #75 CI実測)。曖昧さを排除する
+          # ため1行コマンドにする。
           script: |
             adb install -r "$APK_PATH"
-            maestro test "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/flows/" \
-              --include-tags P0 \
-              --config "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/config.yaml" \
-              --format junit \
-              --output "$GITHUB_WORKSPACE/maestro-results-android.xml"
+            maestro test "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/flows/" --include-tags P0 --config "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/config.yaml" --format junit --output "$GITHUB_WORKSPACE/maestro-results-android.xml"
 
       - name: Upload Maestro test results
         if: always()
