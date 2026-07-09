@@ -52,7 +52,6 @@ export type {
   ExternalPurchaseTokenRepository,
   ExternalPurchaseTokenRow,
 } from "./repositories/external-purchase-token-repository.js";
-export { createSupabaseExternalPurchaseTokenRepository } from "./repositories/external-purchase-token-repository.js";
 
 // View Models（BillingFacade 拡張メソッドの入出力型 / UI 状態型）
 export {

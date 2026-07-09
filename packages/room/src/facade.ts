@@ -6,7 +6,6 @@
  */
 
 import type { Result, UserId, RoomId } from "@trancall/shared-kernel";
-import { ok } from "@trancall/shared-kernel";
 import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade } from "@trancall/notification";

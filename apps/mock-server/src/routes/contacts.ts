@@ -1,10 +1,20 @@
 import type { Router, Request, Response } from "express";
+import { z } from "zod";
 import { getState, getSessionByToken, getUserById } from "../state.js";
+
+const AddContactBodySchema = z.object({
+  contactUserId: z.string().optional(),
+});
 
 function extractBearerToken(req: Request): string | null {
   const auth = req.headers["authorization"];
   if (!auth || !auth.startsWith("Bearer ")) return null;
   return auth.slice(7);
+}
+
+/** req.query の値 (string | string[] | ParsedQs | ...) から string のみを安全に取り出す */
+function getQueryString(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 function requireAuth(req: Request, res: Response): string | null {
@@ -58,7 +68,8 @@ export function registerContactRoutes(router: Router): void {
     const userId = requireAuth(req, res);
     if (!userId) return;
 
-    const { contactUserId } = req.body as { contactUserId?: string };
+    const parsedBody = AddContactBodySchema.safeParse(req.body);
+    const { contactUserId } = parsedBody.success ? parsedBody.data : {};
     if (!contactUserId) {
       res.status(400).json({
         ok: false,
@@ -138,7 +149,7 @@ export function registerContactRoutes(router: Router): void {
     const userId = requireAuth(req, res);
     if (!userId) return;
 
-    const q = (req.query["q"] as string | undefined) ?? "";
+    const q = getQueryString(req.query["q"]);
     const state = getState();
 
     const results = state.users

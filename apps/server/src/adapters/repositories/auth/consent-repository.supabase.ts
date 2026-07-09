@@ -77,7 +77,7 @@ export function createConsentRepository(supabase: SupabaseClient): ConsentReposi
 
       if (existingActive) {
         // 冪等: 既存のアクティブ同意をそのまま返す (recorded_at / revoked_at を上書きしない)
-        return mapRow(existingActive as Record<string, unknown>);
+        return mapRow(existingActive);
       }
 
       const id = randomUUID();
@@ -114,7 +114,7 @@ export function createConsentRepository(supabase: SupabaseClient): ConsentReposi
             .maybeSingle();
 
           if (!raceResult.error && raceResult.data) {
-            return mapRow(raceResult.data as Record<string, unknown>);
+            return mapRow(raceResult.data);
           }
         }
 
@@ -176,7 +176,7 @@ export function createConsentRepository(supabase: SupabaseClient): ConsentReposi
 
       if (!data) return ok(null);
 
-      return mapRow(data as Record<string, unknown>);
+      return mapRow(data);
     },
 
     async revoke(userId: UserId, scope: ConsentScope): Promise<Result<true>> {

@@ -341,7 +341,7 @@ export class OpenAIWsClient extends EventEmitter implements TypedEventEmitter<Op
       return;
     }
 
-    const rawType = (raw as { type: unknown }).type;
+    const rawType = raw.type;
     const now = Date.now();
 
     const parseResult = OpenAIMessageSchema.safeParse(raw);

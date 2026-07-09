@@ -101,12 +101,12 @@ describe("POST /api/support/inquiry", () => {
   });
 
   it("subscriptionTier が省略でも 200 を返す", async () => {
+    const { subscriptionTier: _subscriptionTier, ...diagnosticDataWithoutTier } =
+      VALID_INQUIRY.diagnosticData;
     const inquiry = {
       ...VALID_INQUIRY,
-      diagnosticData: { ...VALID_INQUIRY.diagnosticData },
+      diagnosticData: diagnosticDataWithoutTier,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    delete (inquiry.diagnosticData as any).subscriptionTier;
     const response = await app.inject({
       method: "POST",
       url: "/api/support/inquiry",
