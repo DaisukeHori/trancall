@@ -13,13 +13,16 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
-import type { RoomFacade } from "@trancall/room";
+import type { RoomFacade, CreateCallOptions } from "@trancall/room";
 import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade } from "@trancall/notification";
+import type { AuthFacade } from "@trancall/auth";
 import { brandUserId, brandRoomId, brandTranslationSessionId } from "@trancall/shared-kernel";
+import type { UserId } from "@trancall/shared-kernel";
 import { randomUUID } from "node:crypto";
 import { getHttpStatus } from "../middleware/error-handler.js";
+import { logger } from "../logger.js";
 
 const CreateRoomSchema = z.object({
   inviteeIds: z.array(z.uuid()).min(1).max(49),
@@ -36,14 +39,89 @@ const RoomHistoryQuerySchema = z.object({
   before: z.string().optional(),
 });
 
-const IssueTokenSchema = z.object({
-  userId: z.uuid(),
-  roomName: z.string().optional(),
-});
+// #43: POST /api/rooms/:id/token は request body を要求しない。旧実装は body の
+// userId を信頼していた (他人の Token を発行できてしまう脆弱性) ため廃止し、
+// 認証済み request.userId のみを使う。
 
 const RoomParamsSchema = z.object({ id: z.string() });
 
+// TODO(#53): docs/call-lifecycle.md §1 のシーケンス図は reserveMinutes(5) (5分) だが、
+// 実装は 60 分を渡している。billing 側の実際の予約仕様 (残量に LEAST(minutes, remaining) が
+// 適用されるため実害は限定的) を確認した上でどちらかに合わせる必要がある。本 PR のスコープ外
+// のため値は変更せず、相違のみ明記する。
 const RESERVE_MINUTES = 60; // デフォルト予約分数
+
+/**
+ * #53: roomId ↔ 予約 sessionId (TranslationSessionId) の対応表 (in-memory, per-instance)。
+ *
+ * billing.reserveMinutes は独立採番した sessionId を要求するが、どこにも roomId と
+ * 紐付けて永続化していなかったため、/leave 時に roomId をそのまま sessionId として
+ * reconcile していた (billing.ReservationRepository は findActiveBySessionId しか持たず
+ * roomId 引きができない)。ReservationRepository へ roomId 引きメソッドを追加するには
+ * packages/billing の契約変更 (スコープ外、別担当領域) が必要なため、apps/server 層で
+ * このマッピングを保持する。billing-routes.ts の billingRateLimitMap と同様の
+ * 既存パターン (in-memory, サーバーインスタンス再起動で失われる、本番は Redis 等へ
+ * 置き換え検討) に倣う。
+ */
+const roomSessionMap = new Map<string, string>();
+
+/** #52: 発信者プロフィール解決に失敗した場合のフォールバック値 (push 通知は best-effort) */
+const FALLBACK_CALLER_NAME = "TranCall User";
+const FALLBACK_LANGUAGE = "en";
+
+/**
+ * #52: 着信 Push の callerName / languagePair / callerLanguage を解決する。
+ *
+ * - callerName: 発信者の表示名 (Profile.displayName、未設定なら trancallId)。UUID は渡さない。
+ * - callerLanguage: 発信者の nativeLanguage (DB 値、クライアント入力は信頼しない)。
+ * - languagePair: "callerLanguage-calleeLanguage" (docs/notification-detail.md の "en-ja" 形式)。
+ *   1 対 1 通話が前提 (packages/room/CLAUDE.md 責務、Phase 2 でグループ対応予定) のため、
+ *   複数 invitee の場合も先頭の inviteeId の言語を代表として使う
+ *   (call-lifecycle-service.ts が invitee 全員へ同一の IncomingCallNotification を送るため、
+ *   現状の設計では invitee ごとに languagePair を出し分けられない)。
+ * - auth.getProfile が失敗した場合は best-effort でフォールバック値を使い、通話作成自体は継続する
+ *   (push 通知の内容不備で発信を止めない、既存の sendIncomingCall best-effort 方針と同じ)。
+ */
+async function resolveCreateCallOptions(
+  auth: AuthFacade,
+  creatorId: UserId,
+  inviteeUserIds: UserId[],
+  translationEnabled: boolean,
+): Promise<CreateCallOptions> {
+  const callerProfileResult = await auth.getProfile(creatorId);
+  let callerName = FALLBACK_CALLER_NAME;
+  let callerLanguage = FALLBACK_LANGUAGE;
+  if (callerProfileResult.ok) {
+    callerName = callerProfileResult.data.displayName ?? callerProfileResult.data.trancallId;
+    callerLanguage = callerProfileResult.data.nativeLanguage;
+  } else {
+    logger.warn("auth.getProfile failed for caller (best-effort push fallback)", {
+      creatorId,
+      errorCode: callerProfileResult.error.code,
+    });
+  }
+
+  let calleeLanguage = FALLBACK_LANGUAGE;
+  const firstInviteeId = inviteeUserIds[0];
+  if (firstInviteeId !== undefined) {
+    const calleeProfileResult = await auth.getProfile(firstInviteeId);
+    if (calleeProfileResult.ok) {
+      calleeLanguage = calleeProfileResult.data.nativeLanguage;
+    } else {
+      logger.warn("auth.getProfile failed for invitee (best-effort push fallback)", {
+        inviteeId: firstInviteeId,
+        errorCode: calleeProfileResult.error.code,
+      });
+    }
+  }
+
+  return {
+    translationEnabled,
+    callerName,
+    callerLanguage,
+    languagePair: `${callerLanguage}-${calleeLanguage}`,
+  };
+}
 
 export function registerRoomRoutes(
   fastify: FastifyInstance,
@@ -52,9 +130,10 @@ export function registerRoomRoutes(
     billing: BillingFacade;
     media: MediaFacade;
     notification: NotificationFacade;
+    auth: AuthFacade;
   },
 ): void {
-  const { room, billing, media } = deps;
+  const { room, billing, media, auth } = deps;
 
   // GET /api/rooms/history — 通話履歴 (Sprint 3 T-10)
   // NOTE: 静的パスを /api/rooms/:id より前に登録することで conflict を回避
@@ -101,8 +180,12 @@ export function registerRoomRoutes(
       inviteeUserIds.push(r.data);
     }
 
+    // #52: 着信 Push の callerName/languagePair/callerLanguage は room facade が自己解決できない
+    // (room は auth に依存しないため) ため、server 層で auth.getProfile から実値を解決して渡す。
+    const createCallOpts = await resolveCreateCallOptions(auth, request.userId, inviteeUserIds, translationEnabled);
+
     // createCall (billing.canStartCall + room作成 + 着信通知)
-    const createResult = await room.createCall(request.userId, inviteeUserIds, { translationEnabled });
+    const createResult = await room.createCall(request.userId, inviteeUserIds, createCallOpts);
     if (!createResult.ok) {
       return reply.status(getHttpStatus(createResult.error.code)).send({ ok: false, error: createResult.error });
     }
@@ -110,9 +193,18 @@ export function registerRoomRoutes(
     const roomState = createResult.data;
 
     // billing.reserveMinutes (best-effort、失敗しても通話は継続)
+    // #53: 生成した sessionId を roomId に紐付けて保存する (/leave 時の reconcile で使う)。
     const sessionId = brandTranslationSessionId(randomUUID());
     if (sessionId.success && translationEnabled) {
-      await billing.reserveMinutes(request.userId, sessionId.data, RESERVE_MINUTES);
+      const reserveResult = await billing.reserveMinutes(request.userId, sessionId.data, RESERVE_MINUTES);
+      if (reserveResult.ok) {
+        roomSessionMap.set(roomState.roomId, sessionId.data);
+      } else {
+        logger.warn("billing.reserveMinutes failed (best-effort, call continues)", {
+          roomId: roomState.roomId,
+          errorCode: reserveResult.error.code,
+        });
+      }
     }
 
     return reply.status(201).send({ ok: true, data: roomState });
@@ -137,6 +229,15 @@ export function registerRoomRoutes(
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }
+
+    // #43: room の参加者のみ閲覧可能 (他人の room 状態を覗けないようにする)
+    if (!isRoomParticipant(result.data.participants, request.userId)) {
+      return reply.status(403).send({
+        ok: false,
+        error: { code: "FORBIDDEN", message: "この通話の参加者ではありません", retryable: false },
+      });
+    }
+
     return reply.send({ ok: true, data: result.data });
   });
 
@@ -177,15 +278,52 @@ export function registerRoomRoutes(
       });
     }
 
+    // #43: room の参加者のみ終話可能 (endCall 実行前に確認する — 実行後だと副作用が
+    // 発生してから拒否することになるため、必ず endCall より前にチェックする)
+    const stateResult = await room.getState(roomIdResult.data);
+    if (!stateResult.ok) {
+      return reply.status(getHttpStatus(stateResult.error.code)).send({ ok: false, error: stateResult.error });
+    }
+    if (!isRoomParticipant(stateResult.data.participants, request.userId)) {
+      return reply.status(403).send({
+        ok: false,
+        error: { code: "FORBIDDEN", message: "この通話の参加者ではありません", retryable: false },
+      });
+    }
+
     const result = await room.endCall(roomIdResult.data);
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }
 
-    // billing.reconcile (best-effort)
-    const sessionIdResult = brandTranslationSessionId(roomIdResult.data);
-    if (sessionIdResult.success) {
-      await billing.reconcile(request.userId, sessionIdResult.data).catch(() => undefined);
+    // #53: 作成時に保存した sessionId を使って billing.reconcile する (roomId をそのまま
+    // sessionId として使っていた旧実装は、予約時の sessionId と一致せず reconcile が
+    // 常に対象レコードなしで失敗し、予約分数が解放されない「残高ロック」を起こしていた)。
+    const storedSessionIdRaw = roomSessionMap.get(roomIdResult.data);
+    roomSessionMap.delete(roomIdResult.data);
+
+    if (storedSessionIdRaw !== undefined) {
+      const sessionIdResult = brandTranslationSessionId(storedSessionIdRaw);
+      if (sessionIdResult.success) {
+        const reconcileResult = await billing.reconcile(request.userId, sessionIdResult.data);
+        if (!reconcileResult.ok) {
+          logger.warn("billing.reconcile failed (best-effort)", {
+            roomId: roomIdResult.data,
+            errorCode: reconcileResult.error.code,
+          });
+        }
+      } else {
+        logger.warn("billing.reconcile skipped: stored sessionId is invalid", {
+          roomId: roomIdResult.data,
+        });
+      }
+    } else if (result.data.translationEnabled) {
+      // translationEnabled=true の room で予約 sessionId が見つからない場合のみ警告する
+      // (translationEnabled=false の room はそもそも reserveMinutes を呼んでいないため正常)。
+      // サーバー再起動で roomSessionMap が失われた場合もここに該当しうる (§先頭のコメント参照)。
+      logger.warn("billing.reconcile skipped: no reservation sessionId found for room", {
+        roomId: roomIdResult.data,
+      });
     }
 
     return reply.send({ ok: true, data: result.data });
@@ -206,14 +344,25 @@ export function registerRoomRoutes(
       });
     }
 
-    const parsed = IssueTokenSchema.safeParse(request.body ?? {});
-    const userIdToUse = parsed.success && parsed.data.userId
-      ? brandUserId(parsed.data.userId).data ?? request.userId
-      : request.userId;
+    // #43: room の参加者のみ Token 発行可能。role (caller/callee) も room.createdBy から
+    // 導出する (media.issueAccessToken の IssueAccessTokenRequestSchema は role 必須のため、
+    // 以前は role 未指定で呼んでおり常に media.token.invalid_request になっていた)。
+    const stateResult = await room.getState(roomIdResult.data);
+    if (!stateResult.ok) {
+      return reply.status(getHttpStatus(stateResult.error.code)).send({ ok: false, error: stateResult.error });
+    }
+    if (!isRoomParticipant(stateResult.data.participants, request.userId)) {
+      return reply.status(403).send({
+        ok: false,
+        error: { code: "FORBIDDEN", message: "この通話の参加者ではありません", retryable: false },
+      });
+    }
+    const role: "caller" | "callee" = stateResult.data.createdBy === request.userId ? "caller" : "callee";
 
     const result = await media.issueAccessToken({
-      userId: userIdToUse,
+      userId: request.userId,
       roomId: roomIdResult.data,
+      role,
     });
 
     if (!result.ok) {
@@ -221,4 +370,12 @@ export function registerRoomRoutes(
     }
     return reply.send({ ok: true, data: result.data });
   });
+}
+
+/** #43: request.userId が room の参加者一覧に含まれるかを確認する */
+function isRoomParticipant(
+  participants: { userId: UserId }[],
+  userId: UserId,
+): boolean {
+  return participants.some((p) => p.userId === userId);
 }

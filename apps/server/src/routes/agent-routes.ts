@@ -9,14 +9,24 @@
 
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import type { TranslationFacade } from "@trancall/translation";
-import type { TranscriptFacade } from "@trancall/transcript";
+import type { TranslationFacade, SessionEndedPayload, TranscriptDeltaPayload } from "@trancall/translation";
+import type { TranscriptFacade, TranscriptSegment } from "@trancall/transcript";
 import {
   AgentEventSchema,
   TranslationDegradedPayloadSchema,
   TranslationRecoveredPayloadSchema,
+  createTranslationEndedEvent,
 } from "@trancall/translation";
-import { brandTranslationSessionId } from "@trancall/shared-kernel";
+import { calcRetentionUntilByPlan, type PlanTierKey } from "@trancall/transcript";
+import type { AuthFacade } from "@trancall/auth";
+import type { RoomFacade } from "@trancall/room";
+import type { BillingFacade } from "@trancall/billing";
+import {
+  brandTranslationSessionId,
+  brandRoomId,
+  brandUserId,
+  brandParticipantId,
+} from "@trancall/shared-kernel";
 import { z } from "zod";
 import { createHmacPreHandler } from "../middleware/hmac-middleware.js";
 import type { Config } from "../config.js";
@@ -46,6 +56,212 @@ const HeartbeatBodySchema = z.object({
 type HeartbeatBody = z.infer<typeof HeartbeatBodySchema>;
 
 // ---------------------------------------------------------------------------
+// #48: transcript.delta (isFinal=true) → transcript.appendFinalSegment
+// ---------------------------------------------------------------------------
+
+/**
+ * #48: transcript.delta の payload には speakerName / originalText / languagePair /
+ * startTimeMs / retentionUntil が含まれない (module-contracts.md §7.4.3 契約)。
+ * これらを以下から補完して TranscriptSegment を組み立てる:
+ *
+ * - speakerName: `auth.getProfile(sourceParticipantId)` の displayName (未設定なら trancallId)。
+ *   sourceParticipantId は LiveKit の participant identity と同一の UUID であり、
+ *   apps/translation-agent/src/agent.ts の `resolveParticipantId()` が
+ *   `profile.userId` (LiveKit AccessToken 発行時に設定、apps/server/adapters/livekit-adapter.ts
+ *   → packages/media/src/adapters/livekit.ts) をそのまま identity として使っているため、
+ *   sourceParticipantId をそのまま UserId として auth.getProfile に渡せる。
+ * - languagePair: `${話者のnativeLanguage}-${outputLanguage}` (docs/notification-detail.md の
+ *   "en-ja" 形式に合わせる)。話者の言語プロフィールが取れない場合は "unknown" にフォールバックする。
+ * - originalText: このイベントの `text` は OpenAI `response.audio_transcript.delta`
+ *   (= 翻訳後/出力言語側のテキスト、docs/translation-pipeline-design.md §2.4 表) に由来し、
+ *   原文 (`session.input_transcript.delta`) は現状 Agent → Server に送られていない
+ *   (同ドキュメント L166 「TranCall では使わない」)。そのため `translatedText` に
+ *   `event.text` を入れ、`originalText` は空文字とする。Agent 側が原文 delta も送るように
+ *   なったら、ここを更新して原文を埋める (Agent 側改修は本 PR スコープ外)。
+ * - startTimeMs / endTimeMs: `room.getState(roomId).createdAt` を通話開始時刻とし、
+ *   `spokenAt` からの経過 ms を startTimeMs とする。delta には区間長 (duration) がなく
+ *   単一時点の情報のため、endTimeMs は startTimeMs と同値にする
+ *   (Agent 側が区間長を送るようになれば正確な値に置き換えられる)。
+ * - retentionUntil: 話者 (sourceParticipantId) の課金プラン
+ *   (`billing.getSubscription(...).plan.tier`) から `calcRetentionUntilByPlan` で算出する。
+ *   プラン取得に失敗した場合は最も短い "free" (7日) にフォールバックする (安全側)。
+ *
+ * いずれの補完ステップも facade 呼び出しが失敗した場合は該当箇所をフォールバック値で
+ * 埋めて処理を継続する (best-effort)。room が存在しない等、致命的に文脈が欠ける場合のみ
+ * 永続化自体をスキップする。
+ */
+async function persistFinalTranscriptSegment(
+  event: TranscriptDeltaPayload,
+  idempotencyKey: string,
+  deps: {
+    auth: AuthFacade;
+    room: RoomFacade;
+    billing: BillingFacade;
+    transcript: TranscriptFacade;
+  },
+): Promise<void> {
+  const { auth, room, billing, transcript } = deps;
+
+  const roomIdResult = brandRoomId(event.roomId);
+  const participantIdResult = brandParticipantId(event.sourceParticipantId);
+  const speakerUserIdResult = brandUserId(event.sourceParticipantId);
+  if (!roomIdResult.success || !participantIdResult.success || !speakerUserIdResult.success) {
+    logger.warn("transcript segment persist skipped: invalid roomId/sourceParticipantId", {
+      roomId: event.roomId,
+      sourceParticipantId: event.sourceParticipantId,
+    });
+    return;
+  }
+
+  // startTimeMs/endTimeMs: room 開始時刻からの経過 ms。room が見つからない場合は
+  // 文脈 (通話開始時刻) が失われるため、このセグメントの永続化自体を諦める。
+  const roomStateResult = await room.getState(roomIdResult.data);
+  if (!roomStateResult.ok) {
+    logger.warn("transcript segment persist skipped: room.getState failed", {
+      roomId: event.roomId,
+      errorCode: roomStateResult.error.code,
+    });
+    return;
+  }
+  const roomCreatedAtMs = Date.parse(roomStateResult.data.createdAt);
+  const spokenAtMs = Date.parse(event.spokenAt);
+  const startTimeMs = Math.max(0, spokenAtMs - roomCreatedAtMs);
+
+  // speakerName / languagePair 用の話者プロフィール (best-effort)
+  let speakerName = "Unknown";
+  let sourceLanguage = "unknown";
+  const profileResult = await auth.getProfile(speakerUserIdResult.data);
+  if (profileResult.ok) {
+    speakerName = profileResult.data.displayName ?? profileResult.data.trancallId;
+    sourceLanguage = profileResult.data.nativeLanguage;
+  } else {
+    logger.warn("transcript segment: auth.getProfile failed, using fallback speakerName", {
+      sourceParticipantId: event.sourceParticipantId,
+      errorCode: profileResult.error.code,
+    });
+  }
+
+  // retentionUntil 用のプラン tier (best-effort、失敗時は free=7日にフォールバック)
+  let planTier: PlanTierKey = "free";
+  const subscriptionResult = await billing.getSubscription(speakerUserIdResult.data);
+  if (subscriptionResult.ok) {
+    planTier = subscriptionResult.data.plan.tier;
+  } else {
+    logger.warn("transcript segment: billing.getSubscription failed, defaulting to free-tier retention", {
+      sourceParticipantId: event.sourceParticipantId,
+      errorCode: subscriptionResult.error.code,
+    });
+  }
+  const retentionResult = calcRetentionUntilByPlan(planTier);
+  if (!retentionResult.ok) {
+    logger.warn("transcript segment persist skipped: calcRetentionUntilByPlan failed", {
+      roomId: event.roomId,
+      planTier,
+    });
+    return;
+  }
+
+  // sourceEventId: リクエストの idempotencyKey (UUID) を転用する。Agent 実装は常に
+  // randomUUID() を送るため通常は妥当だが、念のため UUID 形式を検証しフォールバックする。
+  const idempotencyKeyParsed = z.uuid().safeParse(idempotencyKey);
+  const sourceEventId = idempotencyKeyParsed.success ? idempotencyKeyParsed.data : randomUUID();
+
+  const segment: TranscriptSegment = {
+    segmentId: randomUUID(),
+    roomId: roomIdResult.data,
+    participantId: participantIdResult.data,
+    speakerName,
+    originalText: "",
+    translatedText: event.text,
+    languagePair: `${sourceLanguage}-${event.outputLanguage}`,
+    startTimeMs,
+    endTimeMs: startTimeMs,
+    sequenceNo: event.sequenceNo,
+    sourceEventId,
+    agentSessionId: event.agentJobId,
+    retentionUntil: retentionResult.data,
+    createdAt: new Date().toISOString(),
+  };
+
+  const appendResult = await transcript.appendFinalSegment(segment);
+  if (!appendResult.ok) {
+    logger.warn("transcript.appendFinalSegment failed", {
+      roomId: event.roomId,
+      sequenceNo: event.sequenceNo,
+      errorCode: appendResult.error.code,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// #67: translation.session_ended → translation.ended DomainEvent publish
+// ---------------------------------------------------------------------------
+
+/**
+ * #67: session_ended を受信し永続化 (handleAgentEvent 内で updateEnded 済み) した後、
+ * `translation.getUsage(agentJobId)` で確定した TranslationUsage (sessionId 含む) を取得し、
+ * `translation.ended` DomainEvent を EventBus に publish する。
+ *
+ * #46 usage metering (別担当 W2c) がこのイベントを subscribe して billing.recordUsage を呼ぶ想定。
+ */
+async function publishTranslationEndedEvent(
+  event: SessionEndedPayload,
+  deps: { translation: TranslationFacade; eventBus: EventBus },
+): Promise<void> {
+  const { translation, eventBus } = deps;
+
+  const usageResult = await translation.getUsage(event.agentJobId);
+  if (!usageResult.ok) {
+    logger.warn("translation.ended publish skipped: getUsage failed", {
+      agentJobId: event.agentJobId,
+      errorCode: usageResult.error.code,
+    });
+    return;
+  }
+  const usage = usageResult.data;
+
+  const sessionIdResult = brandTranslationSessionId(usage.sessionId);
+  if (!sessionIdResult.success) {
+    logger.warn("translation.ended publish skipped: invalid sessionId", {
+      agentJobId: event.agentJobId,
+      sessionId: usage.sessionId,
+    });
+    return;
+  }
+
+  // #49/#67: TranslationEndedEventSchema.payload.reason は現状 4 値のみ (module-contracts.md
+  // §7.4.2 で契約上は 5 値 (agent_publish_failed 追加) に拡張済みだが実装未同期、
+  // packages/translation 側の対応待ち、本 PR スコープ外)。5 値目は publish を見送る。
+  const { reason } = usage;
+  if (
+    reason !== "participant_left" &&
+    reason !== "agent_shutdown" &&
+    reason !== "openai_fatal_error" &&
+    reason !== "client_requested"
+  ) {
+    logger.warn(
+      "translation.ended publish skipped: reason not yet supported by TranslationEndedEventSchema (packages/translation 契約未同期)",
+      { agentJobId: event.agentJobId, reason },
+    );
+    return;
+  }
+
+  const domainEvent = createTranslationEndedEvent({
+    sessionId: sessionIdResult.data,
+    roomId: usage.roomId,
+    sourceParticipantId: usage.sourceParticipantId,
+    outputLanguage: usage.outputLanguage,
+    durationMs: usage.durationMs,
+    billableSeconds: usage.billableSeconds,
+    startedAt: usage.startedAt,
+    endedAt: usage.endedAt,
+    reason,
+  });
+
+  await eventBus.publish(domainEvent);
+}
+
+// ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
@@ -54,12 +270,15 @@ export function registerAgentRoutes(
   deps: {
     translation: TranslationFacade;
     transcript: TranscriptFacade;
+    auth: AuthFacade;
+    room: RoomFacade;
+    billing: BillingFacade;
     config: Config;
     eventBus: EventBus;
     supabase: SupabaseClient;
   },
 ): void {
-  const { translation, config, eventBus, supabase } = deps;
+  const { translation, transcript, auth, room, billing, config, eventBus, supabase } = deps;
   const hmacPreHandler = createHmacPreHandler(config);
 
   // --------------------------------------------------------------------------
@@ -128,6 +347,12 @@ export function registerAgentRoutes(
                 consecutiveSilenceMs: null,
               },
             });
+          } else {
+            // #67: サイレントドロップにせず warn を出す
+            logger.warn("translation.degraded publish skipped: invalid sessionId", {
+              agentJobId: p.agentJobId,
+              sessionId: p.sessionId,
+            });
           }
         }
       } else if (agentEvent.type === "translation.recovered") {
@@ -150,7 +375,21 @@ export function registerAgentRoutes(
                 timestamp: p.occurredAt,
               },
             });
+          } else {
+            // #67: サイレントドロップにせず warn を出す
+            logger.warn("translation.recovered publish skipped: invalid sessionId", {
+              agentJobId: p.agentJobId,
+              sessionId: p.sessionId,
+            });
           }
+        }
+      } else if (agentEvent.type === "translation.session_ended") {
+        // #67: translation.ended DomainEvent を publish する (#46 usage metering が subscribe)
+        await publishTranslationEndedEvent(agentEvent, { translation, eventBus });
+      } else if (agentEvent.type === "transcript.delta") {
+        // #48: isFinal=true (確定セグメント) のみ DB へ永続化する
+        if (agentEvent.isFinal) {
+          await persistFinalTranscriptSegment(agentEvent, idempotencyKey, { auth, room, billing, transcript });
         }
       }
 

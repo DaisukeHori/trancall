@@ -8,12 +8,15 @@ import { vi } from "vitest";
 import type { AppContainer } from "../../container.js";
 import { createEventBus } from "../../adapters/event-bus.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { UserId, RoomId } from "@trancall/shared-kernel";
+import type { UserId, RoomId, ParticipantId } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 import type { RoomState } from "@trancall/room";
 
 const MOCK_USER_ID = "11111111-1111-4111-8111-111111111111" as UserId;
 const MOCK_ROOM_ID = "22222222-2222-4222-8222-222222222222" as RoomId;
+const MOCK_PARTICIPANT_ID = "33333333-3333-4333-8333-333333333333" as ParticipantId;
+// #43 テスト用: room の参加者ではないユーザー (認可チェックの 403 検証に使う)
+const MOCK_OTHER_USER_ID = "44444444-4444-4444-8444-444444444444" as UserId;
 
 function makeRoomState(): RoomState {
   return {
@@ -23,7 +26,18 @@ function makeRoomState(): RoomState {
     createdBy: MOCK_USER_ID,
     createdAt: new Date().toISOString(),
     endedAt: null,
-    participants: [],
+    // #43: GET /:id・/leave・/token の参加者チェックが通るよう、認証済みユーザー
+    // (MOCK_USER_ID、getUser モックが常にこの id を返す) を host として含める。
+    participants: [
+      {
+        id: MOCK_PARTICIPANT_ID,
+        userId: MOCK_USER_ID,
+        role: "host",
+        isMuted: false,
+        joinedAt: new Date().toISOString(),
+        leftAt: null,
+      },
+    ],
   };
 }
 
@@ -98,6 +112,7 @@ export function createMockContainer(): AppContainer {
   // Billing facade mock
   const billing = {
     getSubscription: vi.fn().mockResolvedValue(ok({
+      // 旧来のフラットフィールド (billing-routes.test.ts 等が参照)
       planTier: "free",
       includedMinutes: 5,
       usedMinutes: 0,
@@ -106,6 +121,15 @@ export function createMockContainer(): AppContainer {
       currentPeriodStart: new Date().toISOString(),
       currentPeriodEnd: new Date().toISOString(),
       cancelAtPeriodEnd: false,
+      // 実際の SubscriptionState (packages/billing/src/schemas.ts) が持つ nested 形。
+      // agent-routes.ts の transcript.delta retention 計算 (#48) が plan.tier を参照する。
+      plan: {
+        tier: "free",
+        includedMinutes: 5,
+        overageRateYen: 0,
+        monthlyPriceYen: 0,
+        transcriptRetentionDays: 7,
+      },
     })),
     canStartCall: vi.fn().mockResolvedValue(ok(true)),
     reserveMinutes: vi.fn().mockResolvedValue(ok(true)),
@@ -242,7 +266,19 @@ export function createMockContainer(): AppContainer {
   // Translation facade mock
   const translation = {
     handleAgentEvent: vi.fn().mockResolvedValue(ok(true)),
-    getUsage: vi.fn().mockResolvedValue(ok({ billableSeconds: 60, durationMs: 60000 })),
+    // #67: TranslationUsage の完全な形 (agent-routes.ts の publishTranslationEndedEvent が
+    // sessionId/roomId/sourceParticipantId/outputLanguage/startedAt/endedAt/reason を使う)
+    getUsage: vi.fn().mockResolvedValue(ok({
+      sessionId: "55555555-5555-4555-8555-555555555555",
+      roomId: MOCK_ROOM_ID,
+      sourceParticipantId: MOCK_PARTICIPANT_ID,
+      outputLanguage: "en",
+      durationMs: 60000,
+      billableSeconds: 60,
+      startedAt: new Date(Date.now() - 60000).toISOString(),
+      endedAt: new Date().toISOString(),
+      reason: "participant_left",
+    })),
     shouldStartSession: vi.fn().mockReturnValue(true),
     validateLiveDelta: vi.fn().mockReturnValue(ok({})),
   };
@@ -271,4 +307,4 @@ export function createMockContainer(): AppContainer {
   } as unknown as AppContainer;
 }
 
-export { MOCK_USER_ID, MOCK_ROOM_ID };
+export { MOCK_USER_ID, MOCK_ROOM_ID, MOCK_PARTICIPANT_ID, MOCK_OTHER_USER_ID };

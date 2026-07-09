@@ -10,6 +10,7 @@ import helmet from "@fastify/helmet";
 import type { AppContainer } from "./container.js";
 import { registerAuthMiddleware } from "./middleware/auth-middleware.js";
 import { registerErrorHandler } from "./middleware/error-handler.js";
+import { registerRawBodyParser } from "./middleware/raw-body-parser.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerContactRoutes } from "./routes/contact-routes.js";
 import { registerRoomRoutes } from "./routes/room-routes.js";
@@ -44,8 +45,12 @@ export async function buildApp(
       "x-trancall-signature",
       "x-trancall-idempotency-key",
       "x-trancall-agent",
+      "x-trancall-timestamp",
     ],
   });
+
+  // #25: JSON リクエストの生ボディ保持 (HMAC 署名検証 / Stripe Webhook 用)
+  registerRawBodyParser(fastify);
 
   // 認証ミドルウェア
   registerAuthMiddleware(fastify, container.supabase);
@@ -66,6 +71,7 @@ export async function buildApp(
     billing: container.billing,
     media: container.media,
     notification: container.notification,
+    auth: container.auth,
   });
   registerBillingRoutes(fastify, { billing: container.billing });
   registerTranscriptRoutes(fastify, { transcript: container.transcript });
@@ -81,6 +87,9 @@ export async function buildApp(
   registerAgentRoutes(fastify, {
     translation: container.translation,
     transcript: container.transcript,
+    auth: container.auth,
+    room: container.room,
+    billing: container.billing,
     config,
     eventBus: container.eventBus,
     supabase: container.supabase,
