@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback } from "react";
 import { Modal, View, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index.js";
 import { useAuthStore, selectIsAuthenticated } from "../stores/auth-store.js";
@@ -11,7 +12,25 @@ import {
 import { getRequiredConsents } from "../api/consent-api.js";
 import { AuthStack } from "./auth-stack.js";
 import { MainTabs } from "./main-tabs.js";
+import { CallStack } from "./call-overlay.js";
 import { ConsentScreen } from "../screens/consent-screen.js";
+import { rootNavigationRef, type RootStackParamList } from "./navigation-ref.js";
+import { usePermissionStore, selectDeniedPermission } from "../stores/permission-store.js";
+import { PermissionRecordAudioScreen } from "../screens/permission-record-audio-screen.js";
+import { PermissionNotificationsScreen } from "../screens/permission-notifications-screen.js";
+import { PermissionManageOwnCallsScreen } from "../screens/permission-manage-own-calls-screen.js";
+
+const RootStack = createNativeStackNavigator<RootStackParamList>();
+
+/**
+ * #30/#68: 認証済みなら MainTabs、未認証なら AuthStack を表示する root screen。
+ * RootStack の "Main" screen の component としてマウントされる (別コンポーネントに
+ * 切り出すことで CallStack を同じ RootStack 内の兄弟 screen として並置できる)。
+ */
+function MainOrAuth() {
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
+  return isAuthenticated ? <MainTabs /> : <AuthStack />;
+}
 
 export function RootNavigator() {
   const { t } = useTranslation();
@@ -20,7 +39,6 @@ export function RootNavigator() {
 
   const restore = useAuthStore((state) => state.restore);
   const isLoading = useAuthStore((state) => state.isLoading);
-  const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const session = useAuthStore((state) => state.session);
 
   const pendingConsent = useConsentStore(selectPendingConsentRedirect);
@@ -65,6 +83,13 @@ export function RootNavigator() {
     clearConsentRedirect();
   }, [clearConsentRedirect]);
 
+  // #32: マイク / 通知 / (Android) MANAGE_OWN_CALLS 権限拒否時のフォールバック画面
+  const deniedPermission = usePermissionStore(selectDeniedPermission);
+  const clearDeniedPermission = usePermissionStore((state) => state.clearDeniedPermission);
+  const handlePermissionCancel = useCallback(() => {
+    clearDeniedPermission();
+  }, [clearDeniedPermission]);
+
   if (isLoading) {
     return (
       <View
@@ -81,8 +106,19 @@ export function RootNavigator() {
     pendingConsent != null && pendingConsent.requiredConsents.length > 0;
 
   return (
-    <NavigationContainer>
-      {isAuthenticated ? <MainTabs /> : <AuthStack />}
+    <NavigationContainer ref={rootNavigationRef}>
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        <RootStack.Screen name="Main" component={MainOrAuth} />
+        {/* #30/#68: 通話フロー (PreCall → Calling / IncomingCall → InCall) は
+            全画面モーダルとして Root Stack の兄弟 screen にマウントする。
+            contact-profile-screen の発信ボタンや VoIP push リスナーから
+            rootNavigationRef.navigate("Call", { screen: ..., params: ... }) で到達する。 */}
+        <RootStack.Screen
+          name="Call"
+          component={CallStack}
+          options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }}
+        />
+      </RootStack.Navigator>
 
       {/* Global Consent Screen Modal — AUTH_CONSENT_* エラー受信時に強制表示 */}
       <Modal
@@ -104,6 +140,23 @@ export function RootNavigator() {
                 : handleConsentCancel
             }
           />
+        ) : null}
+      </Modal>
+
+      {/* #32: 権限拒否フォールバック Modal — connect.ts / 通知起動時要求で拒否された場合に表示 */}
+      <Modal
+        visible={deniedPermission != null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={handlePermissionCancel}
+        accessibilityViewIsModal
+      >
+        {deniedPermission === "microphone" ? (
+          <PermissionRecordAudioScreen onCancel={handlePermissionCancel} />
+        ) : deniedPermission === "notifications" ? (
+          <PermissionNotificationsScreen onCancel={handlePermissionCancel} />
+        ) : deniedPermission === "manage_own_calls" ? (
+          <PermissionManageOwnCallsScreen onCancel={handlePermissionCancel} />
         ) : null}
       </Modal>
     </NavigationContainer>

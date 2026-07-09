@@ -8,6 +8,19 @@
  * tsc の型チェック時は dynamic import で参照しない。
  * 実行時に require() で読み込み、存在しなければエラーを throw。
  */
+import { ensureMicrophonePermission } from "../permissions/index.js";
+
+/**
+ * #32: マイク権限が未許可の場合に throw されるエラー。
+ * 呼び出し側 (in-call-screen.tsx) はこれを catch し、
+ * permission-store 経由で PermissionRecordAudioScreen フォールバックを表示する。
+ */
+export class MicrophonePermissionDeniedError extends Error {
+  constructor() {
+    super("MICROPHONE_PERMISSION_DENIED");
+    this.name = "MicrophonePermissionDeniedError";
+  }
+}
 
 export interface ConnectOptions {
   serverUrl: string;
@@ -65,12 +78,19 @@ function loadLiveKitModule(): LiveKitModuleLike {
  * 呼び出し側で try-catch するか、テスト時はモック差し込みのこと。
  */
 export async function connectToRoom(opts: ConnectOptions): Promise<RoomHandle> {
+  // #32: setMicrophoneEnabled(true) の前に runtime 権限を確認する。
+  // 未許可なら LiveKit へ接続すらしない (token を無駄にしない)。
+  const micGranted = await ensureMicrophonePermission();
+  if (!micGranted) {
+    throw new MicrophonePermissionDeniedError();
+  }
+
   const { Room, RoomEvent } = loadLiveKitModule();
 
   const room = new Room();
   await room.connect(opts.serverUrl, opts.token);
 
-  // Publish local mic track
+  // Publish local mic track (権限は上で確認済み)
   await room.localParticipant.setMicrophoneEnabled(true);
 
   return {

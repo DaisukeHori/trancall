@@ -106,7 +106,8 @@
     "callAgain": "Call Again",
     "backToHome": "Back to Home",
     "incomingCall": "Incoming Call",
-    "translationReady": "Translation ready"
+    "translationReady": "Translation ready",
+    "connectionFailed": "Couldn't connect the call. Check your network and try again."
   },
   "translation": {
     "enabled": "Translation ON",

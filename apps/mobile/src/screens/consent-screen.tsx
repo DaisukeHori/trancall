@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useCallback } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
@@ -124,7 +125,7 @@ function ScopeRow({ view, checked, onToggle }: ScopeRowProps) {
           ]}
         >
           {checked ? (
-            <Text style={[rowStyles.checkmark, { color: c.textOnColor }]}>✓</Text>
+            <Ionicons name="checkmark" size={16} color={c.textOnColor} />
           ) : null}
         </View>
 

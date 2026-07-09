@@ -2,6 +2,7 @@
 // Displays OSS license information from auto-generated licenses.json
 // support-flow.md §9 準拠
 import React, { useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   FlatList,
   Modal,
@@ -250,7 +251,7 @@ function PackageRow({ pkg, onPress }: PackageRowProps) {
           </Text>
         )}
       </View>
-      <Text style={[rowStyles.chevron, { color: c.textTertiary }]}>›</Text>
+      <Ionicons name="chevron-forward" size={18} color={c.textTertiary} />
     </Pressable>
   );
 }
