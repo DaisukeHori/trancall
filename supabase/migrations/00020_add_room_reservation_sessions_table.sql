@@ -30,11 +30,22 @@
 -- 呼ばれるため、ここで削除すると後から届く translation.ended が対応付けを見つけられず
 -- recordUsage がスキップされてしまう。当面は削除せず、将来的にバッチ削除ジョブ等で
 -- 古い行を掃除する運用を想定する (本 PR スコープ外)。
+--
+-- user_id FK は ON DELETE CASCADE とする (確定#7 / #07 リグレッション対応)。
+-- 00019_relax_account_deletion_fk_constraints.sql が退会物理削除時の FK 違反を
+-- 全洗い出しして対処した後、本テーブルが ON DELETE NO ACTION (デフォルト) の
+-- まま追加されたため、supabase/functions/retention-cleanup/index.ts の
+-- auth.admin.deleteUser() が再び FK 違反で失敗するリグレッションを引き起こしていた。
+-- 本テーブルは roomId → (userId, sessionId) の一時的な glue テーブルであり
+-- 退会ユーザーの行を保持する監査/課金上の価値が無いため、他の billing テーブル
+-- (usage_reservations 等、NULL 化ではなく削除方針) と同様に CASCADE で
+-- profiles 削除に追従させる。retention-cleanup 側でも念のため明示 DELETE の
+-- フォールバックを追加している (多層防御)。
 -- =============================================================================
 
 CREATE TABLE trancall_billing.room_reservation_sessions (
   room_id     UUID PRIMARY KEY,
-  user_id     UUID NOT NULL REFERENCES trancall_auth.profiles(user_id),
+  user_id     UUID NOT NULL REFERENCES trancall_auth.profiles(user_id) ON DELETE CASCADE,
   session_id  UUID NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

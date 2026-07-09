@@ -31,9 +31,11 @@
  *            (a) rooms.created_by / participants.user_id /
  *                report_events.reporter_id・reported_id / subscriptions.user_id /
  *                usage_windows.user_id を NULL 化 (00019 migration で NULL 許容化済み)
- *            (b) usage_reservations / transcript_access / external_purchase_tokens の
- *                残存行を DELETE、invite_links.used_by を NULL 化 (フォールバック。
- *                通常は退会リクエスト直後の即時処理で既に空になっている想定)
+ *            (b) usage_reservations / transcript_access / external_purchase_tokens /
+ *                room_reservation_sessions の残存行を DELETE、invite_links.used_by を
+ *                NULL 化 (フォールバック。通常は退会リクエスト直後の即時処理、または
+ *                room_reservation_sessions は 00020 migration の ON DELETE CASCADE で
+ *                既に空になっている想定。多層防御として明示 DELETE も行う)
  *            (c) user_consents.user_id を per-user 決定論的 UUID に anonymize
  *                (00019 migration で FK 制約を削除済みのため実在しない UUID でも成功する)
  *                anonymize: SHA-256(userId + ANONYMIZE_SALT) の先頭 16 バイトを UUID v4 に整形。
@@ -79,6 +81,13 @@ interface DeletionCounts {
     transcript_access_deleted_fallback: number;
     external_purchase_tokens_deleted_fallback: number;
     invite_links_used_by_nulled: number;
+    /**
+     * room_reservation_sessions の DELETE 件数フォールバック
+     * (確定#7 / #07 リグレッション対応。00020 migration の
+     * user_id FK は ON DELETE CASCADE のため通常はここで 0 件になるが、
+     * 多層防御として明示 DELETE も行う)。
+     */
+    room_reservation_sessions_deleted_fallback: number;
   };
 }
 
@@ -155,6 +164,7 @@ async function clearFkBlockingReferences(
     transcript_access_deleted_fallback: 0,
     external_purchase_tokens_deleted_fallback: 0,
     invite_links_used_by_nulled: 0,
+    room_reservation_sessions_deleted_fallback: 0,
   };
 
   // rooms.created_by — NULL 化 (docs/account-deletion.md: rooms は変更なし)
@@ -262,6 +272,22 @@ async function clearFkBlockingReferences(
     stepCounts.external_purchase_tokens_deleted_fallback = count ?? 0;
   }
 
+  // room_reservation_sessions — フォールバック DELETE (確定#7 / #07 リグレッション対応)
+  // 00020 migration の user_id FK は ON DELETE CASCADE のため通常は
+  // profiles 削除 (auth.admin.deleteUser CASCADE) で自動的に消えるが、
+  // 万一 CASCADE 前提が崩れた場合の多層防御として明示 DELETE も行う。
+  {
+    const { count, error } = await supabase
+      .schema("trancall_billing")
+      .from("room_reservation_sessions")
+      .delete({ count: "exact" })
+      .eq("user_id", userId);
+    if (error) {
+      return { ok: false, step: "room_reservation_sessions", message: error.message };
+    }
+    stepCounts.room_reservation_sessions_deleted_fallback = count ?? 0;
+  }
+
   // invite_links.used_by — NULL 化 (このユーザーが他人の招待リンクを使用済みの場合)
   {
     const { count, error } = await supabase
@@ -310,6 +336,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       transcript_access_deleted_fallback: 0,
       external_purchase_tokens_deleted_fallback: 0,
       invite_links_used_by_nulled: 0,
+      room_reservation_sessions_deleted_fallback: 0,
     },
   };
 
@@ -527,6 +554,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           counts.pre_delete_cleanup.external_purchase_tokens_deleted_fallback +=
             c.external_purchase_tokens_deleted_fallback;
           counts.pre_delete_cleanup.invite_links_used_by_nulled += c.invite_links_used_by_nulled;
+          counts.pre_delete_cleanup.room_reservation_sessions_deleted_fallback +=
+            c.room_reservation_sessions_deleted_fallback;
           console.log(`[retention-cleanup] FK references cleared for ${originalUserId}:`, c);
 
           // (b) user_consents.user_id を per-user 決定論的 UUID に anonymize
