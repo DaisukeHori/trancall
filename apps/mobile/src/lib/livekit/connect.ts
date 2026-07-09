@@ -59,6 +59,28 @@ interface LiveKitModuleLike {
   };
 }
 
+/**
+ * LiveKit RoomEvent.DataReceived の実コールバック引数
+ * `(payload: Uint8Array, participant?, kind?, topic?)` を
+ * RoomHandle.subscribeToDataChannel の `(data, topic) => void` シグネチャへ変換する。
+ *
+ * topic は第4引数 (2巡目レビュー確定 finding5)。第3引数 (kind) から誤って
+ * topic を読むと常に undefined になり、topic 一致判定を行う全ハンドラ
+ * (translation-status.ts / subtitles.ts) が常に drop してしまう。
+ *
+ * トップレベルで export し、native module (@livekit/react-native) 抜きに
+ * 引数順の回帰をユニットテストできるようにする。
+ */
+export function createDataReceivedListener(
+  handler: (data: Uint8Array, topic?: string) => void,
+): (data: unknown, participant?: unknown, kind?: unknown, topic?: unknown) => void {
+  return (data, _participant, _kind, topic) => {
+    if (data instanceof Uint8Array) {
+      handler(data, typeof topic === "string" ? topic : undefined);
+    }
+  };
+}
+
 function loadLiveKitModule(): LiveKitModuleLike {
   try {
     const mod = require("@livekit/react-native") as { default?: LiveKitModuleLike } & LiveKitModuleLike; // eslint-disable-line @typescript-eslint/no-require-imports
@@ -107,11 +129,7 @@ export async function connectToRoom(opts: ConnectOptions): Promise<RoomHandle> {
     },
 
     subscribeToDataChannel: (handler) => {
-      const listener = (data: unknown, _participant: unknown, topic: unknown) => {
-        if (data instanceof Uint8Array) {
-          handler(data, typeof topic === "string" ? topic : undefined);
-        }
-      };
+      const listener = createDataReceivedListener(handler);
       room.on(RoomEvent["DataReceived"] ?? "dataReceived", listener);
       return () => {
         room.off(RoomEvent["DataReceived"] ?? "dataReceived", listener);
