@@ -96,6 +96,8 @@ export function InCallScreen({ route, navigation }: Props) {
   const roomHandleRef = useRef<RoomHandle | null>(null);
   // translation.status Data Channel の購読解除関数 (cleanup でリーク防止)
   const dataChannelUnsubscribeRef = useRef<(() => void) | null>(null);
+  // Room 接続完了フラグ — data channel 購読用 effect のトリガー (finding6 対応、下記参照)
+  const [isRoomReady, setIsRoomReady] = useState(false);
 
   const myLanguage = profile?.native_language ?? "ja";
   const langPair = `${callerLanguage.toUpperCase()} → ${myLanguage.toUpperCase()}`;
@@ -130,6 +132,9 @@ export function InCallScreen({ route, navigation }: Props) {
   // (依存追加の是非は native-call-bridge-impl-status.md §H-2 参照)。未インストール環境では
   // connectToRoom が reject し、以下は catch されて lastError に日本語メッセージが設定されるのみで
   // 画面はクラッシュしない。依存追加後は実機ビルドで音声疎通を検証する必要がある。
+  //
+  // データチャンネル購読 (myLanguage 依存) はここでは行わず、下の別 effect に分離している
+  // (finding6 対応、下記参照)。Room 接続自体は token/url が変わらない限り再実行しない。
   useEffect(() => {
     if (livekitUrl == null || livekitUrl.length === 0) {
       console.warn("[InCallScreen] livekitUrl is missing — skipping LiveKit connect");
@@ -145,16 +150,7 @@ export function InCallScreen({ route, navigation }: Props) {
           return;
         }
         roomHandleRef.current = room;
-
-        // translation.status Data Channel (module-contracts.md §3.4 canonical topic) を購読。
-        // degraded/recovered → 翻訳ステータスバッジ、subtitle.delta → ライブ字幕オーバーレイ。
-        // 通話ライフサイクル (この useEffect の join/leave) に紐付けて subscribe/cleanup する。
-        dataChannelUnsubscribeRef.current = subscribeTranslationDataChannel(
-          room,
-          { setDegraded, setRecovered },
-          receivePartialDelta,
-          myLanguage,
-        );
+        setIsRoomReady(true);
       })
       .catch((error: unknown) => {
         console.warn("[InCallScreen] connectToRoom failed", error);
@@ -167,17 +163,40 @@ export function InCallScreen({ route, navigation }: Props) {
 
     return () => {
       cancelled = true;
-      dataChannelUnsubscribeRef.current?.();
-      dataChannelUnsubscribeRef.current = null;
       const room = roomHandleRef.current;
       roomHandleRef.current = null;
       if (room != null) {
         void room.disconnect();
       }
     };
-    // livekitToken/livekitUrl/myLanguage は route.params/profile から接続時点の値を一度だけ読む
+    // livekitToken/livekitUrl は route.params から接続時点の値を一度だけ読む
     // (再接続は行わない)。依存配列は意図的に [] (マウント時に一度だけ実行する)
   }, []);
+
+  // translation.status Data Channel 購読 (module-contracts.md §3.4 canonical topic)。
+  // degraded/recovered → 翻訳ステータスバッジ、subtitle.delta → ライブ字幕オーバーレイ。
+  //
+  // finding6 (2巡目レビュー確定) 対応: myLanguage は profile (useAuthStore) の hydrate 状況に
+  // よって mount 直後は既定値 'ja' のことがある。Room 接続 effect を [] deps のまま (再接続なし)
+  // に保ちつつ、この effect は isRoomReady と myLanguage を deps に持つことで、
+  // profile が後から hydrate されて myLanguage が変わった場合に「一度だけ張った古い言語の
+  // ハンドラ」を張り直し、正しい言語で me/peer 判定できるようにする。
+  useEffect(() => {
+    const room = roomHandleRef.current;
+    if (!isRoomReady || room == null) return;
+
+    dataChannelUnsubscribeRef.current = subscribeTranslationDataChannel(
+      room,
+      { setDegraded, setRecovered },
+      receivePartialDelta,
+      myLanguage,
+    );
+
+    return () => {
+      dataChannelUnsubscribeRef.current?.();
+      dataChannelUnsubscribeRef.current = null;
+    };
+  }, [isRoomReady, myLanguage, setDegraded, setRecovered, receivePartialDelta]);
 
   // Duration ticker
   useEffect(() => {
