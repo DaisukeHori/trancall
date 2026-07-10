@@ -144,7 +144,14 @@ jobs:
             --output maestro-results.xml \
             "$ENV_ARGS"
         env:
-          MAESTRO_DRIVER_STARTUP_TIMEOUT: 60000
+          # PR #75 CI実測: "Maestro driver timed out during snapshot call with: Unable to
+          # perform work on main run loop, process main thread busy for 30.0s" で最初のflow
+          # だけで6分かけて失敗。CI Mac runner上でのDebugビルド(FORCE_BUNDLING=1でHermes
+          # bytecodeを最適化なしで同期embed)初回起動が主犯と推測されるが、Maestro公式
+          # ドキュメントで "main run loop occupied" シナリオへの対処として明示されている
+          # 唯一のレバーが MAESTRO_DRIVER_STARTUP_TIMEOUT (デフォルト15秒) のため、
+          # ドキュメント推奨値の180秒に引き上げる。
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: 180000
 
       - name: Upload Maestro test results
         if: always()
@@ -300,19 +307,26 @@ jobs:
 
       - name: Run Maestro P0 flows (Android Emulator)
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # iOSと同じ理由でCI Mac/Linux runner上でのアプリ初回起動が遅い場合に備え、
+          # デフォルト15秒よりゆとりを持たせる (詳細はiOS job の同名env var コメント参照)。
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: 180000
         with:
           api-level: 33
           target: google_apis
           arch: x86_64
           profile: pixel_6
-          # reactivecircus/android-emulator-runner の `script:` はバックスラッシュ改行継続を
-          # 内部の sh ラッパーが正しく1コマンドとして結合せず、"Flow path does not exist:
-          # .../\" のように末尾に生の "\" が残る形で壊れる (PR #75 CI実測)。曖昧さを排除する
-          # ため1行コマンドにする。
+          # reactivecircus/android-emulator-runner の `script:` は複数行を1つの
+          # シェルセッションとして実行せず、各行を個別の `sh -c` プロセスとして
+          # 実行する (PR #75 CI実測: ログに `[command]/usr/bin/sh -c ENV_ARGS=$(...)`
+          # と `[command]/usr/bin/sh -c eval maestro test ...` が別々の [command] として
+          # 記録され、2行目で $ENV_ARGS が空になり env未解決のまま実行→ハング→30分
+          # タイムアウトになることを確認)。バックスラッシュ改行継続も同様に壊れる
+          # (別途実測済み)。状態を共有する必要のあるコマンド列は `&&` で1行に
+          # 結合し、同一 sh -c プロセス内で完結させる。
           script: |
             adb install -r "$APK_PATH"
-            ENV_ARGS=$(node "$GITHUB_WORKSPACE/apps/mobile/e2e/print-maestro-env-args.js")
-            eval maestro test "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/flows/" --include-tags P0 --config "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/config.yaml" --format junit --output "$GITHUB_WORKSPACE/maestro-results-android.xml" "$ENV_ARGS"
+            ENV_ARGS=$(node "$GITHUB_WORKSPACE/apps/mobile/e2e/print-maestro-env-args.js") && eval maestro test "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/flows/" --include-tags P0 --config "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/config.yaml" --format junit --output "$GITHUB_WORKSPACE/maestro-results-android.xml" "$ENV_ARGS"
 
       - name: Upload Maestro test results
         if: always()
