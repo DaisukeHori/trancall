@@ -134,16 +134,24 @@ jobs:
 
       - name: Run Maestro P0 flows
         run: |
-          maestro test apps/mobile/e2e/maestro/flows/ \
+          # config.yaml の env: はMaestroに適用されない (詳細はconfig.yaml内コメント参照)。
+          # apps/mobile/e2e/maestro/env.json から -e フラグを生成して渡す。
+          ENV_ARGS=$(node apps/mobile/e2e/print-maestro-env-args.js)
+          eval maestro test apps/mobile/e2e/maestro/flows/ \
             --include-tags P0 \
             --config apps/mobile/e2e/maestro/config.yaml \
             --format junit \
-            --output maestro-results.xml
+            --output maestro-results.xml \
+            "$ENV_ARGS"
         env:
           MAESTRO_DRIVER_STARTUP_TIMEOUT: 60000
 
       - name: Upload Maestro test results
         if: always()
+        # スクリーンショットのファイル名はMaestroがフロー名から自動生成し、
+        # コロン等のNTFS非対応文字が紛れ込むとartifactアップロードが失敗しjob全体を
+        # 巻き込む (PR #75 CI実測)。デバッグ用の副次outputなので失敗してもjobを赤くしない。
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: maestro-results-ios
@@ -154,6 +162,7 @@ jobs:
 
       - name: Upload failure screenshots
         if: failure()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: maestro-screenshots-ios-failure
@@ -302,10 +311,15 @@ jobs:
           # ため1行コマンドにする。
           script: |
             adb install -r "$APK_PATH"
-            maestro test "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/flows/" --include-tags P0 --config "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/config.yaml" --format junit --output "$GITHUB_WORKSPACE/maestro-results-android.xml"
+            ENV_ARGS=$(node "$GITHUB_WORKSPACE/apps/mobile/e2e/print-maestro-env-args.js")
+            eval maestro test "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/flows/" --include-tags P0 --config "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/config.yaml" --format junit --output "$GITHUB_WORKSPACE/maestro-results-android.xml" "$ENV_ARGS"
 
       - name: Upload Maestro test results
         if: always()
+        # スクリーンショットのファイル名はMaestroがフロー名から自動生成し、
+        # コロン等のNTFS非対応文字が紛れ込むとartifactアップロードが失敗しjob全体を
+        # 巻き込む (PR #75 CI実測)。デバッグ用の副次outputなので失敗してもjobを赤くしない。
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: maestro-results-android
@@ -316,6 +330,7 @@ jobs:
 
       - name: Upload failure screenshots
         if: failure()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: maestro-screenshots-android-failure

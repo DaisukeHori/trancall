@@ -1,5 +1,5 @@
 appId: tech.hori.trancall
-name: "SCR-006 — Settings screen: sign out"
+name: "SCR-006 — Settings screen - sign out"
 tags: [P0, settings]
 ---
 # NOTE: the original flow also tapped "settings-nativeLanguage-row" and
