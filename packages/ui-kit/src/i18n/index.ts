@@ -70,16 +70,38 @@ function detectDeviceLanguage(): SupportedLanguage {
 }
 
 if (!i18n.isInitialized) {
-  void i18n
-    .use(initReactI18next)
-    .init({
-      resources,
-      lng: detectDeviceLanguage(),
-      fallbackLng: DEFAULT_LANGUAGE,
-      interpolation: {
-        escapeValue: false,
-      },
-    });
+  // PR #75 CI実測: iOS Release+Hermesビルド環境で、この i18next 初期化チェーンが
+  // 同期的に例外をthrowし、try/catchで囲われていなかったためアプリ全体が起動直後に
+  // クラッシュしていた (RCTFatalException / "Registered callable JavaScript modules
+  // (n = 0)")。直前に i18next 自身の pluralResolver が出す "environment seems not to
+  // be Intl API compatible" 警告 (想定内・本来fatalではない) がログに残っていたことから、
+  // Intl 関連処理が絡む可能性が高いと推測している。真の原因箇所を特定するため、
+  // 同期例外・Promise rejection の両方を捕捉し詳細 (message/stack) を必ずログ出力する。
+  // i18n 初期化に失敗してもアプリ全体を落とす理由はない (fallback 文言表示で十分
+  // 継続可能) ため、ここで揉み消してアプリの起動は継続させる。
+  try {
+    i18n
+      .use(initReactI18next)
+      .init({
+        resources,
+        lng: detectDeviceLanguage(),
+        fallbackLng: DEFAULT_LANGUAGE,
+        interpolation: {
+          escapeValue: false,
+        },
+      })
+      .catch((error: unknown) => {
+        console.error(
+          "[i18n] i18next.init() promise rejected",
+          error instanceof Error ? { message: error.message, stack: error.stack } : error,
+        );
+      });
+  } catch (error) {
+    console.error(
+      "[i18n] i18next.use(initReactI18next).init(...) threw synchronously",
+      error instanceof Error ? { message: error.message, stack: error.stack } : error,
+    );
+  }
 }
 
 export { i18n, useTranslation, resources };
