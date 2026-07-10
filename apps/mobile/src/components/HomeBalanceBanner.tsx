@@ -21,10 +21,10 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { useTheme } from "@trancall/ui-kit";
-import { PLAN_CONFIGS } from "@trancall/billing";
-import { useTranslation } from "../i18n/index.js";
-import { useBillingStore } from "../stores/billing-store.js";
-import type { MainTabParamList } from "../navigation/main-tabs.js";
+import { PLAN_CONFIGS } from "@trancall/billing/client";
+import { useTranslation } from "../i18n/index";
+import { useBillingStore } from "../stores/billing-store";
+import type { MainTabParamList } from "../navigation/main-tabs";
 
 // ---------------------------------------------------------------------------
 // 色閾値ロジック (テスト対象)

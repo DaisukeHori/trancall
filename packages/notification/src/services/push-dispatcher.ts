@@ -10,17 +10,17 @@
 import type { Result, AppError, UserId } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { IncomingCallNotification, MissedCallPayload, DeviceTokenRow } from "../schemas.js";
-import type { ApnsAdapter } from "../adapters/apns-adapter.js";
-import type { FcmAdapter } from "../adapters/fcm-adapter.js";
-import type { DeviceTokenRepository } from "../repositories/device-token-repository.js";
-import type { PushLogRepository } from "../repositories/push-log-repository.js";
+import type { IncomingCallNotification, MissedCallPayload, DeviceTokenRow } from "../schemas.ts";
+import type { ApnsAdapter } from "../adapters/apns-adapter.ts";
+import type { FcmAdapter } from "../adapters/fcm-adapter.ts";
+import type { DeviceTokenRepository } from "../repositories/device-token-repository.ts";
+import type { PushLogRepository } from "../repositories/push-log-repository.ts";
 import {
   buildApnsIncomingCallPayload,
   buildApnsMissedCallPayload,
   buildFcmIncomingCallPayload,
   buildFcmMissedCallPayload,
-} from "./payload-builder.js";
+} from "./payload-builder.ts";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;

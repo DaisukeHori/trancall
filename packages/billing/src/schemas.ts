@@ -104,7 +104,13 @@ export type SubscriptionState = z.infer<typeof SubscriptionState>;
 
 export const UsageWindow = z.object({
   id: z.uuid(),
-  userId: UserIdSchema,
+  // nullable 追従 (00019 migration): 契約者が退会し物理削除されると NULL 化される
+  // (docs/account-deletion.md 通り「保持・匿名化」方針、行自体は保持する)。
+  // 旧実装は非 null 前提だったため、apps/server の
+  // usage-repository.supabase.ts#findBySessionId が user_id=NULL の既存行を
+  // safeParse 失敗として黙って読み飛ばしていた (データロス)。nullable 化によって
+  // そのような行も正しく読み出せるようになる。
+  userId: UserIdSchema.nullable(),
   sessionId: TranslationSessionIdSchema,
   roomId: RoomIdSchema,
   windowStart: z.iso.datetime(),
@@ -271,7 +277,12 @@ export type CreateCheckoutSessionCommand = z.infer<
 
 export const SubscriptionRow = z.object({
   id: z.uuid(),
-  user_id: z.uuid(),
+  // nullable 追従 (00019 migration): 契約者が退会し物理削除されると NULL 化される
+  // (課金監査のため行自体は保持する、supabase/functions/retention-cleanup 参照)。
+  // NOTE: trancall_billing.external_purchase_tokens.user_id は同じ 00019 の検討対象に
+  // 含まれたが、そちらは「TTL 切れ後の DELETE フォールバック」方針のため NOT NULL の
+  // まま維持されている (ExternalPurchaseTokenRow.user_id はここでは変更しない)。
+  user_id: z.uuid().nullable(),
   plan_tier: PlanTier,
   included_minutes: z.number().int(),
   overage_rate_yen: z.number().int(),

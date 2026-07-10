@@ -51,10 +51,12 @@ export default tseslint.config(
       // translation-agent の外部 SDK 境界コード
       "**/openai-ws-client.ts",
       "**/translation-session.ts",
-      // mobile: native SDK 境界ラッパー (LiveKit RN / CallKit / VoIP Push)
+      // mobile: native SDK 境界ラッパー (LiveKit RN / CallKit / VoIP Push / IAP・StoreKit External Purchase)
       "**/lib/livekit/connect.ts",
       "**/lib/callkit/index.ts",
       "**/lib/callkit/voip-push.ts",
+      "**/lib/billing/iap-storekit.ts",
+      "**/lib/billing/external-purchase.ts",
     ],
     rules: {
       "@typescript-eslint/consistent-type-assertions": [

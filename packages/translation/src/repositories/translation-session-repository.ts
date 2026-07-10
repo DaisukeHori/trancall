@@ -7,7 +7,7 @@
 
 import type { Result } from "@trancall/shared-kernel";
 
-import type { TranslationSessionRecord } from "../schemas.js";
+import type { TranslationSessionRecord } from "../schemas.ts";
 
 export interface TranslationSessionRepository {
   /**

@@ -16,6 +16,14 @@
  * T3: captureToAgent 計測点を pipeAudioTrack に追加 (reader.read() 直後にタイムスタンプ採取)
  * T5: agentPublish 計測点を translated-audio ハンドラに追加 (captureFrame 前後)
  * T8: publish 失敗カウンタ管理 (連続 3 回で session.end("agent_publish_failed"))
+ *
+ * #51: Data Channel の topic を module-contracts.md §3.4 の canonical (`translation.status`) に
+ * 明示統一。subtitle.delta / translation.degraded / translation.recovered の 3 種を
+ * 同一 topic 上の discriminated union (TranslationStatusChannelPayloadSchema) として送信する。
+ * 訂正 (2026-07 敵対的レビュー確定#6): 送信側 (本ファイル) の実装・topic 名は完了しているが、
+ * apps/mobile 側の受信 consumer (`apps/mobile/src/lib/livekit/translation-status.ts` で
+ * 同 topic・同 schema を受信し画面表示に配線する部分) は未着手・未配線。
+ * mobile 側の字幕表示配線は別 Wave (#51 の続き) で対応する。
  */
 
 import type { JobContext, JobProcess } from "@livekit/agents";
@@ -29,11 +37,18 @@ import {
   TrackKind,
   TrackPublishOptions,
 } from "@livekit/rtc-node";
+import type { LocalParticipant } from "@livekit/rtc-node";
 
 import { OutputLanguage } from "@trancall/shared-kernel";
 
+// #51: Data Channel の topic (module-contracts.md §3.4 canonical、apps/mobile 側の
+// TRANSLATION_STATUS_CHANNEL_TOPIC (apps/mobile/src/lib/livekit/translation-status.ts) と一致させる)。
+// @trancall/translation の直接 import は禁止のため、payload 型はここで手動ミラーする
+// (T-14 の既存方針を踏襲)。export してテストから topic 一致を検証できるようにする。
+export const TRANSLATION_STATUS_CHANNEL_TOPIC = "translation.status";
+
 // T-14: Data Channel payload 型（module-contracts.md §3.4 に準拠）
-interface DegradedChannelPayload {
+export interface DegradedChannelPayload {
   type: "translation.degraded";
   sessionId: string;
   sourceLang: string;
@@ -42,13 +57,59 @@ interface DegradedChannelPayload {
   timestamp: string;
 }
 
-interface RecoveredChannelPayload {
+export interface RecoveredChannelPayload {
   type: "translation.recovered";
   sessionId: string;
   sourceLang: string;
   targetLang: string;
   degradedDurationMs: number;
   timestamp: string;
+}
+
+// #51: subtitle.delta Data Channel payload 型（module-contracts.md §3.4 /
+// packages/translation/src/schemas.ts の TranslationStatusChannelPayloadSchema と一致させる）
+export interface SubtitleDeltaChannelPayload {
+  type: "subtitle.delta";
+  sessionId: string;
+  sourceLang: string;
+  targetLang: string;
+  text: string;
+  elapsedMs: number;
+  isFinal: boolean;
+  timestamp: string;
+}
+
+export type TranslationStatusChannelPayload =
+  | DegradedChannelPayload
+  | RecoveredChannelPayload
+  | SubtitleDeltaChannelPayload;
+
+/**
+ * #51: translation.status Data Channel へ payload を publish する共通ヘルパー。
+ * RELIABLE モード + topic 明示で送信し、失敗は warn ログのみ（best-effort、通話は継続）。
+ * export してテストから直接呼び出せるようにする (JobContext は private field を持つ実クラスのため
+ * entry() 全体のユニットテストは困難、この関数単体を切り出してテスト可能にする)。
+ */
+export function publishStatusChannelData(
+  localParticipant: LocalParticipant | undefined,
+  payload: TranslationStatusChannelPayload,
+  logger: Logger,
+  logContext: Record<string, unknown>,
+): void {
+  if (!localParticipant) return;
+  const data = Buffer.from(JSON.stringify(payload));
+  void localParticipant
+    .publishData(new Uint8Array(data), {
+      reliable: true,
+      topic: TRANSLATION_STATUS_CHANNEL_TOPIC,
+    })
+    .catch((e: unknown) => {
+      logger.warn("Agent: translation.status Data Channel publish 失敗", {
+        ...logContext,
+        payloadType: payload.type,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    });
 }
 
 import { type Config } from "./config.js";
@@ -100,6 +161,20 @@ function shouldStartSession(
   targetLang: OutputLanguage,
 ): boolean {
   return sourceLang !== targetLang;
+}
+
+// --- resolveParticipantId (#50) ---
+
+/**
+ * #50: Server (Internal API) に送る participantId を解決する。
+ * Server は participantId に UUID を要求する (packages/room 等で UserIdSchema/ParticipantIdSchema
+ * により UUID バリデーションされる)。LiveKit の participant.identity は
+ * media/adapters/livekit.ts の AccessToken 発行時に profile.userId (UUID) を設定しているため
+ * 常に identity を使う。participant.sid は LiveKit 内部 SID (非UUID、例: "PA_xxxxx") であり
+ * Server 側の UUID バリデーションに失敗するため参照しない。
+ */
+export function resolveParticipantId(participantIdentity: string): string {
+  return participantIdentity;
 }
 
 // --- defineAgent ---
@@ -221,30 +296,23 @@ export default defineAgent({
         sessions.delete(key);
       });
 
-      // T-14: degraded/recovered イベント購読 → LiveKit Data Channel publish
-      // module-contracts.md §3.4 に準拠した payload を RELIABLE モードで送信する
+      // T-14/#51: degraded/recovered イベント購読 → LiveKit Data Channel publish
+      // module-contracts.md §3.4 に準拠した payload を translation.status topic に RELIABLE モードで送信する
       session.on("degraded", (reason: string) => {
         const meta = session.getDegradedChannelMeta();
+        const degradedReason: DegradedChannelPayload["reason"] =
+          reason === "high_latency" || reason === "output_silence"
+            ? reason
+            : "openai_ws_reconnecting";
         const payload: DegradedChannelPayload = {
           type: "translation.degraded",
           sessionId: meta.sessionId,
           sourceLang: meta.sourceLang,
           targetLang: meta.targetLang,
-          reason: reason as DegradedChannelPayload["reason"],
+          reason: degradedReason,
           timestamp: new Date().toISOString(),
         };
-        const data = Buffer.from(JSON.stringify(payload));
-        const localParticipant = ctx.room.localParticipant;
-        if (localParticipant) {
-          void localParticipant.publishData(new Uint8Array(data), { reliable: true }).catch(
-            (e: unknown) => {
-              logger.warn("Agent: degraded Data Channel publish 失敗", {
-                key,
-                error: e instanceof Error ? e.message : String(e),
-              });
-            },
-          );
-        }
+        publishStatusChannelData(ctx.room.localParticipant, payload, logger, { key });
         logger.info("Agent: degraded Data Channel publish", { key, reason });
       });
 
@@ -261,19 +329,28 @@ export default defineAgent({
           degradedDurationMs: 0,
           timestamp: new Date().toISOString(),
         };
-        const data = Buffer.from(JSON.stringify(payload));
-        const localParticipant = ctx.room.localParticipant;
-        if (localParticipant) {
-          void localParticipant.publishData(new Uint8Array(data), { reliable: true }).catch(
-            (e: unknown) => {
-              logger.warn("Agent: recovered Data Channel publish 失敗", {
-                key,
-                error: e instanceof Error ? e.message : String(e),
-              });
-            },
-          );
-        }
+        publishStatusChannelData(ctx.room.localParticipant, payload, logger, { key });
         logger.info("Agent: recovered Data Channel publish", { key });
+      });
+
+      // #51: transcript イベント購読 → subtitle.delta Data Channel publish
+      // module-contracts.md §3.4 の subtitle.delta として translation.status topic に送信する
+      // (isFinal=false/true 両方を送信)。
+      // 訂正 (確定#6): mobile 側の受信・字幕表示への配線は本ファイルの責務範囲外であり、
+      // 現時点では未配線 (apps/mobile 側の consumer 実装は #51 の続きとして別 Wave で対応)。
+      session.on("transcript", (text: string, isFinal: boolean, elapsedMs: number) => {
+        const meta = session.getDegradedChannelMeta();
+        const payload: SubtitleDeltaChannelPayload = {
+          type: "subtitle.delta",
+          sessionId: meta.sessionId,
+          sourceLang: meta.sourceLang,
+          targetLang: meta.targetLang,
+          text,
+          elapsedMs,
+          isFinal,
+          timestamp: new Date().toISOString(),
+        };
+        publishStatusChannelData(ctx.room.localParticipant, payload, logger, { key });
       });
 
       await session.start();
@@ -419,7 +496,7 @@ export default defineAgent({
       participantLanguages.set(participantIdentity, sourceLang);
 
       // 他の全 Participant に対してセッションを開始
-      for (const [otherIdentity, otherParticipant] of ctx.room.remoteParticipants.entries()) {
+      for (const otherIdentity of ctx.room.remoteParticipants.keys()) {
         if (otherIdentity === participantIdentity) continue;
 
         const otherLangResult = participantLanguages.get(otherIdentity);
@@ -428,8 +505,9 @@ export default defineAgent({
           continue;
         }
 
-        const sourceParticipantId = participantSid ?? participantIdentity;
-        const targetParticipantId = otherParticipant.sid ?? otherIdentity;
+        // #50: participantSid (LiveKit 内部 SID) ではなく participantIdentity (UUID) を使う
+        const sourceParticipantId = resolveParticipantId(participantIdentity);
+        const targetParticipantId = resolveParticipantId(otherIdentity);
 
         // 新参加者が話す音声を他の参加者の言語に翻訳するセッション
         void startSession(

@@ -11,12 +11,12 @@ import {
   View,
 } from "react-native";
 import { ContactRow, Input, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useContactsStore } from "../stores/contacts-store.js";
-import { EmptyState } from "../components/empty-state.js";
+import { useTranslation } from "../i18n/index";
+import { useContactsStore } from "../stores/contacts-store";
+import { EmptyState } from "../components/empty-state";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { ContactsStackParamList } from "../navigation/contacts-stack.js";
-import type { ContactEntry } from "../api/contacts-api.js";
+import type { ContactsStackParamList } from "../navigation/contacts-stack";
+import type { ContactEntry } from "../api/contacts-api";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "ContactsMain">;
 
@@ -109,6 +109,7 @@ function SwipeableContactRow({
           }}
         >
           <ContactRow
+            testID={`contact-row-${item.trancallId}`}
             name={item.displayName}
             trancallId={item.trancallId}
             {...(item.avatarUrl != null ? { avatarUri: item.avatarUrl } : {})}
@@ -198,6 +199,7 @@ export function ContactsScreen({ navigation }: Props) {
             {t("contacts.title")}
           </Text>
           <Pressable
+            testID="add-contact-button"
             accessibilityLabel={t("contacts.addContact")}
             accessibilityRole="button"
             onPress={() => { navigation.navigate("AddContact"); }}

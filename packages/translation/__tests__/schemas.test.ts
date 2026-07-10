@@ -7,12 +7,116 @@ import {
   TranslationDegradedEventSchema,
   TranslationRecoveredEventSchema,
   TranslationStatusChannelPayloadSchema,
+  SessionEndedPayloadSchema,
+  TranslationSessionEndedReasonSchema,
+  TranslationSessionRecordSchema,
+  TranslationUsageSchema,
 } from "../src/schemas.js";
 
 const agentJobId = "00000000-0000-4000-8000-000000000011";
 const roomId = "00000000-0000-4000-8000-000000000012";
 const sessionId = "00000000-0000-4000-8000-000000000015";
 const occurredAt = "2026-05-12T00:00:00.000Z";
+
+// =============================================================================
+// #49: TranslationSessionEndedReasonSchema / SessionEndedPayloadSchema
+//
+// apps/translation-agent/src/internal-api-client.ts の TranslationSessionEndedSchema.reason
+// (module-contracts.md §7.4.2) と 5 値で同期していることを検証する。
+// この非同期により session_ended が 400 になり課金セッションが閉じない問題があった。
+// =============================================================================
+
+describe("#49: TranslationSessionEndedReasonSchema (reason enum 5値)", () => {
+  const validReasons = [
+    "participant_left",
+    "agent_shutdown",
+    "openai_fatal_error",
+    "client_requested",
+    "agent_publish_failed",
+  ] as const;
+
+  it.each(validReasons)("reason=%s を受理する", (reason) => {
+    const result = TranslationSessionEndedReasonSchema.safeParse(reason);
+    expect(result.success).toBe(true);
+  });
+
+  it("未知の reason はバリデーションエラー", () => {
+    const result = TranslationSessionEndedReasonSchema.safeParse("unknown_reason");
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("#49: SessionEndedPayloadSchema (Agent → Server /internal/agent/events)", () => {
+  const basePayload = {
+    type: "translation.session_ended" as const,
+    agentJobId,
+    roomId,
+    sourceParticipantId: "00000000-0000-4000-8000-000000000013",
+    outputLanguage: "en",
+    endedAt: occurredAt,
+    durationMs: 60000,
+    billableSeconds: 60,
+  };
+
+  it("reason=agent_publish_failed でパース成功する (5値目、Agent 側と同期済み)", () => {
+    const result = SessionEndedPayloadSchema.safeParse({
+      ...basePayload,
+      reason: "agent_publish_failed",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("reason=participant_left など既存 4 値でも引き続きパース成功する", () => {
+    const result = SessionEndedPayloadSchema.safeParse({
+      ...basePayload,
+      reason: "participant_left",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("不正な reason ではパース失敗する", () => {
+    const result = SessionEndedPayloadSchema.safeParse({
+      ...basePayload,
+      reason: "bad_reason",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("#49: TranslationSessionRecordSchema / TranslationUsageSchema も reason=agent_publish_failed を受理する", () => {
+  it("TranslationSessionRecordSchema", () => {
+    const result = TranslationSessionRecordSchema.safeParse({
+      id: "00000000-0000-4000-8000-000000000021",
+      agentJobId,
+      roomId,
+      sourceParticipantId: "00000000-0000-4000-8000-000000000013",
+      targetParticipantId: "00000000-0000-4000-8000-000000000014",
+      outputLanguage: "en",
+      startedAt: occurredAt,
+      endedAt: occurredAt,
+      durationMs: 60000,
+      billableSeconds: 60,
+      reason: "agent_publish_failed",
+      createdAt: occurredAt,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("TranslationUsageSchema", () => {
+    const result = TranslationUsageSchema.safeParse({
+      sessionId: "00000000-0000-4000-8000-000000000021",
+      roomId,
+      sourceParticipantId: "00000000-0000-4000-8000-000000000013",
+      outputLanguage: "en",
+      durationMs: 60000,
+      billableSeconds: 60,
+      startedAt: occurredAt,
+      endedAt: occurredAt,
+      reason: "agent_publish_failed",
+    });
+    expect(result.success).toBe(true);
+  });
+});
 
 // =============================================================================
 // TranslationDegradedPayloadSchema

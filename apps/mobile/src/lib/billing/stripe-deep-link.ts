@@ -11,7 +11,7 @@
  */
 
 import { z } from "zod";
-import { StoreKitExternalRedirectResultSchema } from "@trancall/billing";
+import { StoreKitExternalRedirectResultSchema } from "@trancall/billing/client";
 
 // =============================================================================
 // Deep link URL スキーム定数
@@ -84,7 +84,9 @@ export async function handleStripeDeepLink(
   }
 
   const rest = url.slice(DEEP_LINK_PREFIX.length);
-  const [path, queryString] = rest.split("?") as [string, string | undefined];
+  const restParts = rest.split("?");
+  const path = restParts[0] ?? "";
+  const queryString = restParts[1];
 
   const params = parseQueryString(queryString ?? "");
 

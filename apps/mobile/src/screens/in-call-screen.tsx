@@ -11,6 +11,7 @@
  * 翻訳 stopped → danger Badge + 原音 fallback
  */
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   AccessibilityInfo,
   Animated,
@@ -21,16 +22,19 @@ import {
   View,
 } from "react-native";
 import { Avatar, Badge, useTheme, callTokens } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useCallStore } from "../stores/call-store.js";
-import { useSubtitleStore } from "../stores/subtitle-store.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import { useTranslationStatusStore } from "../stores/translation-status-store.js";
-import { SubtitleOverlayLive } from "../components/subtitle-overlay-live.js";
-import { endCall as apiEndCall } from "../api/room-api.js";
-import { getCallKeep } from "../lib/callkit/index.js";
+import { useTranslation } from "../i18n/index";
+import { useCallStore } from "../stores/call-store";
+import { useSubtitleStore } from "../stores/subtitle-store";
+import { useAuthStore } from "../stores/auth-store";
+import { useTranslationStatusStore } from "../stores/translation-status-store";
+import { SubtitleOverlayLive } from "../components/subtitle-overlay-live";
+import { endCall as apiEndCall } from "../api/room-api";
+import { getCallKeep } from "../lib/callkit/index";
+import { connectToRoom, MicrophonePermissionDeniedError, type RoomHandle } from "../lib/livekit/connect";
+import { subscribeTranslationDataChannel } from "../lib/livekit/data-channel-subscription";
+import { usePermissionStore } from "../stores/permission-store";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { CallStackParamList } from "../navigation/call-overlay.js";
+import type { CallStackParamList } from "../navigation/call-overlay";
 
 type Props = NativeStackScreenProps<CallStackParamList, "InCall">;
 
@@ -48,8 +52,8 @@ export function InCallScreen({ route, navigation }: Props) {
     callerName,
     callerLanguage,
     callerAvatarUri,
-    livekitToken: _livekitToken,
-    livekitUrl: _livekitUrl,
+    livekitToken,
+    livekitUrl,
     translationEnabled: initialTranslationEnabled,
     callUuid,
   } = route.params;
@@ -65,6 +69,8 @@ export function InCallScreen({ route, navigation }: Props) {
   const degradedReason = useTranslationStatusStore((state) => state.degradedReason);
   const justRecovered = useTranslationStatusStore((state) => state.justRecovered);
   const clearJustRecovered = useTranslationStatusStore((state) => state.clearJustRecovered);
+  const setDegraded = useTranslationStatusStore((state) => state.setDegraded);
+  const setRecovered = useTranslationStatusStore((state) => state.setRecovered);
 
   const callState = useCallStore((state) => state.state);
   const isMuted = useCallStore((state) => state.isMuted);
@@ -79,8 +85,19 @@ export function InCallScreen({ route, navigation }: Props) {
   const toggleTranslationAction = useCallStore((state) => state.toggleTranslation);
   const endCallAction = useCallStore((state) => state.endCall);
   const tickDuration = useCallStore((state) => state.tickDuration);
-  const setTranslationStatus = useCallStore((state) => state.setTranslationStatus);
+  const setCallError = useCallStore((state) => state.setError);
   const resetSubtitles = useSubtitleStore((state) => state.reset);
+  const receivePartialDelta = useSubtitleStore((state) => state.receivePartialDelta);
+  const setDeniedPermission = usePermissionStore((state) => state.setDeniedPermission);
+
+  // LiveKit RoomHandle — @livekit/react-native が未インストールの環境
+  // (Expo Go / このリポジトリの現状) では connectToRoom が reject し、
+  // roomHandleRef は null のままになる (device-verification-required)。
+  const roomHandleRef = useRef<RoomHandle | null>(null);
+  // translation.status Data Channel の購読解除関数 (cleanup でリーク防止)
+  const dataChannelUnsubscribeRef = useRef<(() => void) | null>(null);
+  // Room 接続完了フラグ — data channel 購読用 effect のトリガー (finding6 対応、下記参照)
+  const [isRoomReady, setIsRoomReady] = useState(false);
 
   const myLanguage = profile?.native_language ?? "ja";
   const langPair = `${callerLanguage.toUpperCase()} → ${myLanguage.toUpperCase()}`;
@@ -93,9 +110,9 @@ export function InCallScreen({ route, navigation }: Props) {
   const reconnectPulse = useRef(new Animated.Value(1)).current;
   const reconnectLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // Cost estimate (placeholder)
+  // Cost estimate (placeholder — 実際の billing store 結線は Phase 2 で対応予定)
   const remainingMin = 60;
-  const plan = "Free";
+  const plan = t("billing.plans.free.label");
 
   // Set active on mount — intentional empty deps (run once on mount only)
   useEffect(() => {
@@ -108,6 +125,78 @@ export function InCallScreen({ route, navigation }: Props) {
       resetSubtitles();
     };
   }, []);
+
+  // LiveKit Room 接続 — connect.ts (native-call-bridge.md §3.2.2 step 8: JS 側で room.connect)
+  //
+  // ⚠️ device-verification-required: `@livekit/react-native` は本リポジトリに未インストール
+  // (依存追加の是非は native-call-bridge-impl-status.md §H-2 参照)。未インストール環境では
+  // connectToRoom が reject し、以下は catch されて lastError に日本語メッセージが設定されるのみで
+  // 画面はクラッシュしない。依存追加後は実機ビルドで音声疎通を検証する必要がある。
+  //
+  // データチャンネル購読 (myLanguage 依存) はここでは行わず、下の別 effect に分離している
+  // (finding6 対応、下記参照)。Room 接続自体は token/url が変わらない限り再実行しない。
+  useEffect(() => {
+    if (livekitUrl == null || livekitUrl.length === 0) {
+      console.warn("[InCallScreen] livekitUrl is missing — skipping LiveKit connect");
+      return;
+    }
+
+    let cancelled = false;
+
+    void connectToRoom({ serverUrl: livekitUrl, token: livekitToken })
+      .then((room) => {
+        if (cancelled) {
+          void room.disconnect();
+          return;
+        }
+        roomHandleRef.current = room;
+        setIsRoomReady(true);
+      })
+      .catch((error: unknown) => {
+        console.warn("[InCallScreen] connectToRoom failed", error);
+        if (error instanceof MicrophonePermissionDeniedError) {
+          setDeniedPermission("microphone");
+          return;
+        }
+        setCallError(t("call.connectionFailed"));
+      });
+
+    return () => {
+      cancelled = true;
+      const room = roomHandleRef.current;
+      roomHandleRef.current = null;
+      if (room != null) {
+        void room.disconnect();
+      }
+    };
+    // livekitToken/livekitUrl は route.params から接続時点の値を一度だけ読む
+    // (再接続は行わない)。依存配列は意図的に [] (マウント時に一度だけ実行する)
+  }, []);
+
+  // translation.status Data Channel 購読 (module-contracts.md §3.4 canonical topic)。
+  // degraded/recovered → 翻訳ステータスバッジ、subtitle.delta → ライブ字幕オーバーレイ。
+  //
+  // finding6 (2巡目レビュー確定) 対応: myLanguage は profile (useAuthStore) の hydrate 状況に
+  // よって mount 直後は既定値 'ja' のことがある。Room 接続 effect を [] deps のまま (再接続なし)
+  // に保ちつつ、この effect は isRoomReady と myLanguage を deps に持つことで、
+  // profile が後から hydrate されて myLanguage が変わった場合に「一度だけ張った古い言語の
+  // ハンドラ」を張り直し、正しい言語で me/peer 判定できるようにする。
+  useEffect(() => {
+    const room = roomHandleRef.current;
+    if (!isRoomReady || room == null) return;
+
+    dataChannelUnsubscribeRef.current = subscribeTranslationDataChannel(
+      room,
+      { setDegraded, setRecovered },
+      receivePartialDelta,
+      myLanguage,
+    );
+
+    return () => {
+      dataChannelUnsubscribeRef.current?.();
+      dataChannelUnsubscribeRef.current = null;
+    };
+  }, [isRoomReady, myLanguage, setDegraded, setRecovered, receivePartialDelta]);
 
   // Duration ticker
   useEffect(() => {
@@ -160,12 +249,6 @@ export function InCallScreen({ route, navigation }: Props) {
     };
   }, [translationStatus, prevStatus, statusOpacity, reconnectPulse, t]);
 
-  // Simulate translation status from LiveKit Data Channel
-  // Real integration: connect.ts subscribeToDataChannel → translation events
-  useEffect(() => {
-    setTranslationStatus("translating");
-  }, [setTranslationStatus]);
-
   // recovered バッジを 3 秒後に消去するタイマー
   useEffect(() => {
     if (!justRecovered) return;
@@ -209,9 +292,25 @@ export function InCallScreen({ route, navigation }: Props) {
     }
   };
 
+  const handleToggleMute = useCallback(() => {
+    const nextMuted = !isMuted;
+    toggleMuteAction();
+    roomHandleRef.current?.setMicrophoneMuted(nextMuted).catch((error: unknown) => {
+      console.warn("[InCallScreen] setMicrophoneMuted failed", error);
+    });
+  }, [isMuted, toggleMuteAction]);
+
   const handleEndCall = useCallback(async () => {
     if (callUuid != null) {
       getCallKeep().endCall(callUuid);
+    }
+
+    const room = roomHandleRef.current;
+    roomHandleRef.current = null;
+    if (room != null) {
+      await room.disconnect().catch((error: unknown) => {
+        console.warn("[InCallScreen] room.disconnect failed", error);
+      });
     }
 
     endCallAction();
@@ -295,7 +394,8 @@ export function InCallScreen({ route, navigation }: Props) {
         {/* Mute */}
         <View style={styles.controlItem}>
           <Pressable
-            onPress={toggleMuteAction}
+            testID="call-mute-button"
+            onPress={handleToggleMute}
             accessibilityLabel={isMuted ? t("call.unmute") : t("call.mute")}
             accessibilityRole="button"
             accessibilityState={{ selected: isMuted }}
@@ -323,6 +423,7 @@ export function InCallScreen({ route, navigation }: Props) {
         {/* End call — center, 56×56 */}
         <View style={styles.controlItem}>
           <Pressable
+            testID="call-end-button"
             onPress={() => { void handleEndCall(); }}
             accessibilityLabel={t("call.endCall")}
             accessibilityRole="button"
@@ -336,7 +437,7 @@ export function InCallScreen({ route, navigation }: Props) {
               },
             ]}
           >
-            <Text style={[styles.endCallIcon, { color: c.subtitleText }]}>X</Text>
+            <Ionicons name="close" size={24} color={c.subtitleText} />
           </Pressable>
           <Text style={[styles.controlLabel, { color: c.textSecondary }]}>
             {t("call.endCall")}
@@ -374,6 +475,7 @@ export function InCallScreen({ route, navigation }: Props) {
         {/* Translation toggle */}
         <View style={styles.controlItem}>
           <Pressable
+            testID="translation-toggle"
             onPress={toggleTranslationAction}
             accessibilityLabel={
               translationEnabled ? t("translation.disabled") : t("translation.enabled")

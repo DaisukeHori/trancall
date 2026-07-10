@@ -15,15 +15,15 @@ import {
   err,
 } from "@trancall/shared-kernel";
 
-import type { SubscriptionState } from "../schemas.js";
-import { PLAN_CONFIGS } from "../schemas.js";
-import type { SubscriptionRepository } from "../repositories/subscription-repository.js";
-import type { UsageRepository } from "../repositories/usage-repository.js";
-import type { ReservationRepository } from "../repositories/reservation-repository.js";
+import type { SubscriptionState } from "../schemas.ts";
+import { PLAN_CONFIGS } from "../schemas.ts";
+import type { SubscriptionRepository } from "../repositories/subscription-repository.ts";
+import type { UsageRepository } from "../repositories/usage-repository.ts";
+import type { ReservationRepository } from "../repositories/reservation-repository.ts";
 import {
   calcUsedMinutes,
   calcRemainingMinutes,
-} from "./plan-calculator.js";
+} from "./plan-calculator.ts";
 
 export interface ReservationServiceDeps {
   subscriptionRepo: SubscriptionRepository;

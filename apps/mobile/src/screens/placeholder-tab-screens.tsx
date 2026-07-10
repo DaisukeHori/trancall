@@ -2,7 +2,7 @@
 import React from "react";
 import { SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
+import { useTranslation } from "../i18n/index";
 
 function PlaceholderScreen({ title }: { readonly title: string }) {
   const theme = useTheme();

@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import type { OutputLanguage } from "@trancall/shared-kernel";
-import { useTheme } from "../theme/index.js";
+import { useTheme } from "../theme/index.ts";
 
 export interface LanguageInfo {
   code: OutputLanguage;

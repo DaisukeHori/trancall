@@ -3,45 +3,17 @@ tags:
   - P0
   - P1
   - P2
-env:
-  API_BASE_URL: http://localhost:4010
-  E2E_USER_A_EMAIL: e2e_user_a@trancall.dev
-  E2E_USER_A_PASSWORD: E2ePassword!1
-  E2E_USER_B_EMAIL: e2e_user_b@trancall.dev
-  E2E_USER_B_PASSWORD: E2ePassword!2
-  E2E_PEER_TRANCALL_ID: "@e2e_user_b"
-  T_common_next: "Next"
-  T_common_done: "Done"
-  T_common_cancel: "Cancel"
-  T_common_delete: "Delete"
-  T_onboarding_poweredBy: "GPT-Realtime-Translate: 13 output languages"
-  T_auth_signIn: "Sign In"
-  T_auth_signUp: "Create Account"
-  T_auth_email: "Email"
-  T_auth_consent_checkboxLabel: "Agree to Terms of Service and Privacy Policy"
-  T_contacts_swipeDelete: "Delete"
-  T_contacts_allContacts: "All Contacts"
-  T_addContact_search_addButton: "Add"
-  T_addContact_search_placeholder: "TranCall ID or name..."
-  T_contactProfile_call: "Call"
-  T_precall_title: "Call Setup"
-  T_precall_remainingMinutes: "min remaining"
-  T_translation_enabled: "Translation ON"
-  T_translation_disabled: "Translation OFF"
-  T_call_startCall: "Start Call"
-  T_call_calling: "Calling..."
-  T_call_inCall: "In Call"
-  T_call_endCall: "End Call"
-  T_call_mute: "Mute"
-  T_call_incomingCall: "Incoming Call"
-  T_call_accept: "Accept"
-  T_call_decline: "Decline"
-  T_callSummary_viewTranscript: "View transcript"
-  T_transcript_exportPdf: "PDF"
-  T_permissions_microphoneTitle: "Microphone Access"
-  T_permissions_notificationTitle: "Notification Permission"
-  T_consent_agree: "Agree and Continue"
-  T_home_recentCalls: "Recent Calls"
-  T_settings_title: "Settings"
-  T_settings_danger_signOut: "Sign Out"
-  T_billing_upgradeToContinue: "Upgrade your plan to continue translation?"
+# 【重要】ここに env: ブロックを書いても Maestro には適用されない。
+# Maestro のワークスペース設定ファイル (config.yaml) はトップレベルの `env:` を
+# サポートしていない (公式リファレンス https://docs.maestro.dev/reference/workspace-configuration
+# に env プロパティの記載なし、実測でも全P0フローが `${T_xxx}` を解決できず
+# "Element not found: Text matching regex: undefined" で 8/8 失敗することを
+# PR #75 CI で確認済み)。実際に変数を全フローへ適用する唯一の公式手段は
+# `maestro test` の `-e KEY=VALUE` フラグ (--env の繰り返し指定) のみ。
+#
+# 変数の正本は apps/mobile/e2e/maestro/env.json。
+# `-e` 引数列は apps/mobile/e2e/print-maestro-env-args.js で生成する
+# (.github/workflows/e2e.yml のios/androidジョブが使用)。
+# ローカルで単一フローを手動実行する場合も、この生成スクリプトの出力を
+# `maestro test <flow>.yaml $(node apps/mobile/e2e/print-maestro-env-args.js)`
+# のように渡すこと。

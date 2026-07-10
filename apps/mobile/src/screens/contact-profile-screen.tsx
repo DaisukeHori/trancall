@@ -10,13 +10,14 @@ import {
   View,
 } from "react-native";
 import { Avatar, Button, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useContactsStore } from "../stores/contacts-store.js";
-import { useRecentCallsStore } from "../stores/recent-calls-store.js";
-import { reportUser } from "../api/contacts-api.js";
-import { RecentCallRow } from "../components/recent-call-row.js";
+import { useTranslation } from "../i18n/index";
+import { useContactsStore } from "../stores/contacts-store";
+import { useRecentCallsStore } from "../stores/recent-calls-store";
+import { reportUser } from "../api/contacts-api";
+import { RecentCallRow } from "../components/recent-call-row";
+import { rootNavigationRef } from "../navigation/navigation-ref";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { RecentStackParamList } from "../navigation/recent-stack.js";
+import type { RecentStackParamList } from "../navigation/recent-stack";
 
 type Props = NativeStackScreenProps<RecentStackParamList, "ContactProfile">;
 
@@ -44,7 +45,18 @@ export function ContactProfileScreen({ navigation, route }: Props) {
   );
 
   const handleCall = () => {
-    // TODO Phase 2: navigate to pre-call screen / initiate call
+    // #30/#68: 発信フロー起点。RootStack の "Call" 兄弟 screen (CallStack) の
+    // PreCall へナビゲートする (root-navigator.tsx §Call screen 参照)。
+    if (!rootNavigationRef.isReady()) return;
+    rootNavigationRef.navigate("Call", {
+      screen: "PreCall",
+      params: {
+        calleeId: liveContact.contactUserId,
+        calleeName: liveContact.displayName,
+        calleeLanguage: liveContact.nativeLanguage,
+        ...(liveContact.avatarUrl != null ? { calleeAvatarUri: liveContact.avatarUrl } : {}),
+      },
+    });
   };
 
   const handleToggleFavorite = () => {

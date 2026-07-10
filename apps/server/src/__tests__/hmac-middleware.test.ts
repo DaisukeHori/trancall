@@ -36,55 +36,70 @@ function makeConfig(secret: string): Config {
   } as Config;
 }
 
-function makeSignature(secret: string, body: string, idempotencyKey: string): string {
+function makeSignature(secret: string, body: string, idempotencyKey: string, timestamp: string): string {
   return createHmac("sha256", secret)
-    .update(body + "|" + idempotencyKey)
+    .update(body + "|" + idempotencyKey + "|" + timestamp)
     .digest("hex");
 }
+
+const FAKE_TIMESTAMP = "2026-07-09T00:00:00.000Z";
 
 describe("verifyHmac", () => {
   it("正しいシグネチャは valid", () => {
     const config = makeConfig(FAKE_SECRET);
     const body = JSON.stringify({ type: "agent.metrics" });
     const key = "test-idempotency-key";
-    const sig = makeSignature(FAKE_SECRET, body, key);
+    const sig = makeSignature(FAKE_SECRET, body, key, FAKE_TIMESTAMP);
 
-    expect(verifyHmac(config, body, sig, key)).toBe(true);
+    expect(verifyHmac(config, body, sig, key, FAKE_TIMESTAMP)).toBe(true);
   });
 
   it("シグネチャが変わると invalid", () => {
     const config = makeConfig(FAKE_SECRET);
     const body = JSON.stringify({ type: "agent.metrics" });
     const key = "test-idempotency-key";
-    const sig = makeSignature(FAKE_SECRET, body, key);
+    const sig = makeSignature(FAKE_SECRET, body, key, FAKE_TIMESTAMP);
 
-    expect(verifyHmac(config, body, sig + "tampered", key)).toBe(false);
+    expect(verifyHmac(config, body, sig + "tampered", key, FAKE_TIMESTAMP)).toBe(false);
   });
 
   it("body が変わると invalid", () => {
     const config = makeConfig(FAKE_SECRET);
     const body = JSON.stringify({ type: "agent.metrics" });
     const key = "test-idempotency-key";
-    const sig = makeSignature(FAKE_SECRET, body, key);
+    const sig = makeSignature(FAKE_SECRET, body, key, FAKE_TIMESTAMP);
 
-    expect(verifyHmac(config, body + "x", sig, key)).toBe(false);
+    expect(verifyHmac(config, body + "x", sig, key, FAKE_TIMESTAMP)).toBe(false);
   });
 
   it("idempotency key が変わると invalid", () => {
     const config = makeConfig(FAKE_SECRET);
     const body = JSON.stringify({ type: "agent.metrics" });
     const key = "test-idempotency-key";
-    const sig = makeSignature(FAKE_SECRET, body, key);
+    const sig = makeSignature(FAKE_SECRET, body, key, FAKE_TIMESTAMP);
 
-    expect(verifyHmac(config, body, sig, "other-key")).toBe(false);
+    expect(verifyHmac(config, body, sig, "other-key", FAKE_TIMESTAMP)).toBe(false);
   });
 
   it("シークレットが違うと invalid", () => {
     const config = makeConfig("different-secret-1234567890abcdefg");
     const body = JSON.stringify({ type: "agent.metrics" });
     const key = "test-idempotency-key";
-    const sig = makeSignature(FAKE_SECRET, body, key);
+    const sig = makeSignature(FAKE_SECRET, body, key, FAKE_TIMESTAMP);
 
-    expect(verifyHmac(config, body, sig, key)).toBe(false);
+    expect(verifyHmac(config, body, sig, key, FAKE_TIMESTAMP)).toBe(false);
+  });
+
+  // 確定#4 (認可バイパス): timestamp は署名対象に含まれるため、signature をそのままに
+  // timestamp だけを書き換えると invalid になる (リプレイ防止の鮮度チェック自体を
+  // 改竄で回避できないことを保証する回帰テスト)。
+  it("timestamp だけを署名後に書き換えると invalid (確定#4)", () => {
+    const config = makeConfig(FAKE_SECRET);
+    const body = JSON.stringify({ type: "agent.metrics" });
+    const key = "test-idempotency-key";
+    const sig = makeSignature(FAKE_SECRET, body, key, FAKE_TIMESTAMP);
+    const tamperedTimestamp = new Date().toISOString();
+
+    expect(verifyHmac(config, body, sig, key, tamperedTimestamp)).toBe(false);
   });
 });

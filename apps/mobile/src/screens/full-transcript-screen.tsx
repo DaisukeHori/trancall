@@ -24,17 +24,19 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import * as FileSystem from "expo-file-system";
+// SDK54 (expo-file-system v19) では legacy API (cacheDirectory / writeAsStringAsync /
+// EncodingType) は "expo-file-system/legacy" サブパスに移動 (#54)
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Badge, Button, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { TranscriptSearchBar } from "../components/transcript-search-bar.js";
-import { TranscriptSegmentRow } from "../components/transcript-segment-row.js";
-import { useTranscriptStore, type TranscriptFilter } from "../stores/transcript-store.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import type { TranscriptSegment } from "../api/transcript-api.js";
+import { useTranslation } from "../i18n/index";
+import { TranscriptSearchBar } from "../components/transcript-search-bar";
+import { TranscriptSegmentRow } from "../components/transcript-segment-row";
+import { useTranscriptStore, type TranscriptFilter } from "../stores/transcript-store";
+import { useAuthStore } from "../stores/auth-store";
+import type { TranscriptSegment } from "../api/transcript-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { PostCallStackParamList } from "./call-summary-screen.js";
+import type { PostCallStackParamList } from "./call-summary-screen";
 
 type Props = NativeStackScreenProps<PostCallStackParamList, "FullTranscript">;
 
@@ -417,6 +419,7 @@ export function FullTranscriptScreen({ navigation, route }: Props) {
               styles.modalSheet,
               {
                 backgroundColor: c.bgPrimary,
+                shadowColor: c.shadowColor,
                 borderTopLeftRadius: theme.radii[16],
                 borderTopRightRadius: theme.radii[16],
                 paddingHorizontal: s[24],
@@ -592,7 +595,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    shadowColor: "#000000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,

@@ -15,8 +15,9 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Button, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
+import { useTranslation } from "../i18n/index";
 
 // =============================================================================
 // Props
@@ -49,7 +50,6 @@ export function PermissionManageOwnCallsScreen({
       accessibilityViewIsModal
     >
       <View style={[styles.container, { paddingHorizontal: s[24] }]}>
-        {/* Icon placeholder */}
         <View
           style={[
             styles.iconContainer,
@@ -62,7 +62,7 @@ export function PermissionManageOwnCallsScreen({
           accessibilityRole="image"
           accessibilityLabel={t("permissions.telecomRevokedTitle")}
         >
-          <Text style={[styles.iconText, { color: c.danger }]}>phone</Text>
+          <Ionicons name="call" size={32} color={c.danger} />
         </View>
 
         {/* Title */}
@@ -84,28 +84,30 @@ export function PermissionManageOwnCallsScreen({
         </Text>
 
         {/* Enable in Settings button */}
-        <Button
-          variant="primary"
-          size="lg"
-          onPress={handleEnableInSettings}
-          accessibilityLabel={t("permissions.telecomRevokedAction")}
-          accessibilityRole="button"
-          style={styles.button}
-        >
-          {t("permissions.telecomRevokedAction")}
-        </Button>
+        <View style={styles.button}>
+          <Button
+            variant="primary"
+            size="lg"
+            onPress={handleEnableInSettings}
+            accessibilityLabel={t("permissions.telecomRevokedAction")}
+            accessibilityRole="button"
+          >
+            {t("permissions.telecomRevokedAction")}
+          </Button>
+        </View>
 
         {/* Cancel button */}
-        <Button
-          variant="ghost"
-          size="md"
-          onPress={onCancel}
-          accessibilityLabel={t("permissions.openSettingsCancel")}
-          accessibilityRole="button"
-          style={[styles.button, { marginTop: s[12] }]}
-        >
-          {t("permissions.openSettingsCancel")}
-        </Button>
+        <View style={[styles.button, { marginTop: s[12] }]}>
+          <Button
+            variant="ghost"
+            size="md"
+            onPress={onCancel}
+            accessibilityLabel={t("permissions.openSettingsCancel")}
+            accessibilityRole="button"
+          >
+            {t("permissions.openSettingsCancel")}
+          </Button>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -129,10 +131,6 @@ const styles = StyleSheet.create({
     height: 80,
     alignItems: "center",
     justifyContent: "center",
-  },
-  iconText: {
-    fontSize: 32,
-    fontWeight: "700",
   },
   title: {
     fontSize: 20,

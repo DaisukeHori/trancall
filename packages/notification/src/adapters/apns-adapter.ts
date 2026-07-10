@@ -12,7 +12,7 @@ const apn = require("@parse/node-apn") as typeof import("@parse/node-apn");
 import type { Result, AppError } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { ApnsVoipPayload } from "../schemas.js";
+import type { ApnsVoipPayload } from "../schemas.ts";
 
 export interface ApnsAdapterConfig {
   keyId: string;

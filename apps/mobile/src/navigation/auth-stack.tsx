@@ -1,8 +1,8 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { OnboardingScreen } from "../screens/onboarding-screen.js";
-import { LoginScreen } from "../screens/login-screen.js";
-import { SignUpScreen } from "../screens/signup-screen.js";
+import { OnboardingScreen } from "../screens/onboarding-screen";
+import { LoginScreen } from "../screens/login-screen";
+import { SignUpScreen } from "../screens/signup-screen";
 import { useTheme } from "@trancall/ui-kit";
 
 export type AuthStackParamList = {

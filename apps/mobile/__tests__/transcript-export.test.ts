@@ -21,7 +21,8 @@ const { mockWriteAsStringAsync, mockShareAsync, mockIsAvailableAsync } = vi.hois
 // ---------------------------------------------------------------------------
 // Mock expo-file-system
 // ---------------------------------------------------------------------------
-vi.mock("expo-file-system", () => ({
+// SDK54 (expo-file-system v19) では legacy API は "expo-file-system/legacy" サブパスに移動 (#54)
+vi.mock("expo-file-system/legacy", () => ({
   cacheDirectory: "file:///cache/",
   EncodingType: {
     Base64: "base64",
@@ -54,7 +55,7 @@ const mockFetch = vi.fn<typeof fetch>();
 vi.stubGlobal("fetch", mockFetch);
 
 import { exportTranscript } from "../src/api/transcript-api.js";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
 const ROOM_ID = "550e8400-e29b-41d4-a716-446655440099";

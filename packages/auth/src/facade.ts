@@ -28,13 +28,13 @@ import {
   type RequiredConsentView,
 } from "@trancall/shared-kernel";
 
-import { type Profile, ProfileSchema } from "./schemas.js";
-import { type ConsentRepository } from "./repositories/consent-repository.js";
-import { type LegalDocumentVersionRepository } from "./repositories/legal-document-version-repository.js";
+import { type Profile, ProfileSchema } from "./schemas.ts";
+import { type ConsentRepository } from "./repositories/consent-repository.ts";
+import { type LegalDocumentVersionRepository } from "./repositories/legal-document-version-repository.ts";
 import {
   type AuthConsentRecordedEvent,
   type AuthConsentRevokedEvent,
-} from "./events.js";
+} from "./events.ts";
 
 // ============================================================
 // Repository interfaces (再 export)
@@ -48,8 +48,8 @@ export interface ProfileRepository {
   findByUserId: (userId: UserId) => Promise<Result<Profile>>;
 }
 
-export type { ConsentRepository } from "./repositories/consent-repository.js";
-export type { LegalDocumentVersionRepository } from "./repositories/legal-document-version-repository.js";
+export type { ConsentRepository } from "./repositories/consent-repository.ts";
+export type { LegalDocumentVersionRepository } from "./repositories/legal-document-version-repository.ts";
 
 // ============================================================
 // EventBus narrowed interface (auth モジュール用)

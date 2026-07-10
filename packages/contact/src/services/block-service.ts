@@ -8,8 +8,8 @@ import {
   err,
 } from "@trancall/shared-kernel";
 
-import type { BlockUserCommand } from "../schemas.js";
-import type { BlockRepository } from "../repositories/block-repository.js";
+import type { BlockUserCommand } from "../schemas.ts";
+import type { BlockRepository } from "../repositories/block-repository.ts";
 
 export interface BlockService {
   blockUser(cmd: BlockUserCommand): Promise<Result<true>>;

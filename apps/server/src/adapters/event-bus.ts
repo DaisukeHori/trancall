@@ -16,6 +16,10 @@ import type {
   TranslationDegradedEvent,
   TranslationRecoveredEvent,
 } from "@trancall/translation";
+import type {
+  BillingSubscriptionUpgradedEvent,
+  BillingSubscriptionCanceledEvent,
+} from "@trancall/billing";
 
 // ---------------------------------------------------------------------------
 // Auth ドメインイベント (docs/module-contracts.md v1.3 §3.1)
@@ -64,7 +68,12 @@ export type DomainEvent =
   | TranslationEndedEvent
   | TranslationDegradedEvent
   | TranslationRecoveredEvent
-  | AuthDomainEvent;
+  | AuthDomainEvent
+  // #29: billing facade に eventBus を注入したことで publishSubscriptionUpgraded /
+  // publishSubscriptionCanceled がこの eventBus 経由で publish されるようになったため、
+  // DomainEvent union にも billing イベントを含めて型を正しくする。
+  | BillingSubscriptionUpgradedEvent
+  | BillingSubscriptionCanceledEvent;
 
 // ---------------------------------------------------------------------------
 // EventBus インターフェース (モジュール contracts Section 3.2)

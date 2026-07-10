@@ -1,0 +1,27 @@
+// ⚠️ device-verification-required: この build.gradle は Android Studio / Gradle ビルドを
+// 一度も実行していない。expo-audio 等の既存 Expo Module の build.gradle を参考にした
+// スキャフォールドであり、実際のビルド可否は未検証。
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'tech.hori.trancall.callbridge'
+version = '0.1.0'
+
+android {
+  namespace "tech.hori.trancall.callbridge"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+}
+
+dependencies {
+  // Telecom (ConnectionService/Connection/PhoneAccount) は android.telecom.* として
+  // Android SDK 本体に含まれるため追加依存不要 (API 23+, native-call-bridge.md §2.1)
+}

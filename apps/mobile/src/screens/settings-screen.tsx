@@ -1,5 +1,6 @@
 // SCR-006 — Settings: Profile / Translation / Plan / Notifications / About / Account
 import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Alert,
   Platform,
@@ -17,9 +18,9 @@ import type {
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
 import { Avatar, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import type { SettingsStackParamList } from "../navigation/settings-stack.js";
+import { useTranslation } from "../i18n/index";
+import { useAuthStore } from "../stores/auth-store";
+import type { SettingsStackParamList } from "../navigation/settings-stack";
 
 type SettingsNavigationProp = NativeStackNavigationProp<SettingsStackParamList, "SettingsMain">;
 
@@ -66,6 +67,7 @@ interface SettingsRowProps {
   danger?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
+  testID?: string;
 }
 
 function SettingsRow({
@@ -79,12 +81,14 @@ function SettingsRow({
   danger,
   onPress,
   accessibilityLabel,
+  testID,
 }: SettingsRowProps) {
   const theme = useTheme();
   const c = theme.colors;
 
   return (
     <Pressable
+      testID={testID}
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole={toggle ? "switch" : "button"}
       accessibilityState={toggle ? { checked: toggleValue } : undefined}
@@ -127,7 +131,7 @@ function SettingsRow({
             </Text>
           )}
           {chevron === true && (
-            <Text style={[settingsStyles.chevron, { color: c.textTertiary }]}>›</Text>
+            <Ionicons name="chevron-forward" size={18} color={c.textTertiary} />
           )}
         </View>
       )}
@@ -160,7 +164,6 @@ export function SettingsScreen(_props: Props) {
   const navigation = useNavigation<SettingsNavigationProp>();
 
   const profile = useAuthStore((state) => state.profile);
-  const session = useAuthStore((state) => state.session);
   const logout = useAuthStore((state) => state.logout);
 
   const [showSubtitles, setShowSubtitles] = useState(true);
@@ -232,6 +235,7 @@ export function SettingsScreen(_props: Props) {
             mono
           />
           <SettingsRow
+            testID="settings-nativeLanguage-row"
             label={t("settings.nativeLanguage")}
             value={t(`language.${nativeLanguage}`)}
             chevron
@@ -316,6 +320,7 @@ export function SettingsScreen(_props: Props) {
             accessibilityLabel={t("settings.danger.signOut")}
           />
           <SettingsRow
+            testID="settings-deleteAccount-row"
             label={t("settings.danger.deleteAccount")}
             onPress={handleDeleteAccount}
             danger

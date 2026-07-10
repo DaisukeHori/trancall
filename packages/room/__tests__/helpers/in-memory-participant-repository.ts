@@ -3,8 +3,8 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { ok } from "@trancall/shared-kernel";
-import type { Result, AppError, RoomId } from "@trancall/shared-kernel";
+import { ok, err } from "@trancall/shared-kernel";
+import type { Result, AppError, RoomId, UserId } from "@trancall/shared-kernel";
 import type { ParticipantRepository } from "../../src/repositories/participant-repository.js";
 import type { ParticipantRow, UpsertParticipantCommand } from "../../src/schemas.js";
 
@@ -60,6 +60,29 @@ export function createInMemoryParticipantRepository(): ParticipantRepository & {
         }
       }
       return ok(true as const);
+    },
+
+    // 確定#2: room_id + user_id に一致する参加者行を 1 件取得する (存在しなければ null)。
+    async findOne(roomId: RoomId, userId: UserId): Promise<Result<ParticipantRow | null>> {
+      const key = `${roomId}:${userId}`;
+      const row = store.get(key);
+      return ok(row ? { ...row } : null);
+    },
+
+    // 確定#2: 既存行の joined_at のみを更新する (role は変更しない)。
+    async markJoined(roomId: RoomId, userId: UserId, joinedAt: string): Promise<Result<ParticipantRow>> {
+      const key = `${roomId}:${userId}`;
+      const existing = store.get(key);
+      if (!existing) {
+        return err({
+          code: "ROOM_USER_NOT_INVITED",
+          message: `ユーザー ${userId} はこの通話に招待されていません`,
+          retryable: false,
+        });
+      }
+      const updated: ParticipantRow = { ...existing, joined_at: joinedAt };
+      store.set(key, updated);
+      return ok({ ...updated });
     },
   };
 }

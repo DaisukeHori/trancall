@@ -12,12 +12,12 @@
  */
 
 import crypto from "crypto";
-import type { Result } from "@trancall/shared-kernel";
+import type { Result, UserId } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { PlanTier } from "../schemas.js";
-import type { StoreKitExternalRedirectResult } from "../view-models/index.js";
-import type { ExternalPurchaseTokenRepository } from "../repositories/external-purchase-token-repository.js";
+import type { PlanTier } from "../schemas.ts";
+import type { StoreKitExternalRedirectResult } from "../view-models/index.ts";
+import type { ExternalPurchaseTokenRepository } from "../repositories/external-purchase-token-repository.ts";
 
 // =============================================================================
 // 設定
@@ -85,7 +85,7 @@ export function createExternalPurchaseAdapter(
       // Step 3: Apple External Purchase Server API へ取引開始報告
       // Phase 1a: ログのみ (Phase 1b で実際の API 呼び出しに差し替え)
       reportExternalPurchaseStart({
-        userId: userId as string,
+        userId,
         targetTier,
         stripeSessionId,
         appleApiUrl: config.appleExternalPurchaseApiUrl,
@@ -104,11 +104,14 @@ export function createExternalPurchaseAdapter(
 
     /**
      * External Purchase 完了処理。
-     * redirectToken の TTL と使用済みフラグを検証し、二重消費を防止する。
+     * redirectToken の所有者一致 / TTL / 使用済みフラグを検証し、二重消費・
+     * 他ユーザーによるなりすまし消費を防止する (#44)。
      *
+     * @param callerUserId 呼び出し元 (実際にリクエストしている) ユーザー ID
      * @param redirect deep link からパースした StoreKitExternalRedirectResult
      */
     async validateAndConsumeRedirectToken(
+      callerUserId: UserId,
       redirect: StoreKitExternalRedirectResult,
     ): Promise<
       Result<{
@@ -130,7 +133,18 @@ export function createExternalPurchaseAdapter(
 
       const tokenRow = findResult.data;
 
-      // Step 2: TTL チェック
+      // Step 2: 所有者一致確認 (#44: tokenRow.userId と呼び出し元 userId の一致確認)
+      // markUsed の前に検証することで、なりすましリクエストによる正規ユーザーの
+      // トークン消尽 (DoS) を防止する。
+      if (tokenRow.userId !== callerUserId) {
+        return err({
+          code: "BILLING_PAYMENT_FAILED",
+          message: "redirectToken の所有者が一致しません",
+          retryable: false,
+        });
+      }
+
+      // Step 3: TTL チェック
       if (new Date() > new Date(tokenRow.expiresAt)) {
         return err({
           code: "BILLING_PAYMENT_FAILED",
@@ -140,14 +154,14 @@ export function createExternalPurchaseAdapter(
         });
       }
 
-      // Step 3: 二重消費防止 (atomic UPDATE WHERE used=false)
+      // Step 4: 二重消費防止 (atomic UPDATE WHERE used=false)
       const markResult = await tokenRepo.markUsed(redirectToken);
       if (!markResult.ok) {
         // markUsed が BILLING_PAYMENT_FAILED を返す = 使用済み
         return markResult;
       }
 
-      // Step 4: Apple External Purchase Server API へ取引完了報告
+      // Step 5: Apple External Purchase Server API へ取引完了報告
       // Phase 1a: ログのみ
       reportExternalPurchaseComplete({
         stripeSessionId: tokenRow.stripeSessionId,

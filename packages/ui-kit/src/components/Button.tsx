@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   type TouchableOpacityProps,
 } from "react-native";
-import { useTheme } from "../theme/index.js";
+import { useTheme } from "../theme/index.ts";
+import { useTranslation } from "../i18n/index.ts";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -31,6 +32,7 @@ export function Button({
 }: ButtonProps) {
   const theme = useTheme();
   const c = theme.colors;
+  const { t } = useTranslation();
 
   const bgColor: Record<ButtonVariant, string> = {
     primary: c.primary,
@@ -40,9 +42,9 @@ export function Button({
   };
 
   const textColor: Record<ButtonVariant, string> = {
-    primary: "#FFFFFF",
+    primary: c.textOnColor,
     secondary: c.textPrimary,
-    danger: "#FFFFFF",
+    danger: c.textOnColor,
     ghost: c.primary,
   };
 
@@ -64,8 +66,9 @@ export function Button({
     lg: 18,
   };
 
+  // 最小タップ領域 44×44 (iOS HIG) を全サイズで確保
   const minHeight: Record<ButtonSize, number> = {
-    sm: 36,
+    sm: 44,
     md: 44,
     lg: 52,
   };
@@ -98,7 +101,7 @@ export function Button({
         <ActivityIndicator
           color={textColor[variant]}
           size="small"
-          accessibilityLabel="Loading"
+          accessibilityLabel={t("common.loading")}
         />
       ) : (
         <Text

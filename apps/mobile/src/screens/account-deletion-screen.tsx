@@ -15,17 +15,31 @@ import {
   View,
 } from "react-native";
 import { Button, Input, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { resolveErrorMessage } from "../lib/error-i18n.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import { deleteAccount as apiDeleteAccount } from "../api/auth-api.js";
-import { signInWithSupabase } from "../api/auth-api.js";
+import { useTranslation } from "../i18n/index";
+import { resolveErrorMessage } from "../lib/error-i18n";
+import { useAuthStore } from "../stores/auth-store";
+import { deleteAccount as apiDeleteAccount } from "../api/auth-api";
+import { signInWithSupabase, signInViaMockServer, isE2eTestMode } from "../api/auth-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { SettingsStackParamList } from "../navigation/settings-stack.js";
+import type { SettingsStackParamList } from "../navigation/settings-stack";
 
 type Props = NativeStackScreenProps<SettingsStackParamList, "AccountDeletion">;
 
 type Step = 1 | 2 | 3 | 4;
+
+/** Step を 1 つ戻す (1 未満にはならない)。型アサーションを使わず網羅的に分岐する。 */
+function decrementStep(step: Step): Step {
+  switch (step) {
+    case 2:
+      return 1;
+    case 3:
+      return 2;
+    case 4:
+      return 3;
+    case 1:
+      return 1;
+  }
+}
 
 const DELETION_REASONS = [
   "account_deletion.reason.not_using",
@@ -94,7 +108,7 @@ function Step1Reason({
   const s = theme.spacing;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }} testID="account-deletion-reason-step">
       <ScrollView
         contentContainerStyle={[step1Styles.container, { paddingHorizontal: s[24] }]}
         showsVerticalScrollIndicator={false}
@@ -112,6 +126,7 @@ function Step1Reason({
         {DELETION_REASONS.map((reasonKey) => (
           <Pressable
             key={reasonKey}
+            testID={`reason-${reasonKey.replace("account_deletion.reason.", "").replace(/_/g, "-")}`}
             accessibilityRole="radio"
             accessibilityState={{ checked: selectedReason === reasonKey }}
             accessibilityLabel={t(reasonKey)}
@@ -246,7 +261,7 @@ function Step2Warning({
   ];
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }} testID="account-deletion-warning-step">
       <ScrollView
         contentContainerStyle={[step2Styles.container, { paddingHorizontal: s[24] }]}
         showsVerticalScrollIndicator={false}
@@ -288,6 +303,7 @@ function Step2Warning({
 
       <View style={[step2Styles.footer, { paddingHorizontal: s[24], paddingBottom: s[32] }]}>
         <Button
+          testID="account-deletion-proceed-button"
           variant="danger"
           size="lg"
           accessibilityLabel={t("account_deletion.warning.proceed")}
@@ -390,6 +406,7 @@ function Step3Password({
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      testID="account-deletion-confirm-step"
     >
       <ScrollView
         contentContainerStyle={[step3Styles.container, { paddingHorizontal: s[24] }]}
@@ -407,6 +424,7 @@ function Step3Password({
         </Text>
 
         <Input
+          testID="confirm-password-input"
           label={t("auth.password")}
           placeholder="••••••••"
           value={password}
@@ -421,6 +439,7 @@ function Step3Password({
 
         <View style={[step3Styles.buttonArea, { marginTop: s[24] }]}>
           <Button
+            testID="account-deletion-submit-button"
             variant="danger"
             size="lg"
             accessibilityLabel={t("account_deletion.confirm.submit")}
@@ -481,7 +500,7 @@ function Step4GracePeriod({ onDone }: { onDone: () => void }) {
   const s = theme.spacing;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }} testID="account-deletion-grace-period-step">
       <ScrollView
         contentContainerStyle={[step4Styles.container, { paddingHorizontal: s[24] }]}
         showsVerticalScrollIndicator={false}
@@ -598,7 +617,7 @@ export function AccountDeletionScreen({ navigation }: Props) {
     if (step === 1) {
       navigation.goBack();
     } else {
-      setStep((s) => (s - 1) as Step);
+      setStep(decrementStep);
     }
   };
 
@@ -615,7 +634,9 @@ export function AccountDeletionScreen({ navigation }: Props) {
       return;
     }
 
-    const reAuthResult = await signInWithSupabase(email, password);
+    const reAuthResult = isE2eTestMode()
+      ? await signInViaMockServer(email, password)
+      : await signInWithSupabase(email, password);
     if (!reAuthResult.ok) {
       setApiError(t("account_deletion.confirm.auth_error"));
       throw new Error("re-auth failed");

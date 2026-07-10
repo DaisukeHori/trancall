@@ -12,16 +12,16 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { i18n } from "../i18n/index.js";
+import { useTranslation } from "../i18n/index";
+import { i18n } from "../i18n/index";
 import {
   FAQ_ENTRIES,
   FAQ_CATEGORIES,
   type FaqCategory,
   type FaqEntry,
-} from "../data/faq.js";
+} from "../data/faq";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { SettingsStackParamList } from "../navigation/settings-stack.js";
+import type { SettingsStackParamList } from "../navigation/settings-stack";
 
 // ---------------------------------------------------------------------------
 // Navigation
@@ -69,6 +69,7 @@ function AccordionItem({
   isOpen,
   onToggle,
 }: AccordionItemProps) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const c = theme.colors;
 
@@ -86,7 +87,7 @@ function AccordionItem({
         accessibilityLabel={question}
         accessibilityRole="button"
         accessibilityState={{ expanded: isOpen }}
-        accessibilityHint={isOpen ? "タップして閉じる" : "タップして回答を表示"}
+        accessibilityHint={isOpen ? t("faq.collapseHint") : t("faq.expandHint")}
         onPress={onToggle}
         style={({ pressed }) => [
           accordionStyles.questionRow,

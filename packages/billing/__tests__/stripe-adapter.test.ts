@@ -2,8 +2,10 @@
  * StripeAdapter テスト
  *
  * - createCheckoutSession: 正常系・Free プランエラー
- * - parseCheckoutCompleted: メタデータパース
+ * - parseCheckoutCompleted: メタデータパース + 実 period 取得 (#24)
  * - verifyWebhook: 署名検証失敗
+ * - cancelSubscription: 期末キャンセル / 即時キャンセル (#41)
+ * - parseSubscriptionUpdated / parseInvoicePaid: ライフサイクルイベント解析 (#24)
  */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -11,19 +13,40 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createStripeAdapter } from "../src/adapters/stripe-adapter.js";
 import type { StripeAdapterConfig } from "../src/adapters/stripe-adapter.js";
 
+function makeStripeMockImpl(overrides: {
+  create?: ReturnType<typeof vi.fn>;
+  constructEvent?: ReturnType<typeof vi.fn>;
+  retrieve?: ReturnType<typeof vi.fn>;
+  cancel?: ReturnType<typeof vi.fn>;
+  update?: ReturnType<typeof vi.fn>;
+} = {}) {
+  return () => ({
+    checkout: {
+      sessions: {
+        create: overrides.create ?? vi.fn(),
+      },
+    },
+    webhooks: {
+      constructEvent: overrides.constructEvent ?? vi.fn(),
+    },
+    subscriptions: {
+      retrieve:
+        overrides.retrieve ??
+        vi.fn().mockResolvedValue({
+          id: "sub_test",
+          current_period_start: 1_700_000_000,
+          current_period_end: 1_702_600_000,
+        }),
+      cancel: overrides.cancel ?? vi.fn().mockResolvedValue({ id: "sub_test", status: "canceled" }),
+      update: overrides.update ?? vi.fn().mockResolvedValue({ id: "sub_test" }),
+    },
+  });
+}
+
 // Stripe SDK モック
 vi.mock("stripe", () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
-      checkout: {
-        sessions: {
-          create: vi.fn(),
-        },
-      },
-      webhooks: {
-        constructEvent: vi.fn(),
-      },
-    })),
+    default: vi.fn().mockImplementation(makeStripeMockImpl()),
     // Stripe.errors.StripeCardError などのモック
     errors: {
       StripeCardError: class StripeCardError extends Error {
@@ -69,16 +92,7 @@ describe("StripeAdapter.createCheckoutSession", () => {
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (Stripe.default as any).mockImplementation(() => ({
-      checkout: {
-        sessions: {
-          create: mockCreate,
-        },
-      },
-      webhooks: {
-        constructEvent: vi.fn(),
-      },
-    }));
+    (Stripe.default as any).mockImplementation(makeStripeMockImpl({ create: mockCreate }));
 
     const adapter = createStripeAdapter(config);
     const result = await adapter.createCheckoutSession({
@@ -96,19 +110,11 @@ describe("StripeAdapter.createCheckoutSession", () => {
 describe("StripeAdapter.verifyWebhook", () => {
   it("署名検証失敗: BILLING_INVALID_RECEIPT", async () => {
     const Stripe = await import("stripe");
+    const constructEvent = vi.fn().mockImplementation(() => {
+      throw new Error("署名が一致しません");
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (Stripe.default as any).mockImplementation(() => ({
-      checkout: {
-        sessions: {
-          create: vi.fn(),
-        },
-      },
-      webhooks: {
-        constructEvent: vi.fn().mockImplementation(() => {
-          throw new Error("署名が一致しません");
-        }),
-      },
-    }));
+    (Stripe.default as any).mockImplementation(makeStripeMockImpl({ constructEvent }));
 
     const adapter = createStripeAdapter(config);
     const result = await adapter.verifyWebhook("rawbody", "invalid-sig");
@@ -120,8 +126,10 @@ describe("StripeAdapter.verifyWebhook", () => {
 });
 
 describe("StripeAdapter.parseCheckoutCompleted", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  beforeEach(async () => {
+    const Stripe = await import("stripe");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(makeStripeMockImpl());
   });
 
   it("不正なメタデータ: BILLING_INVALID_RECEIPT", async () => {
@@ -144,7 +152,7 @@ describe("StripeAdapter.parseCheckoutCompleted", () => {
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = adapter.parseCheckoutCompleted(mockEvent as any);
+    const result = await adapter.parseCheckoutCompleted(mockEvent as any);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("BILLING_INVALID_RECEIPT");
@@ -159,9 +167,145 @@ describe("StripeAdapter.parseCheckoutCompleted", () => {
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = adapter.parseCheckoutCompleted(mockEvent as any);
+    const result = await adapter.parseCheckoutCompleted(mockEvent as any);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("正常系: Stripe Subscription API から実際の請求期間を取得する (#24: now+30日暫定値の廃止)", async () => {
+    const adapter = createStripeAdapter(config);
+    const mockEvent = {
+      type: "checkout.session.completed",
+      id: "evt_test",
+      data: {
+        object: {
+          metadata: {
+            userId: "00000000-0000-4000-8000-000000000001",
+            tier: "standard",
+            channel: "stripe_web",
+          },
+          customer: "cus_test",
+          subscription: "sub_test",
+        },
+      },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await adapter.parseCheckoutCompleted(mockEvent as any);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // makeStripeMockImpl のデフォルト retrieve モック値と一致すること (暫定30日値ではない)
+    expect(result.data.currentPeriodStart).toBe(new Date(1_700_000_000 * 1000).toISOString());
+    expect(result.data.currentPeriodEnd).toBe(new Date(1_702_600_000 * 1000).toISOString());
+  });
+});
+
+describe("StripeAdapter.cancelSubscription (#41)", () => {
+  beforeEach(async () => {
+    const Stripe = await import("stripe");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(makeStripeMockImpl());
+  });
+
+  it("atPeriodEnd=true: subscriptions.update({cancel_at_period_end:true}) を呼ぶ", async () => {
+    const Stripe = await import("stripe");
+    const updateMock = vi.fn().mockResolvedValue({ id: "sub_test" });
+    const cancelMock = vi.fn().mockResolvedValue({ id: "sub_test" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(
+      makeStripeMockImpl({ update: updateMock, cancel: cancelMock }),
+    );
+
+    const adapter = createStripeAdapter(config);
+    const result = await adapter.cancelSubscription("sub_test", true);
+
+    expect(result.ok).toBe(true);
+    expect(updateMock).toHaveBeenCalledWith("sub_test", { cancel_at_period_end: true });
+    expect(cancelMock).not.toHaveBeenCalled();
+  });
+
+  it("atPeriodEnd=false: subscriptions.cancel() で即時解約する (update だけでは解約されないバグの修正)", async () => {
+    const Stripe = await import("stripe");
+    const updateMock = vi.fn().mockResolvedValue({ id: "sub_test" });
+    const cancelMock = vi.fn().mockResolvedValue({ id: "sub_test", status: "canceled" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(
+      makeStripeMockImpl({ update: updateMock, cancel: cancelMock }),
+    );
+
+    const adapter = createStripeAdapter(config);
+    const result = await adapter.cancelSubscription("sub_test", false);
+
+    expect(result.ok).toBe(true);
+    expect(cancelMock).toHaveBeenCalledWith("sub_test");
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("StripeAdapter.parseSubscriptionUpdated (#24)", () => {
+  it("正常系: current_period_end 等を抽出する", () => {
+    const adapter = createStripeAdapter(config);
+    const mockEvent = {
+      type: "customer.subscription.updated",
+      id: "evt_test",
+      data: {
+        object: {
+          id: "sub_test",
+          customer: "cus_test",
+          current_period_start: 1_700_000_000,
+          current_period_end: 1_702_600_000,
+          cancel_at_period_end: true,
+        },
+      },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = adapter.parseSubscriptionUpdated(mockEvent as any);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.stripeSubscriptionId).toBe("sub_test");
+    expect(result.data.cancelAtPeriodEnd).toBe(true);
+    expect(result.data.currentPeriodEnd).toBe(new Date(1_702_600_000 * 1000).toISOString());
+  });
+
+  it("想定外のイベントタイプ: VALIDATION_ERROR", () => {
+    const adapter = createStripeAdapter(config);
+    const mockEvent = { type: "payment_intent.created", id: "evt_test", data: { object: {} } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = adapter.parseSubscriptionUpdated(mockEvent as any);
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("StripeAdapter.parseInvoicePaid (#24)", () => {
+  it("正常系: current_period_end を抽出する", () => {
+    const adapter = createStripeAdapter(config);
+    const mockEvent = {
+      type: "invoice.paid",
+      id: "evt_test",
+      data: {
+        object: {
+          customer: "cus_test",
+          subscription: "sub_test",
+          period_end: 1_702_600_000,
+        },
+      },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = adapter.parseInvoicePaid(mockEvent as any);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.stripeSubscriptionId).toBe("sub_test");
+    expect(result.data.currentPeriodEnd).toBe(new Date(1_702_600_000 * 1000).toISOString());
+  });
+
+  it("想定外のイベントタイプ: VALIDATION_ERROR", () => {
+    const adapter = createStripeAdapter(config);
+    const mockEvent = { type: "payment_intent.created", id: "evt_test", data: { object: {} } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = adapter.parseInvoicePaid(mockEvent as any);
+    expect(result.ok).toBe(false);
   });
 });

@@ -19,7 +19,8 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
-import type { BillingFacade } from "@trancall/billing";
+import type { BillingFacade, IapAdapterConfig } from "@trancall/billing";
+import { verifyJwsSignature } from "@trancall/billing";
 import { getHttpStatus } from "../middleware/error-handler.js";
 
 const CheckoutSchema = z.object({
@@ -70,11 +71,40 @@ const CancelSubscriptionSchema = z.object({
   atPeriodEnd: z.boolean().default(true),
 });
 
+// #23: Apple App Store Server Notifications V2 は `{ signedPayload: "<JWS>" }` 形式で届く。
+// JWS 自体の中身 (notificationType 等) は packages/billing の AppleNotificationPayloadSchema
+// (parseWebhookPayload 内部) が検証するため、ここでは外枠のみを検証する。
+const AppleWebhookBodySchema = z.object({
+  signedPayload: z.string().min(1),
+});
+
+/**
+ * JWS の payload 部 (2 番目のパート) を Base64URL デコードして JSON.parse する。
+ * 署名検証は verifyJwsSignature() で別途行うため、ここではデコードのみを行う
+ * (packages/billing/src/adapters/apple-iap-adapter.ts の decodeJwsPayload と同じ手法だが、
+ * Webhook 通知ペイロードのスキーマは packages/billing 側の
+ * AppleNotificationPayloadSchema が担うため、ここでは unknown を返すだけにとどめる)。
+ */
+function decodeJwsPayloadUnvalidated(jws: string): unknown {
+  const parts = jws.split(".");
+  const payloadPart = parts[1];
+  if (parts.length !== 3 || payloadPart === undefined) {
+    return null;
+  }
+  try {
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonString = Buffer.from(base64, "base64").toString("utf-8");
+    return JSON.parse(jsonString);
+  } catch {
+    return null;
+  }
+}
+
 export function registerBillingRoutes(
   fastify: FastifyInstance,
-  deps: { billing: BillingFacade },
+  deps: { billing: BillingFacade; iapAdapterConfig: IapAdapterConfig },
 ): void {
-  const { billing } = deps;
+  const { billing, iapAdapterConfig } = deps;
 
   /**
    * Rate limit カウンター (in-memory, per-user, per-instance)
@@ -131,11 +161,13 @@ export function registerBillingRoutes(
   });
 
   // POST /api/billing/webhook/stripe (raw body needed for signature)
+  // #39: 署名検証には受信した生バイト列 (request.rawBody) を使う。JSON.stringify(request.body) に
+  // よる再シリアライズはキー順序・空白・数値表現の差異で正当な署名検証が失敗し得るため使わない。
+  // raw-body-parser.ts (#25) が全 JSON リクエストで request.rawBody に生文字列を保持しているため、
+  // 従来無効化されていた `config: { rawBody: true }` (どのプラグインからも参照されない dead な
+  // ルート設定だった) は不要になり削除した。
   fastify.post(
     "/api/billing/webhook/stripe",
-    {
-      config: { rawBody: true },
-    },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const signature = request.headers["stripe-signature"];
       if (typeof signature !== "string") {
@@ -145,9 +177,7 @@ export function registerBillingRoutes(
         });
       }
 
-      // rawBody を使う (fastify-rawbody または body を stringify)
-      const rawBody = JSON.stringify(request.body);
-      const result = await billing.handleStripeWebhook(rawBody, signature);
+      const result = await billing.handleStripeWebhook(request.rawBody, signature);
       if (!result.ok) {
         return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
       }
@@ -156,8 +186,48 @@ export function registerBillingRoutes(
   );
 
   // POST /api/billing/webhook/apple
+  // #23: Apple App Store Server Notifications V2 は `{ signedPayload: "<JWS>" }` 形式で届く。
+  // 実際に届く JWS の署名 (ES256 + x5c チェーン) を packages/billing から export された
+  // verifyJwsSignature() で検証してから、JWS payload をデコードして
+  // billing.handleAppleIapWebhook() (内部で AppleNotificationPayloadSchema によるペイロード
+  // スキーマ検証を行う) に渡す。config.IAP_APPLE_BUNDLE_ID / IAP_APPLE_ENVIRONMENT /
+  // APPLE_ROOT_CA_PEM (container.ts の iapAdapterConfig) は #40 の StoreKit 2 クライアント JWS
+  // 検証と同じ基準を Webhook 経路にも適用する (#10 の申し送り対応)。
   fastify.post("/api/billing/webhook/apple", async (request: FastifyRequest, reply: FastifyReply) => {
-    const result = await billing.handleAppleIapWebhook(request.body);
+    const parsedBody = AppleWebhookBodySchema.safeParse(request.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "signedPayload (JWS) が必要です",
+          retryable: false,
+        },
+      });
+    }
+
+    const { signedPayload } = parsedBody.data;
+
+    const signatureResult = verifyJwsSignature(signedPayload, iapAdapterConfig);
+    if (!signatureResult.ok) {
+      return reply
+        .status(getHttpStatus(signatureResult.error.code))
+        .send({ ok: false, error: signatureResult.error });
+    }
+
+    const decodedPayload = decodeJwsPayloadUnvalidated(signedPayload);
+    if (decodedPayload === null) {
+      return reply.status(400).send({
+        ok: false,
+        error: {
+          code: "BILLING_IAP_RECEIPT_INVALID",
+          message: "Apple Webhook の signedPayload デコードに失敗しました",
+          retryable: false,
+        },
+      });
+    }
+
+    const result = await billing.handleAppleIapWebhook(decodedPayload);
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }
@@ -165,6 +235,10 @@ export function registerBillingRoutes(
   });
 
   // POST /api/billing/webhook/google
+  // TODO(#23): Google Play RTDN (Pub/Sub push) は通常 Google 発行の OIDC ID トークンを
+  // Authorization ヘッダーで送ってくる (audience/署名検証で呼び出し元を確認する) が、本エンドポイントは
+  // 現状そのトークンを検証していない。GooglePlayAdapter.parseWebhookPayload もペイロード解析のみ。
+  // 上記 Apple 同様、packages/billing のインターフェース変更を伴うため本 PR のスコープ外。
   fastify.post("/api/billing/webhook/google", async (request: FastifyRequest, reply: FastifyReply) => {
     const result = await billing.handleGoogleIapWebhook(request.body);
     if (!result.ok) {

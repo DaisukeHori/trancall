@@ -64,6 +64,15 @@ export interface TranslationSessionConfig {
   metricsIntervalMs?: number;
   /** degraded 判定のサンプリング間隔 (ms)。テスト用に短くできる。デフォルト 5000 */
   degradedCheckIntervalMs?: number;
+  /**
+   * #31: session.close 送信後、WebSocket を実際に close() するまでの待機時間 (ms)。
+   * translation-pipeline-design.md §4.5: "The server flushes pending input audio and
+   * emits any remaining translated output before closing the session" — サーバーが
+   * pending buffer をフラッシュして最終出力を送ってくる猶予を与えるための待機。
+   * 即座に close(1000) すると末尾の翻訳出力 (audio.delta/transcript.delta) を
+   * 受信し損ねる可能性がある。テスト用に短くできる。デフォルト 500ms。
+   */
+  sessionCloseFlushWaitMs?: number;
 }
 
 // --- イベント ---
@@ -71,7 +80,12 @@ export interface TranslationSessionConfig {
 export interface TranslationSessionEvents {
   ready: () => void;
   "translated-audio": (pcm16Base64: string) => void;
-  transcript: (text: string, isFinal: boolean) => void;
+  /**
+   * #51: elapsedMs は OpenAI Translation API の session.output_transcript.delta/done の
+   * elapsed_ms をそのまま伝搬する (未提供時は 0)。agent.ts が subtitle.delta Data Channel
+   * payload の elapsedMs に使用する。
+   */
+  transcript: (text: string, isFinal: boolean, elapsedMs: number) => void;
   error: (error: Error) => void;
   ended: (reason: string) => void;
   degraded: (reason: string) => void;
@@ -147,6 +161,8 @@ export class TranslationSession extends EventEmitter {
 
   private readonly metricsIntervalMs: number;
   private readonly degradedCheckIntervalMs: number;
+  // #31: session.close 送信後、close() するまでの待機時間
+  private readonly sessionCloseFlushWaitMs: number;
 
   // LiveKit publish 失敗カウンタ (T8: 連続 3 回で agent_publish_failed)
   private publishFailCount = 0;
@@ -163,6 +179,7 @@ export class TranslationSession extends EventEmitter {
     super();
     this.metricsIntervalMs = config.metricsIntervalMs ?? 30000;
     this.degradedCheckIntervalMs = config.degradedCheckIntervalMs ?? 5000;
+    this.sessionCloseFlushWaitMs = config.sessionCloseFlushWaitMs ?? 500;
   }
 
   async start(): Promise<void> {
@@ -231,13 +248,14 @@ export class TranslationSession extends EventEmitter {
     });
 
     this.openaiClient.on("transcript.delta", (event) => {
-      this.emit("transcript", event.text, false);
+      // #51: elapsedMs は agent.ts の subtitle.delta Data Channel payload に伝搬する
+      this.emit("transcript", event.text, false, event.elapsedMs ?? 0);
       // isFinal=false の delta もサーバーに送信（サーバー側は DB 書き込みなし）
       this.postTranscriptDelta(event.text, false);
     });
 
     this.openaiClient.on("transcript.done", (event) => {
-      this.emit("transcript", event.text, true);
+      this.emit("transcript", event.text, true, event.elapsedMs ?? 0);
       // isFinal=true は transcript として永続化される
       this.postTranscriptDelta(event.text, true);
     });
@@ -407,6 +425,13 @@ export class TranslationSession extends EventEmitter {
     if (this.openaiClient) {
       // T7: session.close で pending input audio をフラッシュ (Translation API には commit なし)
       this.openaiClient.sendSessionClose();
+      // #31: session.close 直後に即 close(1000) すると、サーバーがフラッシュして送り返す
+      // 末尾の audio.delta / transcript.delta (translation-pipeline-design.md §4.5) を
+      // 受信し損ねる可能性がある。ws.on("message") は close() 後も既存の "close" ハンドラ
+      // 発火前であれば処理されるため、短い猶予期間を空けてから実際に close する。
+      if (this.sessionCloseFlushWaitMs > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, this.sessionCloseFlushWaitMs));
+      }
       await this.openaiClient.close();
       this.openaiClient = null;
     }
@@ -468,14 +493,23 @@ export class TranslationSession extends EventEmitter {
       }
     }
 
-    // 3. 出力無音 (2 秒以上 audio.delta を受信していない + raw audio は input 中)
+    // 3. 出力無音 (直近に実際の音声入力があるのに 2 秒以上 audio.delta を受信していない)
+    // #31: 旧実装は「一度でも input があったか (lastAppend !== null)」しか見ておらず、
+    // 会話の自然な沈黙 (発話と発話の間、相手の発話を聞いている間など) でも
+    // lastAppend が過去のまま残り続け degraded が誤発火していた。
+    // 直近 (DEGRADED_SILENCE_THRESHOLD_MS 以内) に音声入力があった場合のみ
+    // 「発話中なのに翻訳出力が来ない」実際の異常として判定する。
+    // さらに、まだ一度も出力を受信していないケース (lastOutput === null) は
+    // セッション開始からの経過時間で無音時間を計測する (即座の誤検知を防ぐ)。
     if (!currentDegradedReason) {
       const lastOutput = this.degradedState.lastOutputAudioAt;
       const lastAppend = this.lastAudioAppendAt;
-      if (
+      const hasRecentInput =
         lastAppend !== null &&
-        (lastOutput === null || now - lastOutput >= TranslationSession.DEGRADED_SILENCE_THRESHOLD_MS)
-      ) {
+        now - lastAppend < TranslationSession.DEGRADED_SILENCE_THRESHOLD_MS;
+      const outputGapMs =
+        lastOutput === null ? now - this.startedAt.getTime() : now - lastOutput;
+      if (hasRecentInput && outputGapMs >= TranslationSession.DEGRADED_SILENCE_THRESHOLD_MS) {
         currentDegradedReason = "output_silence";
       }
     }

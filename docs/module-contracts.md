@@ -574,6 +574,7 @@ mobile 側 (`apps/mobile/src/lib/livekit/subtitles.ts`) は同 schema で **Zod 
 | `ROOM_ALREADY_ENDED` | room (Layer 2) | 410 | false | 「この通話は終了しました」 |
 | `ROOM_FULL` | room (Layer 2) | 409 | false | 「通話が満員です」 |
 | `ROOM_USER_BLOCKED` | room (Layer 2) | 403 | false | 「この相手には発信できません」 |
+| `ROOM_USER_NOT_INVITED` | **[確定#2]** room (Layer 2) | 403 | false | 「この通話には招待されていません」(招待されていないユーザーの POST /api/rooms/:id/join を拒否) |
 | `BILLING_INSUFFICIENT_BALANCE` | billing | 402 | false | 「翻訳分数が不足しています」 |
 | `BILLING_SUBSCRIPTION_EXPIRED` | billing | 402 | false | 「サブスクリプションが期限切れです」 |
 | `BILLING_PAYMENT_FAILED` | billing | 402 | true | 「決済に失敗しました」 |
@@ -663,16 +664,22 @@ POST https://api.trancall.app/internal/agent/events
 Headers:
   content-type: application/json
   x-trancall-agent: trancall-translation-agent
-  x-trancall-signature: <hex HMAC-SHA256 of (body || "|" || idempotencyKey)>
+  x-trancall-signature: <hex HMAC-SHA256 of (body || "|" || idempotencyKey || "|" || timestamp)>
   x-trancall-idempotency-key: <UUID>
+  x-trancall-timestamp: <ISO8601, 必須>
 ```
 
 ### 7.2 認証
 
 - HMAC-SHA256 共有鍵 `TRANCALL_AGENT_HMAC_SECRET` (32 文字以上、Agent / Server 両環境変数に同じ値)
-- Signature 計算: `createHmac("sha256", secret).update(body + "|" + idempotencyKey).digest("hex")`
+- Signature 計算: `createHmac("sha256", secret).update(body + "|" + idempotencyKey + "|" + timestamp).digest("hex")`
 - Server 側で `timingSafeEqual` で比較
-- (任意) `X-Agent-Timestamp` + 5 分以内チェックでリプレイ攻撃防止 — `docs/security-detail.md` 参照、Sprint 1 では未実装
+- `x-trancall-timestamp` (ISO8601) は必須ヘッダー、5 分以内チェックでリプレイ攻撃防止
+  (`docs/security-detail.md` §2 参照)。
+  **確定#4 (2026-07 敵対的レビュー)**: 旧実装は timestamp を鮮度チェックのみに使い
+  署名対象に含めていなかったため、signature をそのままに timestamp だけ「現在時刻」に
+  書き換えるリプレイが可能だった。timestamp を署名対象に含め、ヘッダー自体も必須化した
+  (Agent 側 `internal-api-client.ts` / Server 側 `hmac-middleware.ts` を同時に更新済み)。
 
 ### 7.3 冪等性
 

@@ -18,7 +18,8 @@ type RoomRow = {
   status: RoomStatus;
   room_type: "audio" | "video";
   translation_enabled: boolean;
-  created_by: string;
+  // nullable 追従 (00019 migration): 作成者が退会し物理削除されると NULL 化される
+  created_by: string | null;
   created_at: string;
   ended_at: string | null;
 };
@@ -38,7 +39,8 @@ function parseRow(row: Record<string, unknown>): Result<RoomRow> {
     status: RoomStatusSchema,
     room_type: z.enum(["audio", "video"]),
     translation_enabled: z.boolean(),
-    created_by: z.uuid(),
+    // nullable 追従 (00019 migration): 作成者が退会し物理削除されると NULL 化される
+    created_by: z.uuid().nullable(),
     created_at: z.iso.datetime(),
     ended_at: z.iso.datetime().nullable(),
   }).safeParse({

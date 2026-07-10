@@ -25,9 +25,9 @@ import {
   type AgentMetricsPayload,
   type TranslationDegradedPayload,
   type TranslationRecoveredPayload,
-} from "../schemas.js";
-import type { TranslationSessionRepository } from "../repositories/translation-session-repository.js";
-import type { AgentMetricsRepository } from "../repositories/agent-metrics-repository.js";
+} from "../schemas.ts";
+import type { TranslationSessionRepository } from "../repositories/translation-session-repository.ts";
+import type { AgentMetricsRepository } from "../repositories/agent-metrics-repository.ts";
 
 export interface AgentEventHandlerDeps {
   sessionRepo: TranslationSessionRepository;

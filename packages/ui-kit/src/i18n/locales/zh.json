@@ -106,7 +106,8 @@
     "callAgain": "再次拨打",
     "backToHome": "返回首页",
     "incomingCall": "来电",
-    "translationReady": "翻译已就绪"
+    "translationReady": "翻译已就绪",
+    "connectionFailed": "无法连接通话，请检查网络后重试。"
   },
   "translation": {
     "enabled": "翻译开启",
@@ -555,6 +556,8 @@
   },
   "faq": {
     "title": "常见问题",
+    "expandHint": "点击查看答案",
+    "collapseHint": "点击收起",
     "category": {
       "account": "账号",
       "call": "通话",

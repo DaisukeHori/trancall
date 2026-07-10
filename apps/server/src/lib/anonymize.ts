@@ -41,7 +41,8 @@ export function deriveAnonymizedUserId(userId: UserId, salt: string): UserId {
   // version 4: バイト 6 の上位 4 ビットを 0100 に設定
   const b2 = "4" + hex.slice(13, 16);
   // variant 10xx: バイト 8 の上位 2 ビットを 10 に設定 (8, 9, a, b のいずれか)
-  const variantHex = (parseInt(hex[16]!, 16) & 0x3) | 0x8;
+  // hex は 32 文字 (sha256 の先頭 16 バイト) 確定のため charAt(16) は必ず有効な文字を返す
+  const variantHex = (parseInt(hex.charAt(16), 16) & 0x3) | 0x8;
   const b3 = variantHex.toString(16) + hex.slice(17, 20);
   const b4 = hex.slice(20, 32);
 

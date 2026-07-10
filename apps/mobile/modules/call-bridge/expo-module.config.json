@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["CallBridgeModule"]
+  },
+  "android": {
+    "modules": ["tech.hori.trancall.callbridge.CallBridgeModule"]
+  }
+}

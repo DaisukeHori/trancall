@@ -1,4 +1,4 @@
-import { colors, spacing, typography, radii } from "../tokens.js";
+import { colors, spacing, typography, radii } from "../tokens.ts";
 
 export interface Theme {
   colors: typeof colors.light | typeof colors.dark;

@@ -1,10 +1,10 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { RecentStack } from "./recent-stack.js";
-import { ContactsStack } from "./contacts-stack.js";
-import { SettingsStack } from "./settings-stack.js";
+import { useTranslation } from "../i18n/index";
+import { RecentStack } from "./recent-stack";
+import { ContactsStack } from "./contacts-stack";
+import { SettingsStack } from "./settings-stack";
 
 export type MainTabParamList = {
   Home: undefined;
@@ -37,6 +37,10 @@ export function MainTabs() {
         options={{
           tabBarLabel: t("home.recentCalls"),
           tabBarAccessibilityLabel: t("home.recentCalls"),
+          // E2E (Maestro `id:` selector, apps/mobile/e2e/maestro/flows/) — testID を
+          // Maestro accessibility id として使うため、react-navigation v7 の
+          // tabBarButtonTestID を明示指定する。
+          tabBarButtonTestID: "tab-home",
         }}
       />
       <Tab.Screen
@@ -45,6 +49,7 @@ export function MainTabs() {
         options={{
           tabBarLabel: t("contacts.title"),
           tabBarAccessibilityLabel: t("contacts.title"),
+          tabBarButtonTestID: "tab-contacts",
         }}
       />
       <Tab.Screen
@@ -53,6 +58,7 @@ export function MainTabs() {
         options={{
           tabBarLabel: t("settings.title"),
           tabBarAccessibilityLabel: t("settings.title"),
+          tabBarButtonTestID: "tab-settings",
         }}
       />
     </Tab.Navigator>

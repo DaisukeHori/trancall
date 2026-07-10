@@ -7,11 +7,12 @@
  */
 
 // Facade
-export { createTranslationFacade } from "./facade.js";
-export type { TranslationFacade, TranslationFacadeDeps } from "./facade.js";
+export { createTranslationFacade } from "./facade.ts";
+export type { TranslationFacade, TranslationFacadeDeps } from "./facade.ts";
 
 // Schemas (公開)
 export {
+  TranslationSessionEndedReasonSchema,
   LiveSubtitleDeltaSchema,
   TranslationSessionRecordSchema,
   AgentMetricsRecordSchema,
@@ -26,9 +27,10 @@ export {
   TranslationRecoveredEventSchema,
   TranslationStatusChannelPayloadSchema,
   TranslationUsageSchema,
-} from "./schemas.js";
+} from "./schemas.ts";
 
 export type {
+  TranslationSessionEndedReason,
   LiveSubtitleDelta,
   TranslationSessionRecord,
   AgentMetricsRecord,
@@ -43,26 +45,26 @@ export type {
   TranslationRecoveredEvent,
   TranslationStatusChannelPayload,
   TranslationUsage,
-} from "./schemas.js";
+} from "./schemas.ts";
 
 // Repository interfaces (Server インフラ層で実装する)
-export type { TranslationSessionRepository } from "./repositories/translation-session-repository.js";
-export type { AgentMetricsRepository } from "./repositories/agent-metrics-repository.js";
-export type { TranslationEventOutboxRepository, OutboxRecord } from "./repositories/translation-event-outbox-repository.js";
+export type { TranslationSessionRepository } from "./repositories/translation-session-repository.ts";
+export type { AgentMetricsRepository } from "./repositories/agent-metrics-repository.ts";
+export type { TranslationEventOutboxRepository, OutboxRecord } from "./repositories/translation-event-outbox-repository.ts";
 
 // Domain Events
 export {
   TranslationStartedEventSchema,
   createTranslationStartedEvent,
-} from "./events/translation-started.js";
-export type { TranslationStartedEvent } from "./events/translation-started.js";
+} from "./events/translation-started.ts";
+export type { TranslationStartedEvent } from "./events/translation-started.ts";
 
 export {
   TranslationEndedEventSchema,
   createTranslationEndedEvent,
-} from "./events/translation-ended.js";
-export type { TranslationEndedEvent } from "./events/translation-ended.js";
+} from "./events/translation-ended.ts";
+export type { TranslationEndedEvent } from "./events/translation-ended.ts";
 
 // Utilities (re-export for convenience)
-export { shouldStartSession } from "./services/language-pair.js";
-export { calcBillableSeconds, calcUsageFromRecord } from "./services/usage-calculator.js";
+export { shouldStartSession } from "./services/language-pair.ts";
+export { calcBillableSeconds, calcUsageFromRecord } from "./services/usage-calculator.ts";

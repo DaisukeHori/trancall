@@ -12,7 +12,7 @@ import {
   PlanTier,
   PurchaseChannel,
   SubscriptionState,
-} from "../schemas.js";
+} from "../schemas.ts";
 
 // =============================================================================
 // 4.1 PlanComparisonView

@@ -9,11 +9,11 @@ import {
   View,
 } from "react-native";
 import { Button, LANGUAGE_LIST, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useAuthStore } from "../stores/auth-store.js";
+import { useTranslation } from "../i18n/index";
+import { useAuthStore } from "../stores/auth-store";
 import type { OutputLanguage } from "@trancall/shared-kernel";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { AuthStackParamList } from "../navigation/auth-stack.js";
+import type { AuthStackParamList } from "../navigation/auth-stack";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Onboarding">;
 

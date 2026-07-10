@@ -8,6 +8,19 @@
  * tsc の型チェック時は dynamic import で参照しない。
  * 実行時に require() で読み込み、存在しなければエラーを throw。
  */
+import { ensureMicrophonePermission } from "../permissions/index";
+
+/**
+ * #32: マイク権限が未許可の場合に throw されるエラー。
+ * 呼び出し側 (in-call-screen.tsx) はこれを catch し、
+ * permission-store 経由で PermissionRecordAudioScreen フォールバックを表示する。
+ */
+export class MicrophonePermissionDeniedError extends Error {
+  constructor() {
+    super("MICROPHONE_PERMISSION_DENIED");
+    this.name = "MicrophonePermissionDeniedError";
+  }
+}
 
 export interface ConnectOptions {
   serverUrl: string;
@@ -46,6 +59,28 @@ interface LiveKitModuleLike {
   };
 }
 
+/**
+ * LiveKit RoomEvent.DataReceived の実コールバック引数
+ * `(payload: Uint8Array, participant?, kind?, topic?)` を
+ * RoomHandle.subscribeToDataChannel の `(data, topic) => void` シグネチャへ変換する。
+ *
+ * topic は第4引数 (2巡目レビュー確定 finding5)。第3引数 (kind) から誤って
+ * topic を読むと常に undefined になり、topic 一致判定を行う全ハンドラ
+ * (translation-status.ts / subtitles.ts) が常に drop してしまう。
+ *
+ * トップレベルで export し、native module (@livekit/react-native) 抜きに
+ * 引数順の回帰をユニットテストできるようにする。
+ */
+export function createDataReceivedListener(
+  handler: (data: Uint8Array, topic?: string) => void,
+): (data: unknown, participant?: unknown, kind?: unknown, topic?: unknown) => void {
+  return (data, _participant, _kind, topic) => {
+    if (data instanceof Uint8Array) {
+      handler(data, typeof topic === "string" ? topic : undefined);
+    }
+  };
+}
+
 function loadLiveKitModule(): LiveKitModuleLike {
   try {
     const mod = require("@livekit/react-native") as { default?: LiveKitModuleLike } & LiveKitModuleLike; // eslint-disable-line @typescript-eslint/no-require-imports
@@ -65,12 +100,19 @@ function loadLiveKitModule(): LiveKitModuleLike {
  * 呼び出し側で try-catch するか、テスト時はモック差し込みのこと。
  */
 export async function connectToRoom(opts: ConnectOptions): Promise<RoomHandle> {
+  // #32: setMicrophoneEnabled(true) の前に runtime 権限を確認する。
+  // 未許可なら LiveKit へ接続すらしない (token を無駄にしない)。
+  const micGranted = await ensureMicrophonePermission();
+  if (!micGranted) {
+    throw new MicrophonePermissionDeniedError();
+  }
+
   const { Room, RoomEvent } = loadLiveKitModule();
 
   const room = new Room();
   await room.connect(opts.serverUrl, opts.token);
 
-  // Publish local mic track
+  // Publish local mic track (権限は上で確認済み)
   await room.localParticipant.setMicrophoneEnabled(true);
 
   return {
@@ -87,11 +129,7 @@ export async function connectToRoom(opts: ConnectOptions): Promise<RoomHandle> {
     },
 
     subscribeToDataChannel: (handler) => {
-      const listener = (data: unknown, _participant: unknown, topic: unknown) => {
-        if (data instanceof Uint8Array) {
-          handler(data, typeof topic === "string" ? topic : undefined);
-        }
-      };
+      const listener = createDataReceivedListener(handler);
       room.on(RoomEvent["DataReceived"] ?? "dataReceived", listener);
       return () => {
         room.off(RoomEvent["DataReceived"] ?? "dataReceived", listener);

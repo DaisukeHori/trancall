@@ -1,5 +1,6 @@
 // SignUp screen — display name / email / password / nativeLanguage + consent
 import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,11 +13,11 @@ import {
 } from "react-native";
 import { Button, Input, LanguagePicker, useTheme } from "@trancall/ui-kit";
 import type { OutputLanguage } from "@trancall/shared-kernel";
-import { useTranslation } from "../i18n/index.js";
-import { resolveErrorMessage } from "../lib/error-i18n.js";
-import { useAuthStore } from "../stores/auth-store.js";
+import { useTranslation } from "../i18n/index";
+import { resolveErrorMessage } from "../lib/error-i18n";
+import { useAuthStore } from "../stores/auth-store";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { AuthStackParamList } from "../navigation/auth-stack.js";
+import type { AuthStackParamList } from "../navigation/auth-stack";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "SignUp">;
 
@@ -109,6 +110,7 @@ export function SignUpScreen({ navigation }: Props) {
           {/* Form */}
           <View style={[styles.form, { marginTop: s[24], gap: s[12] }]}>
             <Input
+              testID="displayName-input"
               label={t("auth.displayName")}
               placeholder={t("auth.placeholders.displayName")}
               value={displayName}
@@ -137,6 +139,7 @@ export function SignUpScreen({ navigation }: Props) {
             />
 
             <Input
+              testID="password-input"
               label={t("auth.password")}
               placeholder="••••••••"
               value={password}
@@ -158,6 +161,7 @@ export function SignUpScreen({ navigation }: Props) {
 
             {/* Consent checkbox */}
             <Pressable
+              testID="consent-checkbox"
               accessibilityLabel={t("auth.consent.checkboxLabel")}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: consentAccepted }}
@@ -175,7 +179,7 @@ export function SignUpScreen({ navigation }: Props) {
                 ]}
               >
                 {consentAccepted && (
-                  <Text style={[styles.checkmark, { color: c.bgPrimary }]}>✓</Text>
+                  <Ionicons name="checkmark" size={16} color={c.bgPrimary} />
                 )}
               </View>
               <Text style={[styles.consentText, { color: c.textSecondary }]}>

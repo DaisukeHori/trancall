@@ -22,6 +22,12 @@ import {
 const creatorId = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440011");
 const inviteeId = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440012");
 
+// #52: createCall opts に追加された callerName/languagePair/callerLanguage は
+// 呼び出し元 (server route) が auth/profile から解決して渡す想定のテスト用ダミー値
+const TEST_CALLER_NAME = "テスト太郎";
+const TEST_LANGUAGE_PAIR = "ja → en";
+const TEST_CALLER_LANGUAGE = "ja";
+
 function makeFacade(overrides?: {
   canStart?: boolean;
   createRoomOk?: boolean;
@@ -53,7 +59,7 @@ describe("RoomFacade.createCall", () => {
   it("正常系: ok=true, RoomState を返す", async () => {
     const { facade } = makeFacade();
     const result = await facade.createCall(creatorId, [inviteeId], {
-      translationEnabled: true,
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
 
     expect(result.ok).toBe(true);
@@ -66,7 +72,7 @@ describe("RoomFacade.createCall", () => {
   it("billing 失敗 → ok=false, code=BILLING_INSUFFICIENT_BALANCE", async () => {
     const { facade } = makeFacade({ canStart: false });
     const result = await facade.createCall(creatorId, [inviteeId], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
 
     expect(result.ok).toBe(false);
@@ -77,7 +83,7 @@ describe("RoomFacade.createCall", () => {
   it("media 失敗 → ok=false, code=ROOM_MEDIA_CREATE_FAILED", async () => {
     const { facade } = makeFacade({ createRoomOk: false });
     const result = await facade.createCall(creatorId, [inviteeId], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
 
     expect(result.ok).toBe(false);
@@ -87,13 +93,13 @@ describe("RoomFacade.createCall", () => {
 
   it("billing.canStartCall が呼ばれる", async () => {
     const { facade, billing } = makeFacade();
-    await facade.createCall(creatorId, [], { translationEnabled: false });
+    await facade.createCall(creatorId, [], { translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE, });
     expect(billing.canStartCall).toHaveBeenCalledWith(creatorId);
   });
 
   it("media.createRoom が呼ばれる", async () => {
     const { facade, media } = makeFacade();
-    await facade.createCall(creatorId, [], { translationEnabled: false });
+    await facade.createCall(creatorId, [], { translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE, });
     expect(media.createRoom).toHaveBeenCalledOnce();
   });
 });
@@ -107,7 +113,7 @@ describe("RoomFacade.joinCall", () => {
     const { facade } = makeFacade();
 
     const createResult = await facade.createCall(creatorId, [inviteeId], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -125,7 +131,7 @@ describe("RoomFacade.joinCall", () => {
     const { facade } = makeFacade();
 
     const createResult = await facade.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -159,7 +165,7 @@ describe("RoomFacade.endCall", () => {
     const { facade } = makeFacade();
 
     const createResult = await facade.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -176,7 +182,7 @@ describe("RoomFacade.endCall", () => {
     const { facade } = makeFacade();
 
     const createResult = await facade.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -202,7 +208,7 @@ describe("RoomFacade.endCall", () => {
     const { facade, media } = makeFacade();
 
     const createResult = await facade.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -223,7 +229,7 @@ describe("RoomFacade.getState", () => {
     const { facade } = makeFacade();
 
     const createResult = await facade.createCall(creatorId, [], {
-      translationEnabled: true,
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -252,7 +258,7 @@ describe("RoomFacade.getState", () => {
     const { facade } = makeFacade();
 
     const createResult = await facade.createCall(creatorId, [inviteeId], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -271,7 +277,7 @@ describe("RoomFacade.getState", () => {
     const { facade } = makeFacade();
 
     const createResult = await facade.createCall(creatorId, [], {
-      translationEnabled: false,
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
@@ -291,7 +297,7 @@ describe("RoomFacade.getState", () => {
 
     // 1. create
     const createResult = await facade.createCall(creatorId, [inviteeId], {
-      translationEnabled: true,
+      translationEnabled: true, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
     });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;

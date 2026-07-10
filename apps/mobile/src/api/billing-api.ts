@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 import type { Result } from "@trancall/shared-kernel";
-import { apiFetch } from "./client.js";
+import { apiFetch } from "./client";
 import {
   PlanComparisonViewSchema,
   UpgradePreviewSchema,
@@ -15,8 +15,8 @@ import {
   StoreKitExternalRedirectResultSchema,
   type IapTransactionResult,
   type StoreKitExternalRedirectResult,
-} from "@trancall/billing";
-import { SubscriptionState } from "@trancall/billing";
+} from "@trancall/billing/client";
+import { SubscriptionState } from "@trancall/billing/client";
 
 // =============================================================================
 // Response Schemas

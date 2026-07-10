@@ -1,0 +1,10 @@
+{
+  "name": "call-bridge",
+  "version": "0.1.0",
+  "description": "TranCall CallBridge — CXProvider/PushKit (iOS) と ConnectionService/PhoneAccount (Android) を JS から扱う local Expo Module。canonical: docs/native-call-bridge.md",
+  "main": "index.ts",
+  "types": "index.ts",
+  "sideEffects": false,
+  "license": "UNLICENSED",
+  "private": true
+}

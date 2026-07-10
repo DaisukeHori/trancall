@@ -16,7 +16,7 @@
  * - autoReconnect=false → 再接続しない
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // --- vi.hoisted でモッククラスを定義 ---
 // node:events はネイティブモジュールのため require で参照する
@@ -30,6 +30,8 @@ const { MockWebSocket } = vi.hoisted(() => {
     sentMessages: string[] = [];
     closeCalled = false;
     closeCode = 0;
+    pingCount = 0;
+    terminateCalled = false;
 
     constructor(
       public readonly url: string,
@@ -53,7 +55,16 @@ const { MockWebSocket } = vi.hoisted(() => {
     }
 
     ping(): void {
-      // no-op
+      this.pingCount += 1;
+    }
+
+    // #31: pong タイムアウト検知テスト用 — 実際の ws.terminate() を模す
+    // (半死接続の強制切断。close イベントは異常切断コード 1006 相当で emit する)
+    terminate(): void {
+      this.terminateCalled = true;
+      process.nextTick(() => {
+        this.emit("close", 1006, Buffer.from("terminated"));
+      });
     }
 
     simulateOpen(): void {
@@ -78,6 +89,13 @@ const { MockWebSocket } = vi.hoisted(() => {
     simulateError(error: Error): void {
       process.nextTick(() => {
         this.emit("error", error);
+      });
+    }
+
+    // #31: pong タイムアウト検知テスト用
+    simulatePong(): void {
+      process.nextTick(() => {
+        this.emit("pong");
       });
     }
   }
@@ -472,5 +490,184 @@ describe("OpenAIWsClient: 切断・再接続", () => {
 
     expect(ws.closeCalled).toBe(true);
     expect(ws.closeCode).toBe(1000);
+  });
+});
+
+// =============================================================================
+// #31: pong タイムアウト検知
+// heartbeat の ping に対して PONG_TIMEOUT_MS (10s) 以内に pong が届かない場合、
+// 接続を強制切断 (ws.terminate()) して再接続フローに合流させる。
+// =============================================================================
+
+describe("OpenAIWsClient: #31 pong タイムアウト検知", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("30秒ごとに ping が送信される", async () => {
+    const client = makeClient(false);
+    void client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const ws = MockWebSocket.instances[0];
+    if (!ws) throw new Error("ws not created");
+    ws.simulateOpen();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(ws.pingCount).toBe(0);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(ws.pingCount).toBe(1);
+    // pong を返して接続を維持する (返さないと PONG_TIMEOUT_MS 後に terminate され
+    // heartbeat interval 自体が止まってしまう)
+    ws.simulatePong();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(ws.pingCount).toBe(2);
+  });
+
+  it("ping 送信後 PONG_TIMEOUT_MS (10s) 以内に pong が届けば接続は維持される (terminate されない)", async () => {
+    const client = makeClient(false);
+    void client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const ws = MockWebSocket.instances[0];
+    if (!ws) throw new Error("ws not created");
+    ws.simulateOpen();
+    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.advanceTimersByTimeAsync(30000); // ping 送信
+    ws.simulatePong();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // pong 受信済みなので 10s 経過しても terminate されない
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(ws.terminateCalled).toBe(false);
+    expect(client.getState()).toBe("open");
+  });
+
+  it("ping 送信後 PONG_TIMEOUT_MS (10s) 以内に pong が届かなければ ws.terminate() で強制切断される", async () => {
+    const client = makeClient(true);
+    const closeSpy = vi.fn();
+    client.on("close", closeSpy);
+
+    void client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const ws = MockWebSocket.instances[0];
+    if (!ws) throw new Error("ws not created");
+    ws.simulateOpen();
+    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.advanceTimersByTimeAsync(30000); // ping 送信、pong タイムアウトタイマー開始
+    // pong を送らないまま PONG_TIMEOUT_MS 経過
+    await vi.advanceTimersByTimeAsync(10000);
+
+    expect(ws.terminateCalled).toBe(true);
+    // terminate() → close(1006) → autoReconnect=true なので reconnecting に遷移する
+    expect(client.getState()).toBe("reconnecting");
+  });
+});
+
+// =============================================================================
+// #31: 再接続上限時間 (5分) 超過で fatal に遷移
+// 翻訳パイプライン設計書 §10.2: 5分以上接続できない場合は諦めて session を終了できるようにする。
+// TranslationSession 側は state==="fatal" + close イベントで end("openai_fatal_error") する。
+// =============================================================================
+
+describe("OpenAIWsClient: #31 再接続上限時間 (5分) 超過で fatal", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("再接続を試み続けても5分以上接続できない場合、fatal に遷移し close イベントを emit する", async () => {
+    const client = makeClient(true);
+    const closeSpy = vi.fn();
+    const reconnectingSpy = vi.fn();
+    client.on("close", closeSpy);
+    client.on("reconnecting", reconnectingSpy);
+
+    void client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+
+    let ws = MockWebSocket.instances[0];
+    if (!ws) throw new Error("ws not created");
+    ws.simulateOpen();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // 最初の切断 → reconnectingSince が記録され、attempt1 (delay 1s) がスケジュールされる
+    ws.simulateClose(1006, "connection lost");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getState()).toBe("reconnecting");
+
+    // 1s, 2s, 4s, 8s, 16s, 32s, 60s, 60s, 60s, 60s (exponential backoff, 60s 上限) を
+    // 累積すると 303s (5分 = 300s を超過) になる。各遅延経過後に新しい接続試行を失敗させ続ける。
+    const delaysMs = [1000, 2000, 4000, 8000, 16000, 32000, 60000, 60000, 60000, 60000];
+
+    for (const delayMs of delaysMs) {
+      await vi.advanceTimersByTimeAsync(delayMs);
+
+      if (client.getState() === "fatal") break;
+
+      const latestWs = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+      expect(latestWs).toBeDefined();
+      if (!latestWs) break;
+      latestWs.simulateClose(1006, "connection lost");
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    expect(client.getState()).toBe("fatal");
+    expect(closeSpy).toHaveBeenCalled();
+    // 5 分超過を検出した時点で新たな reconnecting はスケジュールされない
+    // (最後の reconnecting emit 回数は delaysMs の消費数以下)
+    expect(reconnectingSpy.mock.calls.length).toBeLessThanOrEqual(delaysMs.length + 1);
+  });
+
+  it("5分以内に接続が成功すれば reconnectingSince がリセットされ fatal にならない", async () => {
+    const client = makeClient(true);
+    const closeSpy = vi.fn();
+    client.on("close", closeSpy);
+
+    void client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+
+    let ws = MockWebSocket.instances[0];
+    if (!ws) throw new Error("ws not created");
+    ws.simulateOpen();
+    await vi.advanceTimersByTimeAsync(0);
+
+    ws.simulateClose(1006, "connection lost");
+    await vi.advanceTimersByTimeAsync(0);
+
+    // attempt1 (delay 1s) 経過後、新しい接続試行が今度は成功する
+    await vi.advanceTimersByTimeAsync(1000);
+    const secondWs = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    if (!secondWs) throw new Error("second ws not created");
+    secondWs.simulateOpen();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(client.getState()).toBe("open");
+    expect(closeSpy).not.toHaveBeenCalled();
+
+    // 再接続成功後、さらに 5 分以上経過しても fatal にならない
+    // (reconnectingSince がリセットされているため)。
+    // heartbeat の pong にはきちんと応答して接続を健全に保つ (pong タイムアウトによる
+    // 意図しない再切断を防ぐため、#31 pong タイムアウト検知テストとは別の懸念)。
+    for (let i = 0; i < 12; i++) {
+      await vi.advanceTimersByTimeAsync(30000);
+      const currentWs = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+      if (currentWs && client.getState() === "open") {
+        currentWs.simulatePong();
+        await vi.advanceTimersByTimeAsync(0);
+      }
+    }
+    expect(client.getState()).toBe("open");
+    expect(closeSpy).not.toHaveBeenCalled();
   });
 });

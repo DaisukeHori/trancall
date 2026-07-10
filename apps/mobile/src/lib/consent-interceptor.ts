@@ -8,7 +8,7 @@
  * RootNavigator が Consent Screen へ強制遷移するトリガーを設定する。
  *
  * 使用方法:
- *   import { handleConsentError } from "../lib/consent-interceptor.js";
+ *   import { handleConsentError } from "../lib/consent-interceptor";
  *
  *   const result = await apiFetch(...);
  *   if (!result.ok && handleConsentError(result.error)) {
@@ -17,7 +17,7 @@
  */
 
 import type { RequiredConsentView } from "@trancall/shared-kernel";
-import { useConsentStore } from "../stores/consent-store.js";
+import { useConsentStore } from "../stores/consent-store";
 
 /** AUTH_CONSENT_* に該当するエラーコード */
 const CONSENT_ERROR_CODES = [
@@ -31,7 +31,7 @@ export type ConsentErrorCode = (typeof CONSENT_ERROR_CODES)[number];
  * エラーコードが AUTH_CONSENT_* かどうかを判定する。
  */
 export function isConsentError(code: string): code is ConsentErrorCode {
-  return (CONSENT_ERROR_CODES as readonly string[]).includes(code);
+  return CONSENT_ERROR_CODES.some((consentCode) => consentCode === code);
 }
 
 /**

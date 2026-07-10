@@ -14,7 +14,7 @@ import {
   type TranscriptSegment,
   type ExportFormat,
   type ExportResult,
-} from "../api/transcript-api.js";
+} from "../api/transcript-api";
 
 export type TranscriptFilter = "all" | "self" | "other";
 

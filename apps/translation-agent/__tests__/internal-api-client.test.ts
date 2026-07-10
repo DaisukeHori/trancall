@@ -31,7 +31,10 @@ function makeClient(fetchImpl: typeof fetch, maxRetries = 0) {
 }
 
 describe("InternalApiClient.postEvent", () => {
-  it("HMAC-SHA256 署名が body+idempotencyKey に付与される", async () => {
+  // 確定#4: HMAC 署名対象を body|idempotencyKey|timestamp に拡張 (リプレイ防止の
+  // timestamp 自体が改竄可能だった問題の修正、apps/server/src/middleware/hmac-middleware.ts
+  // と canonical string を一致させる必要がある)。
+  it("HMAC-SHA256 署名が body+idempotencyKey+timestamp に付与される (確定#4)", async () => {
     let capturedHeaders: Record<string, string> | null = null;
     let capturedBody: string | null = null;
 
@@ -62,11 +65,15 @@ describe("InternalApiClient.postEvent", () => {
 
     const signature = headers["x-trancall-signature"];
     const idempotencyKey = headers["x-trancall-idempotency-key"];
+    const timestamp = headers["x-trancall-timestamp"];
     expect(typeof signature).toBe("string");
     expect(typeof idempotencyKey).toBe("string");
+    expect(typeof timestamp).toBe("string");
+    // ISO8601 として解釈できること (server 側の鮮度チェックが Date.parse するため)
+    expect(Number.isNaN(Date.parse(timestamp ?? ""))).toBe(false);
 
     const expected = createHmac("sha256", SECRET)
-      .update(`${body}|${idempotencyKey ?? ""}`)
+      .update(`${body}|${idempotencyKey ?? ""}|${timestamp ?? ""}`)
       .digest("hex");
     expect(signature).toBe(expected);
   });

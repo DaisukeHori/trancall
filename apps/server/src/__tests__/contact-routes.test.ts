@@ -109,6 +109,17 @@ describe("GET /api/contacts/search", () => {
 
     expect(response.statusCode).toBe(400);
   });
+
+  // 確定#3: q の上限長 (DB 負荷 / 意図しない長大クエリ対策)
+  it("q が 100 文字を超えると 400 を返す", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/contacts/search?q=${"a".repeat(101)}`,
+      headers: AUTH_HEADER,
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
 });
 
 describe("POST /api/contacts/block", () => {

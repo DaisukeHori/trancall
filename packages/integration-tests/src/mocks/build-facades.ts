@@ -66,7 +66,7 @@ import {
   type InMemoryAccessRepo,
   type InMemoryBlockRepo,
   type InMemoryTranslationSessionRepo,
-} from "./all-repos.js";
+} from "./all-repos.ts";
 
 import {
   makeApnsAdapter,
@@ -74,7 +74,10 @@ import {
   makeStripeAdapter,
   makeAppleIapAdapter,
   makeGooglePlayAdapter,
-} from "./adapters.js";
+  makeStripeWebCheckoutAdapter,
+  makeIapAdapter,
+  makeExternalPurchaseAdapter,
+} from "./adapters.ts";
 
 export interface Facades {
   auth: AuthFacade;
@@ -137,6 +140,9 @@ export function buildFacades(opts: BuildFacadesOptions = {}): {
   const stripeAdapter = makeStripeAdapter();
   const appleIapAdapter = makeAppleIapAdapter();
   const googlePlayAdapter = makeGooglePlayAdapter();
+  const stripeWebCheckoutAdapter = makeStripeWebCheckoutAdapter();
+  const iapAdapter = makeIapAdapter();
+  const externalPurchaseAdapter = makeExternalPurchaseAdapter(externalPurchaseTokenRepo);
 
   // --- auth ---
   const authEventBus: AuthEventBus = {
@@ -169,6 +175,9 @@ export function buildFacades(opts: BuildFacadesOptions = {}): {
     stripeAdapter,
     appleIapAdapter,
     googlePlayAdapter,
+    stripeWebCheckoutAdapter,
+    iapAdapter,
+    externalPurchaseAdapter,
   });
 
   // --- contact ---

@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useCallback } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
@@ -25,9 +26,9 @@ import {
 } from "react-native";
 import { Button, useTheme } from "@trancall/ui-kit";
 import type { RequiredConsentView } from "@trancall/shared-kernel";
-import { useTranslation } from "../i18n/index.js";
-import { recordConsent } from "../api/consent-api.js";
-import { useAuthStore, selectSession } from "../stores/auth-store.js";
+import { useTranslation } from "../i18n/index";
+import { recordConsent } from "../api/consent-api";
+import { useAuthStore, selectSession } from "../stores/auth-store";
 
 // ============================================================
 // Props
@@ -106,6 +107,7 @@ function ScopeRow({ view, checked, onToggle }: ScopeRowProps) {
   return (
     <View style={[rowStyles.container, { borderBottomColor: c.border }]}>
       <Pressable
+        testID={`consent-${view.scope.replace(/_/g, "-")}-checkbox`}
         style={rowStyles.row}
         onPress={isReadOnly ? undefined : handleToggle}
         accessibilityRole="checkbox"
@@ -124,7 +126,7 @@ function ScopeRow({ view, checked, onToggle }: ScopeRowProps) {
           ]}
         >
           {checked ? (
-            <Text style={[rowStyles.checkmark, { color: "#FFFFFF" }]}>✓</Text>
+            <Ionicons name="checkmark" size={16} color={c.textOnColor} />
           ) : null}
         </View>
 
@@ -136,7 +138,7 @@ function ScopeRow({ view, checked, onToggle }: ScopeRowProps) {
             </Text>
             {view.isRequired ? (
               <View style={[rowStyles.requiredBadge, { backgroundColor: c.danger }]}>
-                <Text style={rowStyles.requiredBadgeText}>
+                <Text style={[rowStyles.requiredBadgeText, { color: c.textOnColor }]}>
                   {t("consent.required")}
                 </Text>
               </View>
@@ -205,7 +207,6 @@ const rowStyles = StyleSheet.create({
     paddingVertical: 2,
   },
   requiredBadgeText: {
-    color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "600",
   },

@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Avatar } from "./Avatar.js";
-import { useTheme } from "../theme/index.js";
+import { Avatar } from "./Avatar.tsx";
+import { useTheme } from "../theme/index.ts";
 
 export interface AvatarStackItem {
   uri?: string;

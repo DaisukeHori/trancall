@@ -19,10 +19,10 @@ import {
   View,
 } from "react-native";
 import { Button, PlanCard, useTheme } from "@trancall/ui-kit";
-import type { UpgradePreview } from "@trancall/billing";
-import { useTranslation } from "../i18n/index.js";
-import { useBillingStore } from "../stores/billing-store.js";
-import { handleStripeDeepLink } from "../lib/billing/stripe-deep-link.js";
+import type { UpgradePreview } from "@trancall/billing/client";
+import { useTranslation } from "../i18n/index";
+import { useBillingStore } from "../stores/billing-store";
+import { handleStripeDeepLink } from "../lib/billing/stripe-deep-link";
 
 // =============================================================================
 // CurrentPlanCard — 現在のプラン概要 + 残量プログレスバー
@@ -109,7 +109,7 @@ function CurrentPlanCard() {
           style={[
             currentCardStyles.progressFill,
             {
-              width: `${usagePercent}%` as `${number}%`,
+              width: `${usagePercent}%`,
               backgroundColor: usagePercent >= 90 ? c.warning : c.primary,
             },
           ]}
@@ -573,7 +573,7 @@ export function SettingsSubscriptionScreen() {
                           { backgroundColor: c.primary },
                         ]}
                       >
-                        <Text style={recommendedStyles.badgeText}>
+                        <Text style={[recommendedStyles.badgeText, { color: c.textOnColor }]}>
                           {t("billing.subscription.recommended")}
                         </Text>
                       </View>
@@ -704,7 +704,7 @@ export function SettingsSubscriptionScreen() {
           accessibilityRole="none"
           accessibilityLiveRegion="polite"
         >
-          <ActivityIndicator size="large" color="#FFFFFF" />
+          <ActivityIndicator size="large" color={c.textOnColor} />
         </View>
       )}
 
@@ -734,7 +734,6 @@ const recommendedStyles = StyleSheet.create({
     marginBottom: 4,
   },
   badgeText: {
-    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "600",
   },

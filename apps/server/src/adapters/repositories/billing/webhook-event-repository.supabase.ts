@@ -35,7 +35,7 @@ export function createWebhookEventRepository(
       externalEventId: string;
       eventType: string;
       payload: Record<string, unknown>;
-    }): Promise<Result<{ event: WebhookEventType; isNew: boolean }>> {
+    }): Promise<Result<{ event: WebhookEventType; isNew: boolean; alreadyProcessed: boolean }>> {
       const id = randomUUID();
       const now = new Date().toISOString();
 
@@ -74,7 +74,12 @@ export function createWebhookEventRepository(
       const eventResult = parseRow(data as Record<string, unknown>);
       if (!eventResult.ok) return eventResult;
 
-      return ok({ event: eventResult.data, isNew });
+      // [#42 確定1] isNew (23505 衝突の有無) だけで「再処理不要」と判定しない。
+      // 23505 で衝突しても、既存行が markProcessed 未完了 (processed_at IS NULL) なら
+      // 実処理は完了していないため、呼び出し元 (facade) は再処理すべきである。
+      const alreadyProcessed = eventResult.data.processedAt !== null;
+
+      return ok({ event: eventResult.data, isNew, alreadyProcessed });
     },
 
     async markProcessed(id: string): Promise<Result<void>> {

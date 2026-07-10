@@ -10,7 +10,7 @@
 
 import { z } from "zod";
 
-import { UserIdSchema } from "./brand.js";
+import { UserIdSchema } from "./brand.ts";
 
 // ============================================================
 // §3.1 ConsentScope — 同意の種別 (7 値 canonical)

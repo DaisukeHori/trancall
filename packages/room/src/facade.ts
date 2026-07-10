@@ -6,18 +6,19 @@
  */
 
 import type { Result, UserId, RoomId } from "@trancall/shared-kernel";
-import { ok } from "@trancall/shared-kernel";
 import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade } from "@trancall/notification";
 
-import type { RoomState } from "./schemas.js";
-import type { RoomRepository } from "./repositories/room-repository.js";
-import type { ParticipantRepository } from "./repositories/participant-repository.js";
-import type { EventBus } from "./event-bus.js";
-import { createCallLifecycleService } from "./services/call-lifecycle-service.js";
-import { createJoinService } from "./services/join-service.js";
-import { buildRoomState } from "./services/state-builder.js";
+import type { RoomState } from "./schemas.ts";
+import type { RoomRepository } from "./repositories/room-repository.ts";
+import type { ParticipantRepository } from "./repositories/participant-repository.ts";
+import type { EventBus } from "./event-bus.ts";
+import { createCallLifecycleService, type CreateCallOptions } from "./services/call-lifecycle-service.ts";
+import { createJoinService } from "./services/join-service.ts";
+import { buildRoomState } from "./services/state-builder.ts";
+
+export type { CreateCallOptions } from "./services/call-lifecycle-service.ts";
 
 // =============================================================================
 // インターフェース
@@ -63,7 +64,7 @@ export interface RoomFacade {
   createCall(
     creatorId: UserId,
     inviteeIds: UserId[],
-    opts: { translationEnabled: boolean },
+    opts: CreateCallOptions,
   ): Promise<Result<RoomState>>;
 
   joinCall(roomId: RoomId, userId: UserId): Promise<Result<RoomState>>;

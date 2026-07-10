@@ -11,11 +11,11 @@ import {
   View,
 } from "react-native";
 import { Button, Input, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { resolveErrorMessage } from "../lib/error-i18n.js";
-import { useAuthStore } from "../stores/auth-store.js";
+import { useTranslation } from "../i18n/index";
+import { resolveErrorMessage } from "../lib/error-i18n";
+import { useAuthStore } from "../stores/auth-store";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { AuthStackParamList } from "../navigation/auth-stack.js";
+import type { AuthStackParamList } from "../navigation/auth-stack";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
 
@@ -109,6 +109,7 @@ export function LoginScreen({ navigation }: Props) {
             />
 
             <Input
+              testID="password-input"
               label={t("auth.password")}
               placeholder="••••••••"
               value={password}

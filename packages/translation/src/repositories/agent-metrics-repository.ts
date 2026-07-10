@@ -6,7 +6,7 @@
 
 import type { Result } from "@trancall/shared-kernel";
 
-import type { AgentMetricsRecord } from "../schemas.js";
+import type { AgentMetricsRecord } from "../schemas.ts";
 
 export interface AgentMetricsRepository {
   /**

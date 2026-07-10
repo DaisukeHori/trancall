@@ -26,10 +26,17 @@
   },
   "peerDependencies": {
     "react": ">=19.0.0",
-    "react-native": ">=0.81.0"
+    "react-native": ">=0.81.0",
+    "expo-localization": ">=15.0.0"
+  },
+  "peerDependenciesMeta": {
+    "expo-localization": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/react": "^19.1.6",
+    "expo-localization": "~15.0.3",
     "react": "^19.1.0",
     "react-native": "^0.81.0",
     "vitest": "^3.2.0"

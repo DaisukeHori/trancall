@@ -11,13 +11,37 @@ import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade, IncomingCallNotification } from "@trancall/notification";
 
-import type { RoomState } from "../schemas.js";
-import type { RoomRepository } from "../repositories/room-repository.js";
-import type { ParticipantRepository } from "../repositories/participant-repository.js";
-import type { EventBus } from "../event-bus.js";
-import { createRoomCreatedEvent } from "../events/room-created.js";
-import { createParticipantLeftEvent } from "../events/participant-left.js";
-import { buildRoomState } from "./state-builder.js";
+import type { RoomState, ParticipantRow } from "../schemas.ts";
+import type { RoomRepository } from "../repositories/room-repository.ts";
+import type { ParticipantRepository } from "../repositories/participant-repository.ts";
+import type { EventBus } from "../event-bus.ts";
+import { createRoomCreatedEvent } from "../events/room-created.ts";
+import { createParticipantLeftEvent } from "../events/participant-left.ts";
+import { buildRoomState } from "./state-builder.ts";
+
+/**
+ * 2巡目 finding3: invitee 事前登録 (upsert, joined_at: null) の best-effort リトライ。
+ * retryable (transient) エラーのみ 1 回だけ再試行する。非 retryable エラー
+ * (制約違反等、再試行しても結果が変わらないもの) は即座に返し、無駄な再試行をしない。
+ * 想定外の例外 (throw) も 1 回だけ再試行し、それでも失敗すれば呼び出し元
+ * (Promise.allSettled) に rejected として伝播させる。
+ */
+async function upsertInviteeWithRetry(
+  participantRepo: ParticipantRepository,
+  roomId: RoomId,
+  inviteeId: UserId,
+): Promise<Result<ParticipantRow>> {
+  const attempt = () =>
+    participantRepo.upsert({ roomId, userId: inviteeId, role: "member", joinedAt: null });
+
+  try {
+    const result = await attempt();
+    if (result.ok || !result.error.retryable) return result;
+    return await attempt();
+  } catch {
+    return await attempt();
+  }
+}
 
 export interface CallLifecycleServiceDeps {
   roomRepo: RoomRepository;
@@ -28,11 +52,27 @@ export interface CallLifecycleServiceDeps {
   eventBus: EventBus;
 }
 
+/**
+ * #52: 着信 Push (IncomingCallNotification) の callerName/languagePair/callerLanguage は
+ * min(1) 必須フィールドであり、room facade は auth/profile への依存を持たないため
+ * 自力で解決できない。呼び出し元 (apps/server の room-routes、auth facade で
+ * creatorId → 表示名/言語設定を解決できる層) が実際の値を渡す「呼び出し側が渡す」構造にする。
+ */
+export interface CreateCallOptions {
+  translationEnabled: boolean;
+  /** 着信 Push の callerName に使用する発信者の表示名 (UUID ではない) */
+  callerName: string;
+  /** 着信 Push の languagePair に使用する言語ペア表示 (例: "ja → en") */
+  languagePair: string;
+  /** 着信 Push の callerLanguage に使用する発信者の言語コード (例: "ja") */
+  callerLanguage: string;
+}
+
 export interface CallLifecycleService {
   createCall(
     creatorId: UserId,
     inviteeIds: UserId[],
-    opts: { translationEnabled: boolean },
+    opts: CreateCallOptions,
   ): Promise<Result<RoomState>>;
 
   endCall(roomId: RoomId): Promise<Result<RoomState>>;
@@ -114,33 +154,127 @@ export function createCallLifecycleService(
         });
       }
 
+      // 4.5. 確定#2 (認可バイパス修正): invitee 全員を participants に
+      // 「招待済み・未参加」ステータス (joined_at: null) で事前登録する。
+      // joinCall はこの行の有無で「招待されているか」を判定するため、ここで
+      // 登録しておかないと invitee は永久に join できなくなる。
+      //
+      // 2巡目 finding1/4 (regression): participantRepo.upsert は room_id, user_id の
+      // onConflict で role/joined_at を含む全列を上書きする。creatorId が inviteeIds に
+      // 混入すると、直前に host として登録した行 (step 3) が role='member' /
+      // joined_at=null で上書きされ、state-builder が joined_at=null の行を
+      // RoomState.participants から除外するため host が自室から締め出される
+      // (GET/token/leave が 403、host 非降格の不変条件も破れる)。
+      // 対策: creatorId を除外し、重複 inviteeId も 1 回に集約してから事前登録・
+      // 通知・イベント発行に使う (route 層の CreateRoomSchema/handler でも
+      // 同種の入力を弾く二重防御を行うが、facade を直接呼ぶ経路 (agent-routes 等) も
+      // あるためここでも防御する)。
+      //
+      // 3巡目確定#2 (再発防止): DB の user_id (Postgres UUID 型) は case-insensitive に
+      // 正規化して格納されるが、上記の `!== creatorId` は case-sensitive な JS 文字列比較
+      // のため、大文字化した creatorId を inviteeIds に混入させると素通りしてしまい
+      // host lockout が再発する。route 層 (CreateRoomSchema) で inviteeIds を小文字正規化
+      // しているが、facade は route を経由しない直接呼び出し経路もあるため、ここでも
+      // 独立して case-insensitive に正規化する (多層防御、route 側の正規化に依存しない)。
+      const normalizeUserId = (id: UserId): string => id.toLowerCase();
+      const normalizedCreatorId = normalizeUserId(creatorId);
+      const sanitizedInviteeIds = [
+        ...new Map(inviteeIds.map((id) => [normalizeUserId(id), id])).values(),
+      ].filter((id) => normalizeUserId(id) !== normalizedCreatorId);
+
+      // best-effort: push 通知の失敗と同じ方針で、事前登録に失敗した invitee が
+      // いても通話作成自体は失敗させない。ただし 2巡目 finding3: 失敗を握り潰さず
+      // error レベルでログし (どの invitee か特定可能に)、transient (retryable) な
+      // 失敗には軽いリトライを行う。それでも失敗した invitee は join 時に
+      // ROOM_USER_NOT_INVITED で永久に join できなくなるため、このログを監視対象と
+      // する運用が必要 (join 経路での招待照合を復活させる設計変更は確定#2 の
+      // 認可バイパス修正を弱めるため行わない — プロダクト判断が要る場合は別途検討)。
+      const inviteResults = await Promise.allSettled(
+        sanitizedInviteeIds.map((inviteeId) => upsertInviteeWithRetry(participantRepo, roomId, inviteeId)),
+      );
+      const failedInviteeIds: UserId[] = [];
+      inviteResults.forEach((result, index) => {
+        const inviteeId = sanitizedInviteeIds[index];
+        if (inviteeId === undefined) return;
+        if (result.status === "rejected") {
+          failedInviteeIds.push(inviteeId);
+          console.error("[room] invitee 事前登録に失敗 (リトライ後も失敗、best-effort で通話作成は継続)", {
+            roomId,
+            inviteeId,
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          });
+        } else if (!result.value.ok) {
+          failedInviteeIds.push(inviteeId);
+          console.error("[room] invitee 事前登録がエラーを返した (リトライ後も失敗、best-effort で通話作成は継続)", {
+            roomId,
+            inviteeId,
+            errorCode: result.value.error.code,
+            errorMessage: result.value.error.message,
+          });
+        }
+      });
+      if (failedInviteeIds.length > 0) {
+        // 監視可能なシグナルとして集計もログに残す (アラート集計のトリガーに使える)。
+        console.error("[room] invitee 事前登録に失敗したユーザーが存在します (集計)", {
+          roomId,
+          failedCount: failedInviteeIds.length,
+          totalInvitees: sanitizedInviteeIds.length,
+          failedInviteeIds,
+        });
+      }
+
       // 5. invitee 全員に sendIncomingCall (並列、best-effort)
+      // #52: callerName/languagePair/callerLanguage は呼び出し元 (server route) が
+      // auth/profile 解決済みの値を opts 経由で渡す (room facade は auth に依存しないため自己解決不可)。
       const timestamp = new Date().toISOString();
       const incomingNotification: IncomingCallNotification = {
         roomId,
         uuid: randomUUID(), // CallKit 用 UUID (roomId とは独立)
         callerId: creatorId, // 発信者の内部ユーザー ID
-        callerName: creatorId, // server 側で profile を引いて置換する想定
+        callerName: opts.callerName,
         callerAvatarUrl: null,
         callerTrancallId: creatorId,
         roomType: "audio",
         translationEnabled: opts.translationEnabled,
-        languagePair: "",
-        callerLanguage: "",
+        languagePair: opts.languagePair,
+        callerLanguage: opts.callerLanguage,
         timestamp,
       };
 
-      await Promise.allSettled(
-        inviteeIds.map((inviteeId) =>
+      // best-effort: sendIncomingCall の失敗は createCall 自体を失敗させない。
+      // ただし握り潰しっぱなしにはせず、結果を明示的に warn ログへ出す。
+      // 2巡目 finding1/4: creator への自己着信通知・重複通知を避けるため sanitizedInviteeIds を使う。
+      const notifyResults = await Promise.allSettled(
+        sanitizedInviteeIds.map((inviteeId) =>
           notification.sendIncomingCall(inviteeId, incomingNotification),
         ),
       );
+      notifyResults.forEach((result, index) => {
+        const inviteeId = sanitizedInviteeIds[index];
+        if (inviteeId === undefined) return;
+        if (result.status === "rejected") {
+          console.warn("[room] sendIncomingCall failed (best-effort, call continues)", {
+            roomId,
+            inviteeId,
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          });
+        } else if (!result.value.ok) {
+          console.warn("[room] sendIncomingCall returned error (best-effort, call continues)", {
+            roomId,
+            inviteeId,
+            errorCode: result.value.error.code,
+            errorMessage: result.value.error.message,
+          });
+        }
+      });
 
       // 6. EventBus.publish room.created
+      // 2巡目 finding1/4: イベント payload の inviteeIds も creatorId 混入/重複のない
+      // sanitizedInviteeIds を使う (実際に招待・通知された相手と一致させる)。
       const event = createRoomCreatedEvent({
         roomId,
         creatorId,
-        inviteeIds,
+        inviteeIds: sanitizedInviteeIds,
         translationEnabled: opts.translationEnabled,
         createdAt,
       });

@@ -9,10 +9,10 @@
  */
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { PreCallScreen } from "../screens/pre-call-screen.js";
-import { CallingScreen } from "../screens/calling-screen.js";
-import { IncomingCallScreen } from "../screens/incoming-call-screen.js";
-import { InCallScreen } from "../screens/in-call-screen.js";
+import { PreCallScreen } from "../screens/pre-call-screen";
+import { CallingScreen } from "../screens/calling-screen";
+import { IncomingCallScreen } from "../screens/incoming-call-screen";
+import { InCallScreen } from "../screens/in-call-screen";
 import { useTheme } from "@trancall/ui-kit";
 
 // --- Param list ---

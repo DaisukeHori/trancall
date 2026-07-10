@@ -6,13 +6,12 @@
  */
 
 import { createRequire } from "module";
-import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { Readable } from "stream";
 import { type Result, ok, err } from "@trancall/shared-kernel";
-import type { RoomId, UserId } from "@trancall/shared-kernel";
-import type { TranscriptSegment } from "../schemas.js";
+import type { RoomId } from "@trancall/shared-kernel";
+import type { TranscriptSegment } from "../schemas.ts";
 
 export type ExportFormat = "pdf" | "txt";
 
@@ -114,7 +113,7 @@ function toHHmm(dateStr: string): string {
 function buildFilename(roomId: RoomId, createdAt: string, ext: "pdf" | "txt"): string {
   const yyyymmdd = toYYYYMMDD(createdAt);
   const hhmm = toHHmm(createdAt);
-  const roomShort = (roomId as string).replace(/-/g, "").slice(0, 8);
+  const roomShort = roomId.replace(/-/g, "").slice(0, 8);
   return `trancall-transcript-${yyyymmdd}-${hhmm}-${roomShort}.${ext}`;
 }
 
@@ -122,7 +121,7 @@ function buildFilename(roomId: RoomId, createdAt: string, ext: "pdf" | "txt"): s
 async function streamToBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    const readable = doc as unknown as Readable;
+    const readable: Readable = doc;
     readable.on("data", (chunk: Buffer) => chunks.push(chunk));
     readable.on("end", () => resolve(Buffer.concat(chunks)));
     readable.on("error", (e: Error) => reject(e));
@@ -164,7 +163,7 @@ const BODY_BOTTOM = PAGE_HEIGHT - PAGE_MARGINS.bottom - FOOTER_H - 10;
 async function generatePDF(input: ExportInput): Promise<Buffer> {
   // pdfkit は CommonJS パッケージ。ESM context で import するため createRequire 使用。
   const require = createRequire(import.meta.url);
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- pdfkit (CJS 専用) の外部 SDK 境界。require() の any を型復元するために必要。
   const PDFDocument = require("pdfkit") as typeof import("pdfkit");
 
   const { roomMeta, segments } = input;
@@ -175,7 +174,7 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
     margins: PAGE_MARGINS,
     autoFirstPage: false,
     info: {
-      Title: `TranCall Transcript - ${(roomMeta.roomId as string).slice(0, 8)}`,
+      Title: `TranCall Transcript - ${roomMeta.roomId.slice(0, 8)}`,
       Author: "TranCall",
       Subject: `Translation call between ${roomMeta.myName} and ${roomMeta.otherNames.join(", ")}`,
       Creator: "TranCall Server v1.0",
@@ -384,7 +383,6 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
 function generateTXT(input: ExportInput): Buffer {
   const { roomMeta, segments } = input;
   const sep = "==============================================\n";
-  const callEndedAt = roomMeta.endedAt ?? roomMeta.createdAt;
 
   const durationMs =
     segments.length > 0
@@ -396,7 +394,6 @@ function generateTXT(input: ExportInput): Buffer {
     `自分 (${roomMeta.myName})`,
     ...roomMeta.otherNames,
   ].join(", ");
-  const langPairsStr = roomMeta.languagePairs.join(", ");
 
   let out = "";
   out += sep;

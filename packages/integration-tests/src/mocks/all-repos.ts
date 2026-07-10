@@ -138,6 +138,12 @@ export function makeConsentRepository(): ConsentRepository {
       }
       return ok(null);
     },
+    async listActive(userId: UserId): Promise<Result<ConsentRecord[]>> {
+      const active = [...records.values()].filter(
+        (rec) => rec.userId === userId && rec.revokedAt === null,
+      );
+      return ok(active);
+    },
     async revoke(userId: UserId, scope: ConsentScope): Promise<Result<true>> {
       const revokedAt = new Date().toISOString();
       for (const [key, rec] of records.entries()) {
@@ -173,38 +179,61 @@ export function makeExternalPurchaseTokenRepository(): ExternalPurchaseTokenRepo
   const tokens = new Map<string, ExternalPurchaseTokenRow>();
 
   return {
-    async create(params: {
-      userId: UserId;
-      targetTier: BillingPlanTier;
-      stripeSessionId: string;
-    }): Promise<Result<ExternalPurchaseTokenRow>> {
-      const token = `mock-token-${crypto.randomUUID()}`;
+    async createToken(
+      userId: UserId,
+      targetTier: BillingPlanTier,
+      stripeSessionId: string,
+      token: string,
+      ttlMinutes: number,
+    ): Promise<Result<ExternalPurchaseTokenRow>> {
       const row: ExternalPurchaseTokenRow = {
         id: crypto.randomUUID(),
-        user_id: params.userId,
+        userId,
         token,
-        target_tier: params.targetTier,
-        stripe_session_id: params.stripeSessionId,
-        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        targetTier,
+        stripeSessionId,
+        expiresAt: new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString(),
         used: false,
-        created_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       };
       tokens.set(token, row);
       return ok(row);
     },
-    async findValidByToken(token: string): Promise<Result<ExternalPurchaseTokenRow | null>> {
+    async findByToken(token: string): Promise<Result<ExternalPurchaseTokenRow>> {
       const row = tokens.get(token);
-      if (!row || row.used || new Date(row.expires_at) < new Date()) return ok(null);
+      if (row === undefined) {
+        return err({
+          code: "NOT_FOUND",
+          message: `redirectToken が見つかりません: ${token.slice(0, 8)}...`,
+          retryable: false,
+        });
+      }
       return ok(row);
     },
-    async markUsed(id: string): Promise<Result<void>> {
+    async markUsed(token: string): Promise<Result<true>> {
+      const row = tokens.get(token);
+      // 二重消費防止: used=false の行のみ更新。存在しない or 使用済みはエラー。
+      if (row === undefined || row.used) {
+        return err({
+          code: "BILLING_PAYMENT_FAILED",
+          message:
+            "redirectToken は既に使用済みか存在しません。二重消費を防止しました。",
+          retryable: false,
+        });
+      }
+      tokens.set(token, { ...row, used: true });
+      return ok(true);
+    },
+    async cleanupExpired(): Promise<Result<number>> {
+      const now = new Date();
+      let count = 0;
       for (const [token, row] of tokens.entries()) {
-        if (row.id === id) {
-          tokens.set(token, { ...row, used: true });
-          break;
+        if (!row.used && new Date(row.expiresAt) < now) {
+          tokens.delete(token);
+          count++;
         }
       }
-      return ok(undefined);
+      return ok(count);
     },
   };
 }
@@ -249,13 +278,17 @@ export function makeSubscriptionRepository(
   const rows = new Map<string, SubscriptionRow>();
   const usedSecondsMap = new Map<string, number>();
 
+  // nullable 追従 (00019 migration): SubscriptionRow.user_id は退会済みユーザーの
+  // 物理削除後に NULL 化されうる。このモック repo は userId をキーに index する
+  // ため、null は index できない (= その行は findByUserId では引けない、
+  // 本番の「退会済みユーザー参照」の意味的にも妥当)。
   for (const row of initialRows) {
-    rows.set(row.user_id, row);
+    if (row.user_id !== null) rows.set(row.user_id, row);
   }
 
   return {
     _setRow(row: SubscriptionRow): void {
-      rows.set(row.user_id, row);
+      if (row.user_id !== null) rows.set(row.user_id, row);
     },
     _addUsedSeconds(userId: string, seconds: number): void {
       const prev = usedSecondsMap.get(userId) ?? 0;
@@ -455,12 +488,16 @@ export function makeWebhookEventRepository(): WebhookEventRepository {
   const events: WebhookEvent[] = [];
 
   return {
-    insertIdempotent: async (params): Promise<Result<{ event: WebhookEvent; isNew: boolean }>> => {
+    insertIdempotent: async (
+      params,
+    ): Promise<Result<{ event: WebhookEvent; isNew: boolean; alreadyProcessed: boolean }>> => {
       const existing = events.find(
         (e) => e.provider === params.provider && e.externalEventId === params.externalEventId,
       );
       if (existing !== undefined) {
-        return ok({ event: existing, isNew: false });
+        // [#42 確定1] isNew=false でも、既存行が markProcessed 未完了 (processedAt IS NULL) なら
+        // 実処理は完了していないため alreadyProcessed=false とし、呼び出し元の再処理を許容する。
+        return ok({ event: existing, isNew: false, alreadyProcessed: existing.processedAt !== null });
       }
       const now = new Date().toISOString();
       const event: WebhookEvent = {
@@ -474,7 +511,7 @@ export function makeWebhookEventRepository(): WebhookEventRepository {
         receivedAt: now,
       };
       events.push(event);
-      return ok({ event, isNew: true });
+      return ok({ event, isNew: true, alreadyProcessed: false });
     },
 
     markProcessed: async (id: string): Promise<Result<void>> => {

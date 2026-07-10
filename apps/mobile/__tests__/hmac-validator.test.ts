@@ -9,6 +9,20 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as crypto from "crypto";
+
+// HmacValidator.ts は expo-modules-core (requireOptionalNativeModule) を静的 import する。
+// expo-modules-core は内部で "react-native" を transitively import しており、
+// vitest (node 環境、RN レンダリング無し) では実 react-native パッケージのロードが
+// Flow 構文 (`import typeof`) のパースエラーになるため wholesale mock する
+// (既存 incoming-call-push.test.ts / permissions.test.ts と同じ方針)。
+// expo-modules-core の実パッケージは JSI (native runtime) が注入する `globalThis.expo` に
+// 依存しており、vitest (node 環境、RN/JSI 無し) では読み込めない。
+// requireOptionalNativeModule のみを持つ薄い mock に差し替える
+// (native module 未リンク環境と同じ挙動 = null を返す、既存 callkit/voip-push テストと同方針)。
+vi.mock("expo-modules-core", () => ({
+  requireOptionalNativeModule: () => null,
+}));
+
 import {
   validateCallPayload,
   setHmacValidatorNativeModule,
@@ -136,7 +150,7 @@ describe("HmacValidator TypeScript wrapper", () => {
 
     expect(result).toBe(false);
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("NativeModules.HmacValidator is not available"),
+      expect.stringContaining("TranCallBridge native module is not available"),
     );
     consoleSpy.mockRestore();
   });

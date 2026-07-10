@@ -17,7 +17,30 @@ import {
 } from "@trancall/shared-kernel";
 
 // =============================================================================
+// TranslationSessionEndedReason — session_ended / usage / record 共通の終了理由 enum
+//
+// #49: apps/translation-agent/src/internal-api-client.ts の
+// TranslationSessionEndedSchema.reason (module-contracts.md §7.4.2) と 5 値で同期する。
+// ここで一元管理し、SessionEndedPayloadSchema / TranslationSessionRecordSchema /
+// TranslationUsageSchema の 3 箇所で使い回すことで将来の非同期を防ぐ。
+// =============================================================================
+
+export const TranslationSessionEndedReasonSchema = z.enum([
+  "participant_left",
+  "agent_shutdown",
+  "openai_fatal_error",
+  "client_requested",
+  "agent_publish_failed",
+]);
+export type TranslationSessionEndedReason = z.infer<typeof TranslationSessionEndedReasonSchema>;
+
+// =============================================================================
 // LiveSubtitleDelta — data channel 受信時バリデーション
+//
+// #17/#51: packages/transcript/src/schemas.ts の LiveSubtitleDeltaSchema と定義が不一致だった
+// (speakerName/originalDelta/translatedDelta の min 制約、timestamp の nonnegative 有無)。
+// transcript 側を canonical としてフィールド制約を統一する
+// (transcript は別 WS 管掌のため本パッケージからは変更しない)。
 // =============================================================================
 
 export const LiveSubtitleDeltaSchema = z.object({
@@ -25,13 +48,13 @@ export const LiveSubtitleDeltaSchema = z.object({
   participantId: ParticipantIdSchema,
   /** グループ通話時のセッション識別用。1対1の場合は null でもよい */
   translationSessionId: TranslationSessionIdSchema.nullable(),
-  speakerName: z.string().min(0),
-  originalDelta: z.string(),
-  translatedDelta: z.string(),
+  speakerName: z.string().min(1),
+  originalDelta: z.string().min(1),
+  translatedDelta: z.string().min(1),
   language: z.string().min(1),
   isFinal: z.boolean(),
-  /** Unix エポック ms。負値は不正 */
-  timestamp: z.number().nonnegative(),
+  /** Unix エポック ms */
+  timestamp: z.number(),
 });
 
 export type LiveSubtitleDelta = z.infer<typeof LiveSubtitleDeltaSchema>;
@@ -56,12 +79,7 @@ export const TranslationSessionRecordSchema = z.object({
   /** OpenAI 課金単位（秒）= ceil(durationMs / 1000） */
   billableSeconds: z.number().int().nonnegative().nullable(),
   /** 終了理由 */
-  reason: z.enum([
-    "participant_left",
-    "agent_shutdown",
-    "openai_fatal_error",
-    "client_requested",
-  ]).nullable(),
+  reason: TranslationSessionEndedReasonSchema.nullable(),
   createdAt: z.iso.datetime(),
 });
 
@@ -115,12 +133,10 @@ export const SessionEndedPayloadSchema = z.object({
   endedAt: z.iso.datetime(),
   durationMs: z.number().int().nonnegative(),
   billableSeconds: z.number().int().nonnegative(),
-  reason: z.enum([
-    "participant_left",
-    "agent_shutdown",
-    "openai_fatal_error",
-    "client_requested",
-  ]),
+  // #49: apps/translation-agent/src/internal-api-client.ts の TranslationSessionEndedSchema
+  // (module-contracts.md §7.4.2) と 5 値で同期する共通 enum。
+  // 非同期不一致により session_ended が 400 になり課金セッションが閉じない問題を解消。
+  reason: TranslationSessionEndedReasonSchema,
 });
 export type SessionEndedPayload = z.infer<typeof SessionEndedPayloadSchema>;
 
@@ -278,11 +294,6 @@ export const TranslationUsageSchema = z.object({
   billableSeconds: z.number().int().nonnegative(),
   startedAt: z.iso.datetime(),
   endedAt: z.iso.datetime(),
-  reason: z.enum([
-    "participant_left",
-    "agent_shutdown",
-    "openai_fatal_error",
-    "client_requested",
-  ]),
+  reason: TranslationSessionEndedReasonSchema,
 });
 export type TranslationUsage = z.infer<typeof TranslationUsageSchema>;

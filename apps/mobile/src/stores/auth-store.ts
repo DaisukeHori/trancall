@@ -2,13 +2,18 @@ import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
 import { OutputLanguage } from "@trancall/shared-kernel";
 import type { Result } from "@trancall/shared-kernel";
-import type { UserProfile } from "../api/auth-api.js";
+import type { UserProfile } from "../api/auth-api";
 import {
   signInWithSupabase,
   signUpWithSupabase,
   signOut as supabaseSignOut,
   getProfile,
-} from "../api/auth-api.js";
+  isE2eTestMode,
+  signInViaMockServer,
+  signUpViaMockServer,
+  getProfileViaMockServer,
+  signOutViaMockServer,
+} from "../api/auth-api";
 
 const SESSION_KEY = "trancall:session";
 
@@ -50,7 +55,9 @@ export const useAuthStore = create<AuthState>()((set, _get) => ({
   login: async (email: string, password: string): Promise<Result<void>> => {
     set({ isLoading: true });
 
-    const signInResult = await signInWithSupabase(email, password);
+    const signInResult = isE2eTestMode()
+      ? await signInViaMockServer(email, password)
+      : await signInWithSupabase(email, password);
     if (!signInResult.ok) {
       set({ isLoading: false });
       return signInResult;
@@ -70,7 +77,9 @@ export const useAuthStore = create<AuthState>()((set, _get) => ({
     }
 
     // Fetch profile
-    const profileResult = await getProfile(session.userId, session.accessToken);
+    const profileResult = isE2eTestMode()
+      ? await getProfileViaMockServer(session.userId, session.accessToken)
+      : await getProfile(session.userId, session.accessToken);
 
     set({
       session,
@@ -101,12 +110,9 @@ export const useAuthStore = create<AuthState>()((set, _get) => ({
 
     set({ isLoading: true });
 
-    const signUpResult = await signUpWithSupabase(
-      email,
-      password,
-      displayName,
-      nativeLanguage,
-    );
+    const signUpResult = isE2eTestMode()
+      ? await signUpViaMockServer(email, password, displayName, nativeLanguage)
+      : await signUpWithSupabase(email, password, displayName, nativeLanguage);
 
     if (!signUpResult.ok) {
       set({ isLoading: false });
@@ -125,7 +131,9 @@ export const useAuthStore = create<AuthState>()((set, _get) => ({
       // Non-fatal
     }
 
-    const profileResult = await getProfile(session.userId, session.accessToken);
+    const profileResult = isE2eTestMode()
+      ? await getProfileViaMockServer(session.userId, session.accessToken)
+      : await getProfile(session.userId, session.accessToken);
 
     set({
       session,
@@ -138,7 +146,11 @@ export const useAuthStore = create<AuthState>()((set, _get) => ({
 
   logout: async () => {
     try {
-      await supabaseSignOut();
+      if (isE2eTestMode()) {
+        await signOutViaMockServer();
+      } else {
+        await supabaseSignOut();
+      }
     } catch {
       // Best-effort sign out
     }
@@ -184,7 +196,9 @@ export const useAuthStore = create<AuthState>()((set, _get) => ({
         userId,
       };
 
-      const profileResult = await getProfile(session.userId, session.accessToken);
+      const profileResult = isE2eTestMode()
+        ? await getProfileViaMockServer(session.userId, session.accessToken)
+        : await getProfile(session.userId, session.accessToken);
 
       set({
         session,

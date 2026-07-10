@@ -2,8 +2,8 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar, Badge, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import type { RecentCallEntry } from "../stores/recent-calls-store.js";
+import { useTranslation } from "../i18n/index";
+import type { RecentCallEntry } from "../stores/recent-calls-store";
 
 interface RecentCallRowProps {
   call: RecentCallEntry;

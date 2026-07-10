@@ -71,7 +71,7 @@ export type PermissionErrorCode =
  * @mobile-only server へは伝播しない
  */
 export const PERMISSION_ERROR_CODE_VALUES: readonly PermissionErrorCode[] =
-  Object.values(PERMISSION_ERROR_CODES) as PermissionErrorCode[];
+  Object.values(PERMISSION_ERROR_CODES);
 
 /**
  * 与えられた code が PERMISSION_* Mobile-only エラーコードかどうかを判定する型ガード。
@@ -79,5 +79,5 @@ export const PERMISSION_ERROR_CODE_VALUES: readonly PermissionErrorCode[] =
  * @mobile-only server 側でこの関数を呼び出す必要はない (server には伝播しない)
  */
 export function isPermissionErrorCode(code: string): code is PermissionErrorCode {
-  return (PERMISSION_ERROR_CODE_VALUES as readonly string[]).includes(code);
+  return PERMISSION_ERROR_CODE_VALUES.some((value) => value === code);
 }

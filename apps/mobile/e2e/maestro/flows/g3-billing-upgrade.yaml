@@ -1,11 +1,30 @@
 appId: tech.hori.trancall
-name: "billing_low_balance — BILLING_INSUFFICIENT_BALANCE → upgrade CTA"
+name: "billing_low_balance — insufficient balance → upgrade CTA on PreCall"
 tags: [P0, gate, billing]
 ---
+# NOTE: the original flow tapped "Start Call" and asserted T_billing_upgradeToContinue
+# ("Upgrade your plan to continue translation?") then a "billing-upgrade-screen"
+# id. Neither exists:
+#   - The insufficient-balance card (apps/mobile/src/components/PreCallCostEstimate.tsx,
+#     recommendedAction === "upgrade") renders automatically on PreCall as soon
+#     as the cost estimate loads — no need to tap "Start Call" first, and in
+#     fact the "Start Call" button itself is `disabled` while blocked
+#     (apps/mobile/src/screens/pre-call-screen.tsx isCallBlocked), so tapping
+#     it would be a no-op. The card's real copy is
+#     precall.costEstimate.upgrade.label / .upgradeButton (not
+#     billing.upgradeToContinue, which is defined in i18n but never rendered
+#     on this screen).
+#   - Its "Upgrade Plan" button (precall.costEstimate.upgrade.upgradeButton)
+#     calls handleUpgrade() in pre-call-screen.tsx, which today is a stub that
+#     just does `navigation.goBack()` (see the TODO comment there — Settings →
+#     Subscription cross-stack nav is planned, not implemented yet). There is
+#     no "billing-upgrade-screen". Flow rewritten to assert the real card and
+#     the real (if stubbed) navigate-back behavior instead of a screen that
+#     doesn't exist.
 - launchApp:
     clearState: true
 - runScript:
-    file: ../../scripts/set-billing-zero.js
+    file: ../scripts/set-billing-zero.js
 - tapOn:
     text: ${T_auth_signIn}
 - tapOn:
@@ -26,11 +45,9 @@ tags: [P0, gate, billing]
     text: ${T_contactProfile_call}
 - assertVisible:
     text: ${T_precall_title}
-- tapOn:
-    accessibilityLabel: ${T_call_startCall}
 - assertVisible:
-    text: ${T_billing_upgradeToContinue}
+    text: ${T_precall_costEstimate_upgradeLabel}
 - tapOn:
-    text: "Upgrade"
+    text: ${T_precall_costEstimate_upgradeButton}
 - assertVisible:
-    id: "billing-upgrade-screen"
+    text: ${T_contactProfile_call}

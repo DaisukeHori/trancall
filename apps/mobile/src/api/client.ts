@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type { Result } from "@trancall/shared-kernel";
-import { API_BASE_URL } from "./config.js";
+import { API_BASE_URL } from "./config";
 
 export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

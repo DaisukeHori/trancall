@@ -11,7 +11,7 @@
  * M-002-NEW: CEIL(SUM::numeric / 60) で整数除算回避（切り上げ）
  */
 
-import type { PlanConfig } from "../schemas.js";
+import type { PlanConfig } from "../schemas.ts";
 
 export interface AmountYenResult {
   amountYen: number;

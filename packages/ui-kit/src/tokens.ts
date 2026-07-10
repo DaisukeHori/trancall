@@ -20,6 +20,11 @@ export const colors = {
     textPrimary: "#1A1A1A",
     textSecondary: "#8E8E93",
     textTertiary: "#C7C7CC",
+    // primary/danger 等の彩度が高い塗り背景 (Button 塗りつぶし・checkbox チェック済み・badge 等) の
+    // 上に乗せる文字色。light/dark どちらのテーマでも常に白固定 (WCAG コントラスト確保のため)。
+    textOnColor: "#FFFFFF",
+    // elevation shadow は物理的な影の表現のため light/dark 共通で黒固定
+    shadowColor: "#000000",
     border: "#E5E5EA",
     subtitleBg: "rgba(0,0,0,0.7)",
     subtitleText: "#FFFFFF",
@@ -48,6 +53,8 @@ export const colors = {
     textPrimary: "#F5F5F5",
     textSecondary: "#8E8E93",
     textTertiary: "#636366",
+    textOnColor: "#FFFFFF",
+    shadowColor: "#000000",
     border: "#38383A",
     subtitleBg: "rgba(0,0,0,0.85)",
     subtitleText: "#FFFFFF",

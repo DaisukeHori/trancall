@@ -15,17 +15,17 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import type { AuthState } from "../stores/auth-store.js";
-import { useRecentCallsStore } from "../stores/recent-calls-store.js";
-import type { RecentCallsState } from "../stores/recent-calls-store.js";
+import { useTranslation } from "../i18n/index";
+import { useAuthStore } from "../stores/auth-store";
+import type { AuthState } from "../stores/auth-store";
+import { useRecentCallsStore } from "../stores/recent-calls-store";
+import type { RecentCallsState } from "../stores/recent-calls-store";
 import {
   submitInquiry,
   type SupportCategory,
-} from "../api/support-api.js";
+} from "../api/support-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { SettingsStackParamList } from "../navigation/settings-stack.js";
+import type { SettingsStackParamList } from "../navigation/settings-stack";
 
 // ---------------------------------------------------------------------------
 // expo-* helpers — optional deps, fallback gracefully
@@ -35,9 +35,8 @@ function getAppVersion(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod: unknown = require("expo-application");
-    if (mod !== null && typeof mod === "object") {
-      const entry = Object.entries(mod).find(([k]) => k === "nativeApplicationVersion");
-      const v = entry?.[1];
+    if (mod !== null && typeof mod === "object" && "nativeApplicationVersion" in mod) {
+      const v = mod.nativeApplicationVersion;
       if (typeof v === "string") return v;
     }
   } catch {
@@ -50,9 +49,8 @@ function getOsVersion(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod: unknown = require("expo-device");
-    if (mod !== null && typeof mod === "object") {
-      const entry = Object.entries(mod).find(([k]) => k === "osVersion");
-      const v = entry?.[1];
+    if (mod !== null && typeof mod === "object" && "osVersion" in mod) {
+      const v = mod.osVersion;
       if (typeof v === "string") return v;
     }
   } catch {
@@ -65,9 +63,8 @@ function getDeviceModel(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod: unknown = require("expo-device");
-    if (mod !== null && typeof mod === "object") {
-      const entry = Object.entries(mod).find(([k]) => k === "modelName");
-      const v = entry?.[1];
+    if (mod !== null && typeof mod === "object" && "modelName" in mod) {
+      const v = mod.modelName;
       if (typeof v === "string") return v;
     }
   } catch {
@@ -407,12 +404,12 @@ export function SupportScreen(_props: SupportScreenProps) {
           ]}
         >
           {isSubmitting ? (
-            <ActivityIndicator color={c.bgPrimary} />
+            <ActivityIndicator color={c.textOnColor} />
           ) : (
             <Text
               style={[
                 styles.submitButtonText,
-                { color: isSubmitEnabled ? "#FFFFFF" : c.textTertiary },
+                { color: isSubmitEnabled ? c.textOnColor : c.textTertiary },
               ]}
             >
               {t("support.submit")}

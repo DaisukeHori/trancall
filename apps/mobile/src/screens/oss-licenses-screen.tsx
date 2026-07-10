@@ -2,6 +2,7 @@
 // Displays OSS license information from auto-generated licenses.json
 // support-flow.md §9 準拠
 import React, { useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   FlatList,
   Modal,
@@ -14,22 +15,25 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { z } from "zod";
 import { useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
+import { useTranslation } from "../i18n/index";
 import licensesRaw from "../assets/licenses.json";
 
 // ----------------------------------------------------------------
 // Types
 // ----------------------------------------------------------------
 
-interface LicenseEntry {
-  licenses: string;
-  repository?: string;
-  publisher?: string;
-  email?: string;
-  description?: string;
-  licenseText?: string;
-}
+const LicenseEntrySchema = z.object({
+  licenses: z.string(),
+  repository: z.string().optional(),
+  publisher: z.string().optional(),
+  email: z.string().optional(),
+  description: z.string().optional(),
+  licenseText: z.string().optional(),
+});
+
+const LicensesJsonSchema = z.record(z.string(), LicenseEntrySchema);
 
 interface OssPackage {
   packageName: string;
@@ -46,7 +50,8 @@ interface OssPackage {
 // ----------------------------------------------------------------
 
 function parseLicensesJson(): OssPackage[] {
-  const entries = licensesRaw as Record<string, LicenseEntry>;
+  const parsed = LicensesJsonSchema.safeParse(licensesRaw);
+  const entries = parsed.success ? parsed.data : {};
   return Object.entries(entries)
     .map(([key, entry]) => {
       const atIdx = key.lastIndexOf("@");
@@ -250,7 +255,7 @@ function PackageRow({ pkg, onPress }: PackageRowProps) {
           </Text>
         )}
       </View>
-      <Text style={[rowStyles.chevron, { color: c.textTertiary }]}>›</Text>
+      <Ionicons name="chevron-forward" size={18} color={c.textTertiary} />
     </Pressable>
   );
 }

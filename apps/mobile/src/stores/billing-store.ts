@@ -16,15 +16,16 @@ import type {
   PlanComparisonView,
   UpgradePreview,
   PreCallCostEstimate,
-} from "@trancall/billing";
+  PlanTierType,
+} from "@trancall/billing/client";
 import {
   initialBillingScreenState,
   BillingErrorViewModelSchema,
   type BillingErrorViewModel,
-} from "@trancall/billing";
-import type { SubscriptionState as SubscriptionStateType } from "@trancall/billing";
-import { PLAN_CONFIGS } from "@trancall/billing";
-import { useAuthStore } from "./auth-store.js";
+} from "@trancall/billing/client";
+import type { SubscriptionState as SubscriptionStateType } from "@trancall/billing/client";
+import { PLAN_CONFIGS, PlanTier } from "@trancall/billing/client";
+import { useAuthStore } from "./auth-store";
 import {
   getSubscription,
   getPlanComparison,
@@ -34,7 +35,7 @@ import {
   startExternalPurchase as apiStartExternalPurchase,
   completeExternalPurchase as apiCompleteExternalPurchase,
   cancelSubscription as apiCancelSubscription,
-} from "../api/billing-api.js";
+} from "../api/billing-api";
 
 // =============================================================================
 // Error code → UI テーブル
@@ -238,7 +239,7 @@ export const useBillingStore = create<BillingScreenState & BillingStoreActions>(
         : null;
 
       set({
-        subscriptionState: subResult.data as SubscriptionStateType,
+        subscriptionState: subResult.data,
         planComparison,
         lastError: null,
       });
@@ -263,7 +264,7 @@ export const useBillingStore = create<BillingScreenState & BillingStoreActions>(
       }
 
       set({
-        subscriptionState: result.data as SubscriptionStateType,
+        subscriptionState: result.data,
         lastError: null,
       });
     },
@@ -285,7 +286,7 @@ export const useBillingStore = create<BillingScreenState & BillingStoreActions>(
         });
         return null;
       }
-      return result.data as UpgradePreview;
+      return result.data;
     },
 
     // =========================================================================
@@ -321,7 +322,7 @@ export const useBillingStore = create<BillingScreenState & BillingStoreActions>(
       }
 
       set({
-        subscriptionState: result.data as SubscriptionStateType,
+        subscriptionState: result.data,
         pendingTransaction: null,
         lastError: null,
       });
@@ -335,9 +336,12 @@ export const useBillingStore = create<BillingScreenState & BillingStoreActions>(
       const session = useAuthStore.getState().session;
       if (session == null) return null;
 
-      // targetTier は PlanTier enum 値であることを呼び出し元が保証する
-      // CLAUDE.md: adapters/* / schemas/brand.ts 境界変換ヘルパーのみ型アサーション許可
-      const validatedTier = targetTier as "free" | "light" | "standard" | "business";
+      // targetTier は PlanTier enum 値であることを呼び出し元が保証するが、
+      // 型アサーションではなく PlanTier.safeParse で検証する (CLAUDE.md: 型アサーション原則禁止)
+      const tierParseResult = PlanTier.safeParse(targetTier);
+      const validatedTier: PlanTierType = tierParseResult.success
+        ? tierParseResult.data
+        : "free";
 
       set({
         pendingTransaction: {
@@ -393,7 +397,7 @@ export const useBillingStore = create<BillingScreenState & BillingStoreActions>(
       }
 
       set({
-        subscriptionState: result.data as SubscriptionStateType,
+        subscriptionState: result.data,
         pendingTransaction: null,
         lastError: null,
       });
@@ -450,7 +454,7 @@ export const useBillingStore = create<BillingScreenState & BillingStoreActions>(
       }
 
       set({
-        subscriptionState: subscription as SubscriptionStateType,
+        subscriptionState: subscription,
         isRestoring: false,
         lastError: null,
       });
@@ -480,7 +484,7 @@ export const useBillingStore = create<BillingScreenState & BillingStoreActions>(
       }
 
       set({
-        subscriptionState: result.data as SubscriptionStateType,
+        subscriptionState: result.data,
         lastError: null,
       });
     },
@@ -497,7 +501,7 @@ export const useBillingStore = create<BillingScreenState & BillingStoreActions>(
         subscriptionState: {
           ...current,
           remainingMinutes,
-        } as SubscriptionStateType,
+        },
       });
     },
 

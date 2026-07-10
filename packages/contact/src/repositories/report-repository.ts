@@ -3,7 +3,7 @@
  */
 
 import type { Result, UserId } from "@trancall/shared-kernel";
-import type { ReportUserCommand } from "../schemas.js";
+import type { ReportUserCommand } from "../schemas.ts";
 
 export interface ReportRepository {
   /**

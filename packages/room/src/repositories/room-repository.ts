@@ -5,7 +5,7 @@
  */
 
 import type { Result, RoomId } from "@trancall/shared-kernel";
-import type { RoomRow, InsertRoomCommand } from "../schemas.js";
+import type { RoomRow, InsertRoomCommand } from "../schemas.ts";
 
 export interface RoomRepository {
   /**

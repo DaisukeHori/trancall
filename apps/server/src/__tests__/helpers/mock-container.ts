@@ -8,12 +8,15 @@ import { vi } from "vitest";
 import type { AppContainer } from "../../container.js";
 import { createEventBus } from "../../adapters/event-bus.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { UserId, RoomId } from "@trancall/shared-kernel";
+import type { UserId, RoomId, ParticipantId } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 import type { RoomState } from "@trancall/room";
 
 const MOCK_USER_ID = "11111111-1111-4111-8111-111111111111" as UserId;
 const MOCK_ROOM_ID = "22222222-2222-4222-8222-222222222222" as RoomId;
+const MOCK_PARTICIPANT_ID = "33333333-3333-4333-8333-333333333333" as ParticipantId;
+// #43 テスト用: room の参加者ではないユーザー (認可チェックの 403 検証に使う)
+const MOCK_OTHER_USER_ID = "44444444-4444-4444-8444-444444444444" as UserId;
 
 function makeRoomState(): RoomState {
   return {
@@ -23,7 +26,18 @@ function makeRoomState(): RoomState {
     createdBy: MOCK_USER_ID,
     createdAt: new Date().toISOString(),
     endedAt: null,
-    participants: [],
+    // #43: GET /:id・/leave・/token の参加者チェックが通るよう、認証済みユーザー
+    // (MOCK_USER_ID、getUser モックが常にこの id を返す) を host として含める。
+    participants: [
+      {
+        id: MOCK_PARTICIPANT_ID,
+        userId: MOCK_USER_ID,
+        role: "host",
+        isMuted: false,
+        joinedAt: new Date().toISOString(),
+        leftAt: null,
+      },
+    ],
   };
 }
 
@@ -98,6 +112,7 @@ export function createMockContainer(): AppContainer {
   // Billing facade mock
   const billing = {
     getSubscription: vi.fn().mockResolvedValue(ok({
+      // 旧来のフラットフィールド (billing-routes.test.ts 等が参照)
       planTier: "free",
       includedMinutes: 5,
       usedMinutes: 0,
@@ -106,6 +121,15 @@ export function createMockContainer(): AppContainer {
       currentPeriodStart: new Date().toISOString(),
       currentPeriodEnd: new Date().toISOString(),
       cancelAtPeriodEnd: false,
+      // 実際の SubscriptionState (packages/billing/src/schemas.ts) が持つ nested 形。
+      // agent-routes.ts の transcript.delta retention 計算 (#48) が plan.tier を参照する。
+      plan: {
+        tier: "free",
+        includedMinutes: 5,
+        overageRateYen: 0,
+        monthlyPriceYen: 0,
+        transcriptRetentionDays: 7,
+      },
     })),
     canStartCall: vi.fn().mockResolvedValue(ok(true)),
     reserveMinutes: vi.fn().mockResolvedValue(ok(true)),
@@ -242,9 +266,56 @@ export function createMockContainer(): AppContainer {
   // Translation facade mock
   const translation = {
     handleAgentEvent: vi.fn().mockResolvedValue(ok(true)),
-    getUsage: vi.fn().mockResolvedValue(ok({ billableSeconds: 60, durationMs: 60000 })),
+    // #67: TranslationUsage の完全な形 (agent-routes.ts の publishTranslationEndedEvent が
+    // sessionId/roomId/sourceParticipantId/outputLanguage/startedAt/endedAt/reason を使う)
+    getUsage: vi.fn().mockResolvedValue(ok({
+      sessionId: "55555555-5555-4555-8555-555555555555",
+      roomId: MOCK_ROOM_ID,
+      sourceParticipantId: MOCK_PARTICIPANT_ID,
+      outputLanguage: "en",
+      durationMs: 60000,
+      billableSeconds: 60,
+      startedAt: new Date(Date.now() - 60000).toISOString(),
+      endedAt: new Date().toISOString(),
+      reason: "participant_left",
+    })),
     shouldStartSession: vi.fn().mockReturnValue(true),
     validateLiveDelta: vi.fn().mockReturnValue(ok({})),
+  };
+
+  // #46: RoomReservationSessionRepository mock — 実際の Map で状態を持ち、room-routes.ts の
+  // POST /api/rooms (save) → POST /api/rooms/:id/leave (findByRoomId) の往復を実挙動として
+  // 検証できるようにする (#53 テスト、単なる vi.fn().mockResolvedValue の静的スタブでは
+  // sessionId の対応付けを検証できないため)。
+  const roomReservationSessionStore = new Map<
+    string,
+    { userId: string; sessionId: string }
+  >();
+  const roomReservationSessionRepo = {
+    save: vi.fn(async (params: { roomId: string; userId: string; sessionId: string }) => {
+      roomReservationSessionStore.set(params.roomId, {
+        userId: params.userId,
+        sessionId: params.sessionId,
+      });
+      return ok(true);
+    }),
+    findByRoomId: vi.fn(async (roomId: string) => {
+      const row = roomReservationSessionStore.get(roomId);
+      return ok(
+        row
+          ? {
+              roomId,
+              userId: row.userId,
+              sessionId: row.sessionId,
+              createdAt: new Date().toISOString(),
+            }
+          : null,
+      );
+    }),
+    deleteByRoomId: vi.fn(async (roomId: string) => {
+      roomReservationSessionStore.delete(roomId);
+      return ok(true);
+    }),
   };
 
   // Room facade mock
@@ -257,6 +328,40 @@ export function createMockContainer(): AppContainer {
     getRoomHistory: vi.fn().mockResolvedValue(ok({ rooms: [], nextCursor: null })),
   };
 
+  // #27: account-routes.ts が退会/復元時にサブスクリプションの cancelAtPeriodEnd を
+  // 直接操作するために使う SubscriptionRepository のモック。
+  const subscriptionRow = {
+    id: "66666666-6666-4666-8666-666666666666",
+    user_id: MOCK_USER_ID,
+    plan_tier: "standard",
+    included_minutes: 120,
+    overage_rate_yen: 10,
+    monthly_price_yen: 1980,
+    transcript_retention_days: 30,
+    cancel_at_period_end: false,
+    purchase_channel: "stripe_web",
+    stripe_customer_id: "cus_test123",
+    stripe_subscription_id: "sub_test123",
+    iap_original_transaction_id: null,
+    current_period_start: new Date().toISOString(),
+    current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  const subscriptionRepo = {
+    findByUserId: vi.fn().mockResolvedValue(ok(subscriptionRow)),
+    upsert: vi.fn().mockResolvedValue(ok(subscriptionRow)),
+    updatePlan: vi.fn().mockResolvedValue(ok({ ...subscriptionRow, cancel_at_period_end: false })),
+    getUsedSecondsInPeriod: vi.fn().mockResolvedValue(ok(0)),
+    findByIapOriginalTransactionId: vi.fn().mockResolvedValue(ok(null)),
+    findByStripeSubscriptionId: vi.fn().mockResolvedValue(ok(null)),
+  };
+
+  // #23: billing-routes.ts の Apple Webhook 署名検証に使う IapAdapterConfig のモック。
+  // bundleId/environment/trustedRootCertsPem を指定しないため、署名検証は
+  // x5c チェーン内リンクの整合性のみをチェックする (テストの JWS フィクスチャと整合)。
+  const iapAdapterConfig = {};
+
   return {
     supabase: mockSupabase,
     eventBus,
@@ -268,7 +373,10 @@ export function createMockContainer(): AppContainer {
     transcript,
     translation,
     room,
+    roomReservationSessionRepo,
+    subscriptionRepo,
+    iapAdapterConfig,
   } as unknown as AppContainer;
 }
 
-export { MOCK_USER_ID, MOCK_ROOM_ID };
+export { MOCK_USER_ID, MOCK_ROOM_ID, MOCK_PARTICIPANT_ID, MOCK_OTHER_USER_ID };

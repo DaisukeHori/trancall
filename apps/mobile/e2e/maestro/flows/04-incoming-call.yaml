@@ -6,7 +6,7 @@ tags: [P0, call]
     clearState: true
 - runFlow: shared/login_as_e2e_user.yaml
 - runScript:
-    file: ../../scripts/trigger-incoming-call.js
+    file: ../scripts/trigger-incoming-call.js
 - assertVisible:
     text: ${T_call_incomingCall}
 - assertVisible:
@@ -20,8 +20,8 @@ tags: [P0, call]
 - assertVisible:
     text: ${T_call_inCall}
 - assertVisible:
-    accessibilityLabel: ${T_call_endCall}
+    text: ${T_call_endCall}
 - tapOn:
-    accessibilityLabel: ${T_call_endCall}
+    id: "call-end-button"
 - assertVisible:
     text: ${T_callSummary_viewTranscript}

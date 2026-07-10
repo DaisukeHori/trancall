@@ -7,8 +7,8 @@ import {
   err,
 } from "@trancall/shared-kernel";
 
-import type { ReportUserCommand } from "../schemas.js";
-import type { ReportRepository } from "../repositories/report-repository.js";
+import type { ReportUserCommand } from "../schemas.ts";
+import type { ReportRepository } from "../repositories/report-repository.ts";
 
 export interface ReportService {
   reportUser(cmd: ReportUserCommand): Promise<Result<true>>;

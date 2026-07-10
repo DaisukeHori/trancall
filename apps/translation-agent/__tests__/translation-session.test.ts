@@ -162,6 +162,9 @@ function makeConfig(
     logger: makeLogger(),
     metricsIntervalMs: 60000,
     degradedCheckIntervalMs: 1000,
+    // #31: デフォルトはテストの待ち時間を減らすため 0 (即座に close)。
+    // フラッシュ待機の挙動自体をテストする場合は overrides で明示的に指定する。
+    sessionCloseFlushWaitMs: 0,
     ...overrides,
   };
 
@@ -287,6 +290,50 @@ describe("TranslationSession: end()", () => {
     await session.end("agent_shutdown");
 
     const ws = MockOpenAIWsClient.instances[0];
+    expect(ws?.closeCalled).toBe(true);
+  });
+
+  // ===========================================================================
+  // #31: session.close 送信直後に即 close(1000) すると末尾の翻訳出力を
+  // 取りこぼす可能性があるため、sessionCloseFlushWaitMs だけ待ってから close() する。
+  // ===========================================================================
+
+  it("#31: sessionCloseFlushWaitMs 経過するまで close() が呼ばれない", async () => {
+    const { config } = makeConfig({ sessionCloseFlushWaitMs: 500 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const endPromise = session.end("participant_left");
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    // sendSessionClose() は即座に呼ばれる
+    expect(ws?.sessionCloseSent).toBe(true);
+    // だが close() はフラッシュ待機時間が経過するまで呼ばれない
+    expect(ws?.closeCalled).toBe(false);
+
+    // 待機時間の半分だけ進めてもまだ close() されない
+    vi.advanceTimersByTime(250);
+    await waitNextTick(2);
+    expect(ws?.closeCalled).toBe(false);
+
+    // 残りの待機時間を経過させると close() が呼ばれる
+    vi.advanceTimersByTime(250);
+    await endPromise;
+    expect(ws?.closeCalled).toBe(true);
+  });
+
+  it("#31: sessionCloseFlushWaitMs=0 (デフォルト) なら待機なしで即 close() される", async () => {
+    const { config } = makeConfig({ sessionCloseFlushWaitMs: 0 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    await session.end("participant_left");
+
+    const ws = MockOpenAIWsClient.instances[0];
+    expect(ws?.sessionCloseSent).toBe(true);
     expect(ws?.closeCalled).toBe(true);
   });
 });
@@ -524,6 +571,65 @@ describe("TranslationSession: T10 degraded/recovered 判定", () => {
   });
 });
 
+// =============================================================================
+// #31: output_silence 誤検知修正
+// 旧実装は「一度でも input があったか」しか見ておらず、会話の自然な沈黙
+// (発話と発話の間など) でも degraded が誤発火していた。
+// 直近 (DEGRADED_SILENCE_THRESHOLD_MS=2000ms 以内) に実際の音声入力があった場合のみ
+// output_silence と判定するよう修正した。
+// =============================================================================
+
+describe("TranslationSession: #31 output_silence 誤検知修正", () => {
+  it("直近に音声入力が継続しているのに 2 秒以上 audio.delta が来ない → output_silence で degraded", async () => {
+    const { config } = makeConfig({ degradedCheckIntervalMs: 300 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const degradedSpy = vi.fn();
+    session.on("degraded", degradedSpy);
+
+    // 300ms ごとに音声フレームを送り続ける (=発話が継続している状態)。
+    // audio.delta は一度も emit しない (=翻訳出力が来ない異常)。
+    // 2000ms 経過するまでに複数回 pushAudioFrame して lastAudioAppendAt を直近に保つ。
+    for (let i = 0; i < 8; i++) {
+      session.pushAudioFrame(`frame${i}`);
+      vi.advanceTimersByTime(300);
+      await waitNextTick(2);
+    }
+
+    expect(degradedSpy).toHaveBeenCalledTimes(1);
+    expect(degradedSpy.mock.calls[0]?.[0]).toBe("output_silence");
+
+    await session.end("participant_left");
+  });
+
+  it("会話の自然な沈黙 (発話が止まって 2 秒以上経過) では degraded が誤発火しない", async () => {
+    const { config } = makeConfig({ degradedCheckIntervalMs: 300 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const degradedSpy = vi.fn();
+    session.on("degraded", degradedSpy);
+
+    // 発話は 1 回だけ (直後に沈黙、以降は pushAudioFrame を呼ばない = 自然な沈黙を模す)
+    session.pushAudioFrame("single-utterance");
+    await waitNextTick(2);
+
+    // 3 秒間、新たな音声入力なし・出力なしで経過させる
+    // (lastAudioAppendAt が古くなり続けるため hasRecentInput が false になる)
+    for (let i = 0; i < 10; i++) {
+      vi.advanceTimersByTime(300);
+      await waitNextTick(2);
+    }
+
+    expect(degradedSpy).not.toHaveBeenCalled();
+
+    await session.end("participant_left");
+  });
+});
+
 describe("TranslationSession: T10 recovered 3 秒継続条件 (D1 §7.2)", () => {
   it("recovered 条件成立後 1 秒経過では recovered イベントが発火しない", async () => {
     // degradedCheckIntervalMs=500 で 500ms ごとにチェック
@@ -720,6 +826,69 @@ describe("TranslationSession: transcript.delta 送信", () => {
     expect(seqNos[0]).toBe(0);
     expect(seqNos[1]).toBe(1);
     expect(seqNos[2]).toBe(2);
+  });
+});
+
+// =============================================================================
+// #51: transcript イベントの elapsedMs 伝搬
+// agent.ts が subtitle.delta Data Channel payload の elapsedMs に使うため、
+// OpenAIWsClient の elapsed_ms をそのまま "transcript" イベントの第3引数として emit する。
+// =============================================================================
+
+describe("TranslationSession: #51 transcript イベントの elapsedMs 伝搬", () => {
+  it("transcript.delta の elapsedMs が transcript イベントにそのまま伝搬される", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    const transcriptSpy = vi.fn();
+    session.on("transcript", transcriptSpy);
+
+    ws.emit("transcript.delta", { text: "こんにちは", isFinal: false, receivedAt: Date.now(), elapsedMs: 350 });
+    await waitNextTick(2);
+
+    expect(transcriptSpy).toHaveBeenCalledWith("こんにちは", false, 350);
+  });
+
+  it("transcript.done の elapsedMs が transcript イベントにそのまま伝搬される (isFinal=true)", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    const transcriptSpy = vi.fn();
+    session.on("transcript", transcriptSpy);
+
+    ws.emit("transcript.done", { text: "完了テキスト", isFinal: true, receivedAt: Date.now(), elapsedMs: 1200 });
+    await waitNextTick(2);
+
+    expect(transcriptSpy).toHaveBeenCalledWith("完了テキスト", true, 1200);
+  });
+
+  it("elapsedMs が未提供の場合は 0 にフォールバックする", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const ws = MockOpenAIWsClient.instances[0];
+    if (!ws) throw new Error("WS not created");
+
+    const transcriptSpy = vi.fn();
+    session.on("transcript", transcriptSpy);
+
+    // elapsedMs フィールドなし (OpenAI 側が省略した場合を想定)
+    ws.emit("transcript.delta", { text: "no elapsed", isFinal: false, receivedAt: Date.now() });
+    await waitNextTick(2);
+
+    expect(transcriptSpy).toHaveBeenCalledWith("no elapsed", false, 0);
   });
 });
 

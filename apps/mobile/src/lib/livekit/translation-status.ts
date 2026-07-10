@@ -8,12 +8,17 @@
  * - translation.recovered → setRecovered(durationMs, timestamp)
  * - subtitle.delta → このモジュールのスコープ外 (subtitles.ts で処理)
  * - パース失敗 → log のみ、UI は更新しない (silent drop)
+ *
+ * 確定#6 (2026-07 敵対的レビュー) 対応済み: 送信側 (apps/translation-agent/src/agent.ts) に
+ * 加え、受信側 (apps/mobile/src/screens/in-call-screen.tsx) も
+ * makeTranslationStatusDataChannelHandler / makeSubtitleDataChannelHandler
+ * (../../lib/livekit/subtitles.ts) 経由で同一 topic (TRANSLATION_STATUS_CHANNEL_TOPIC) を
+ * 購読するよう配線済み。ライブ字幕・翻訳ステータスバッジは末端まで接続されている
+ * (LiveKit Room 実体は @livekit/react-native 未導入環境では connectToRoom が reject するため
+ * 実機検証待ち、詳細は connect.ts のコメント参照)。
  */
 import { TranslationStatusChannelPayloadSchema } from "@trancall/translation";
-import type {
-  TranslationStatusStoreState,
-  DegradedReason,
-} from "../../stores/translation-status-store.js";
+import type { TranslationStatusStoreState } from "../../stores/translation-status-store";
 
 /** テスト・DI のためにストアの actions を注入できる型 */
 export interface TranslationStatusActions {
@@ -63,7 +68,7 @@ export function handleTranslationStatusPayload(
 
   switch (payload.type) {
     case "translation.degraded": {
-      actions.setDegraded(payload.reason as DegradedReason);
+      actions.setDegraded(payload.reason);
       return payload.type;
     }
     case "translation.recovered": {

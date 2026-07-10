@@ -106,7 +106,8 @@
     "callAgain": "もう一度かける",
     "backToHome": "ホームに戻る",
     "incomingCall": "着信",
-    "translationReady": "翻訳準備完了"
+    "translationReady": "翻訳準備完了",
+    "connectionFailed": "通話に接続できません。ネットワークを確認してもう一度お試しください。"
   },
   "translation": {
     "enabled": "翻訳ON",
@@ -555,6 +556,8 @@
   },
   "faq": {
     "title": "よくある質問",
+    "expandHint": "タップして回答を表示",
+    "collapseHint": "タップして閉じる",
     "category": {
       "account": "アカウント",
       "call": "通話",

@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useTheme } from "../theme/index.js";
+import { useTheme } from "../theme/index.ts";
 
 export interface PlanCardProps {
   planName: string;
@@ -63,7 +63,7 @@ export function PlanCard({
               { backgroundColor: c.primary, borderRadius: theme.radii.full },
             ]}
           >
-            <Text style={styles.badgeText}>✓</Text>
+            <Text style={[styles.badgeText, { color: c.textOnColor }]}>✓</Text>
           </View>
         )}
       </View>
@@ -118,7 +118,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   badgeText: {
-    color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
   },

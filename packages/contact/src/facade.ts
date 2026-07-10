@@ -6,13 +6,13 @@
 
 import type { Result, UserId } from "@trancall/shared-kernel";
 
-import type { ContactEntry, PublicProfile } from "./schemas.js";
-import type { BlockUserCommand, ReportUserCommand, AddContactCommand } from "./schemas.js";
-import type { ContactService } from "./services/contact-service.js";
-import type { BlockService } from "./services/block-service.js";
-import type { SearchService } from "./services/search-service.js";
-import type { ReportService } from "./services/report-service.js";
-import type { InviteService } from "./services/invite-service.js";
+import type { ContactEntry, PublicProfile } from "./schemas.ts";
+import type { BlockUserCommand, ReportUserCommand, AddContactCommand } from "./schemas.ts";
+import type { ContactService } from "./services/contact-service.ts";
+import type { BlockService } from "./services/block-service.ts";
+import type { SearchService } from "./services/search-service.ts";
+import type { ReportService } from "./services/report-service.ts";
+import type { InviteService } from "./services/invite-service.ts";
 
 export interface ContactFacade {
   addContact(cmd: AddContactCommand): Promise<Result<ContactEntry>>;

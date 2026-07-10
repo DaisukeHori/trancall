@@ -12,7 +12,7 @@ import { z } from "zod";
 import type { Result} from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { PlanTier } from "../schemas.js";
+import type { PlanTier } from "../schemas.ts";
 
 // Google Play RTDN Pub/Sub メッセージスキーマ
 // https://developer.android.com/google/play/billing/rtdn-reference

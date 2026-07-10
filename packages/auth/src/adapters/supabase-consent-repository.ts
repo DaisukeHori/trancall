@@ -21,7 +21,7 @@ import {
   ConsentRecordSchema,
 } from "@trancall/shared-kernel";
 
-import { type ConsentRepository } from "../repositories/consent-repository.js";
+import { type ConsentRepository } from "../repositories/consent-repository.ts";
 
 /**
  * Supabase クライアントの最小インターフェース。

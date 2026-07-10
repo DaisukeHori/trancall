@@ -14,6 +14,15 @@ vi.mock("../src/api/auth-api.js", () => ({
   signOut: vi.fn().mockResolvedValue(undefined),
   getProfile: vi.fn(),
   getSupabaseClient: vi.fn(),
+  // E2E test-mode auth (apps/mobile/src/api/auth-api.ts) — these tests exercise
+  // the production (Supabase) path, so isE2eTestMode is pinned to false here.
+  // The E2E branch itself is exercised by the Maestro suite (apps/mobile/e2e/),
+  // not unit tests.
+  isE2eTestMode: vi.fn().mockReturnValue(false),
+  signInViaMockServer: vi.fn(),
+  signUpViaMockServer: vi.fn(),
+  getProfileViaMockServer: vi.fn(),
+  signOutViaMockServer: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock API config
