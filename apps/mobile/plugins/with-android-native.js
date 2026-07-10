@@ -117,6 +117,51 @@ const withHmacSecretBuildConfigField = (config) => {
 };
 
 /**
+ * E2E (Maestro) の debug APK ビルドで JS バンドルを APK に埋め込む。
+ *
+ * React Native Gradle Plugin (RNGP) は `react { debuggableVariants }` (既定値
+ * `['debug']`) に含まれる variant を「Metro dev server 接続前提」とみなし、
+ * バンドル/アセットの埋め込みタスク自体をスキップする
+ * (node_modules/@react-native/gradle-plugin の TaskConfiguration.kt:51-63
+ * `isDebuggableVariant` 判定を実ソースで確認済み)。
+ *
+ * `.github/workflows/e2e.yml` が渡していた `-PbundleInDebug=true` という
+ * Gradle project property は RNGP のどのバージョンにも存在しない架空のフラグ
+ * だった (grep で該当参照ゼロ、CI実測でも "Unable to load script" の RN redbox
+ * が出て発覚)。正しいレバーは `debuggableVariants` を空配列にすること。
+ *
+ * `TRANCALL_E2E_BUNDLE_DEBUG=1` (E2E CIのみ設定) が立っているときだけ
+ * `debuggableVariants = []` を注入し、通常のローカル実機デバッグ開発体験
+ * (Metro接続、Fast Refresh) は変更しない。
+ */
+const withE2eDebugBundling = (config) => {
+  if (process.env.TRANCALL_E2E_BUNDLE_DEBUG !== "1") {
+    return config;
+  }
+  return withAppBuildGradle(config, (mod) => {
+    if (mod.modResults.language !== "groovy") {
+      return mod;
+    }
+
+    let contents = mod.modResults.contents;
+
+    // 生成直後の build.gradle には example として「// debuggableVariants = [...]」という
+    // コメントアウト済みの行が既に含まれているため、単純な contents.includes("debuggableVariants")
+    // はこのコメントに誤検知して注入をスキップしてしまう (実測で確認)。行頭 (空白のみ許容) から
+    // 始まる非コメントの代入だけを「既に設定済み」とみなす。
+    if (!/^\s*debuggableVariants\s*=/m.test(contents)) {
+      contents = contents.replace(
+        /react\s*{/,
+        (match) => `${match}\n    debuggableVariants = []\n`,
+      );
+    }
+
+    mod.modResults.contents = contents;
+    return mod;
+  });
+};
+
+/**
  * `FcmService.kt` は `com.google.firebase.messaging.FirebaseMessagingService` /
  * `RemoteMessage` を参照するが、Expo の google-services 連携 (`withConditionalGoogleServicesFile`)
  * は `google-services.json` の配置と `com.google.gms.google-services` プラグイン適用のみを行い、
@@ -221,6 +266,7 @@ const withAndroidNative = (config) => {
   config = withAndroidNativeFiles(config);
   config = withHmacSecretBuildConfigField(config);
   config = withFirebaseMessagingDependency(config);
+  config = withE2eDebugBundling(config);
   return config;
 };
 

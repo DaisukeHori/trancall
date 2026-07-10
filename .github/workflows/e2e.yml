@@ -283,19 +283,19 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:4010
           EXPO_PUBLIC_E2E_TEST_MODE: "true"
           NODE_ENV: test
+          # apps/mobile/plugins/with-android-native.js の withE2eDebugBundling を有効化する。
+          # React Native Gradle Plugin は react{} ブロックの debuggableVariants (既定 ['debug'])
+          # に含まれる variant のバンドル/アセット埋め込みタスクを丸ごとスキップし、Metro dev
+          # server への接続を前提とする (node_modules/@react-native/gradle-plugin の
+          # TaskConfiguration.kt で実ソース確認済み)。以前ここで使っていた `-PbundleInDebug=true`
+          # という Gradle project property は RNGP のどのバージョンにも存在しない架空のフラグ
+          # だった (grep で参照ゼロ、CI実測で "Unable to load script" の RN redbox が出て発覚)。
+          # 正しいレバーは debuggableVariants を空配列にすることで、これは prebuild 時に
+          # config plugin で build.gradle に注入する必要がある (Gradle 実行時の -P では遅い)。
+          TRANCALL_E2E_BUNDLE_DEBUG: "1"
 
       - name: Build debug APK
-        # -PbundleInDebug=true: like iOS's FORCE_BUNDLING (see the iOS job),
-        # RN's Android Gradle plugin normally skips embedding the JS bundle
-        # into debug APKs and expects a live Metro dev server instead. CI has
-        # none running, so without this the app would fail to load its JS.
-        # This is the standard Expo/RN project property for forcing bundling
-        # in a debug build; unverified against this exact RN 0.81 / Expo
-        # SDK 54 Gradle template locally (no Android SDK in this environment)
-        # — if the debug APK still can't find its JS bundle at runtime, check
-        # apps/mobile/android/app/build.gradle's `react { }` block for the
-        # actual property name it reads.
-        run: ./gradlew assembleDebug -PbundleInDebug=true --no-daemon
+        run: ./gradlew assembleDebug --no-daemon
         working-directory: apps/mobile/android
         env:
           # このステップが実際にMetroでJSバンドルを生成する場所 (前段のPrebuildステップの
