@@ -108,12 +108,23 @@ jobs:
           # development server" screen instead of actually launching. This forces
           # the bundle to be embedded like a Release build while keeping Debug
           # configuration (and therefore no code signing requirement) otherwise.
+          #
+          # -destination "id=$SIMULATOR_UDID" (instead of the generic
+          # "generic/platform=iOS Simulator"): PR #75 CI実測でこのstepのログを解析した
+          # ところ、generic destinationはCIランナー(Apple Silicon, arm64)には不要な
+          # x86_64スライスも含めた全アーキテクチャ向けにuniversal buildを行っており、
+          # 916個の各ソースファイルがx86_64/arm64の両方で2重コンパイルされ、xcodebuild
+          # 単体で32分32秒(ジョブ全体45分の72%)を消費していた。この結果、Maestro
+          # flow実行に残る時間が5〜8分しかなくなり、1本目のflowが失敗しただけで
+          # ジョブ全体がタイムアウトしていた。既にBoot iOS SimulatorステップでUDIDを
+          # 確定させた実機シミュレータをそのまま指定することで、そのシミュレータの
+          # 実アーキテクチャ(arm64)のみをビルド対象にでき、ビルド時間をほぼ半減できる。
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination "generic/platform=iOS Simulator" \
+            -destination "id=$SIMULATOR_UDID" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
