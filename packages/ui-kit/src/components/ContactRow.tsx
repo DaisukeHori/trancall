@@ -1,8 +1,8 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Avatar } from "./Avatar.js";
-import { useTheme } from "../theme/index.js";
-import { useTranslation } from "../i18n/index.js";
+import { Avatar } from "./Avatar";
+import { useTheme } from "../theme/index";
+import { useTranslation } from "../i18n/index";
 
 export interface ContactRowProps {
   name: string;

@@ -11,14 +11,14 @@
 import type { Result } from "@trancall/shared-kernel";
 import { validate } from "@trancall/shared-kernel";
 
-import type { TranslationUsage } from "./schemas.js";
-import { LiveSubtitleDeltaSchema } from "./schemas.js";
-import type { LiveSubtitleDelta } from "./schemas.js";
-import { handleAgentEvent } from "./services/agent-event-handler.js";
-import { calcUsageFromRecord } from "./services/usage-calculator.js";
-import { shouldStartSession } from "./services/language-pair.js";
-import type { TranslationSessionRepository } from "./repositories/translation-session-repository.js";
-import type { AgentMetricsRepository } from "./repositories/agent-metrics-repository.js";
+import type { TranslationUsage } from "./schemas";
+import { LiveSubtitleDeltaSchema } from "./schemas";
+import type { LiveSubtitleDelta } from "./schemas";
+import { handleAgentEvent } from "./services/agent-event-handler";
+import { calcUsageFromRecord } from "./services/usage-calculator";
+import { shouldStartSession } from "./services/language-pair";
+import type { TranslationSessionRepository } from "./repositories/translation-session-repository";
+import type { AgentMetricsRepository } from "./repositories/agent-metrics-repository";
 import type { OutputLanguage } from "@trancall/shared-kernel";
 
 export interface TranslationFacadeDeps {

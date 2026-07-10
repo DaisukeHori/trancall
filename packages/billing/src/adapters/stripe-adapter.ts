@@ -14,7 +14,7 @@ import { z } from "zod";
 import type { Result, AppError } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { PlanTier, UpgradePreview } from "../schemas.js";
+import type { PlanTier, UpgradePreview } from "../schemas";
 import type { UserId } from "@trancall/shared-kernel";
 
 // Stripe の Price ID マッピング（環境変数から取得）

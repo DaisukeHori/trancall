@@ -6,7 +6,7 @@ import {
   View,
   type TextInputProps,
 } from "react-native";
-import { useTheme } from "../theme/index.js";
+import { useTheme } from "../theme/index";
 
 export interface InputProps extends Omit<TextInputProps, "style"> {
   label?: string;

@@ -12,12 +12,12 @@ import {
   type RoomId,
 } from "@trancall/shared-kernel";
 
-import { type LiveKitAdapter } from "./adapters/livekit.js";
+import { type LiveKitAdapter } from "./adapters/livekit";
 import {
   IssueAccessTokenRequestSchema,
   type IssueAccessTokenRequest,
   type IssueAccessTokenResponse,
-} from "./schemas.js";
+} from "./schemas";
 
 export interface MediaFacade {
   /**

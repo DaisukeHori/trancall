@@ -2,16 +2,16 @@ export {
   ParticipantMetadataSchema,
   IssueAccessTokenRequestSchema,
   IssueAccessTokenResponseSchema,
-} from "./schemas.js";
+} from "./schemas";
 
 export type {
   ParticipantMetadata,
   IssueAccessTokenRequest,
   IssueAccessTokenResponse,
-} from "./schemas.js";
+} from "./schemas";
 
-export { createMediaFacade } from "./facade.js";
-export type { MediaFacade } from "./facade.js";
+export { createMediaFacade } from "./facade";
+export type { MediaFacade } from "./facade";
 
-export { createLiveKitAdapter, parseParticipantMetadata } from "./adapters/livekit.js";
-export type { LiveKitAdapter, LiveKitAdapterConfig } from "./adapters/livekit.js";
+export { createLiveKitAdapter, parseParticipantMetadata } from "./adapters/livekit";
+export type { LiveKitAdapter, LiveKitAdapterConfig } from "./adapters/livekit";

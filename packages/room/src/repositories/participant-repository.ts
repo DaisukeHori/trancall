@@ -6,7 +6,7 @@
  */
 
 import type { Result, RoomId, UserId } from "@trancall/shared-kernel";
-import type { ParticipantRow, UpsertParticipantCommand } from "../schemas.js";
+import type { ParticipantRow, UpsertParticipantCommand } from "../schemas";
 
 export interface ParticipantRepository {
   /**

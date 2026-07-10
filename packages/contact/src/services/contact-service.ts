@@ -8,9 +8,9 @@ import {
   err,
 } from "@trancall/shared-kernel";
 
-import type { ContactEntry } from "../schemas.js";
-import type { ContactRepository } from "../repositories/contact-repository.js";
-import type { BlockRepository } from "../repositories/block-repository.js";
+import type { ContactEntry } from "../schemas";
+import type { ContactRepository } from "../repositories/contact-repository";
+import type { BlockRepository } from "../repositories/block-repository";
 
 export interface ContactService {
   addContact(

@@ -6,8 +6,8 @@
  */
 
 // Facade
-export type { ContactFacade } from "./facade.js";
-export { createContactFacade } from "./facade.js";
+export type { ContactFacade } from "./facade";
+export { createContactFacade } from "./facade";
 
 // スキーマ / 型
 export type {
@@ -16,34 +16,34 @@ export type {
   AddContactCommand,
   BlockUserCommand,
   ReportUserCommand,
-} from "./schemas.js";
+} from "./schemas";
 export {
   PublicProfileSchema,
   ContactEntrySchema,
   AddContactCommandSchema,
   BlockUserCommandSchema,
   ReportUserCommandSchema,
-} from "./schemas.js";
+} from "./schemas";
 
 // サービスファクトリ（DI 用）
-export { createContactService } from "./services/contact-service.js";
-export type { ContactService } from "./services/contact-service.js";
+export { createContactService } from "./services/contact-service";
+export type { ContactService } from "./services/contact-service";
 
-export { createBlockService } from "./services/block-service.js";
-export type { BlockService } from "./services/block-service.js";
+export { createBlockService } from "./services/block-service";
+export type { BlockService } from "./services/block-service";
 
-export { createSearchService } from "./services/search-service.js";
-export type { SearchService } from "./services/search-service.js";
+export { createSearchService } from "./services/search-service";
+export type { SearchService } from "./services/search-service";
 
-export { createReportService } from "./services/report-service.js";
-export type { ReportService } from "./services/report-service.js";
+export { createReportService } from "./services/report-service";
+export type { ReportService } from "./services/report-service";
 
-export { createInviteService } from "./services/invite-service.js";
-export type { InviteService } from "./services/invite-service.js";
+export { createInviteService } from "./services/invite-service";
+export type { InviteService } from "./services/invite-service";
 
 // リポジトリインターフェース（DI 用）
-export type { ContactRepository } from "./repositories/contact-repository.js";
-export type { BlockRepository } from "./repositories/block-repository.js";
-export type { InviteRepository } from "./repositories/invite-repository.js";
-export type { ProfileSearchRepository } from "./repositories/profile-search-repository.js";
-export type { ReportRepository } from "./repositories/report-repository.js";
+export type { ContactRepository } from "./repositories/contact-repository";
+export type { BlockRepository } from "./repositories/block-repository";
+export type { InviteRepository } from "./repositories/invite-repository";
+export type { ProfileSearchRepository } from "./repositories/profile-search-repository";
+export type { ReportRepository } from "./repositories/report-repository";

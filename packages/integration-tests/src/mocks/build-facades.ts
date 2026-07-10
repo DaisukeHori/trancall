@@ -66,7 +66,7 @@ import {
   type InMemoryAccessRepo,
   type InMemoryBlockRepo,
   type InMemoryTranslationSessionRepo,
-} from "./all-repos.js";
+} from "./all-repos";
 
 import {
   makeApnsAdapter,
@@ -77,7 +77,7 @@ import {
   makeStripeWebCheckoutAdapter,
   makeIapAdapter,
   makeExternalPurchaseAdapter,
-} from "./adapters.js";
+} from "./adapters";
 
 export interface Facades {
   auth: AuthFacade;

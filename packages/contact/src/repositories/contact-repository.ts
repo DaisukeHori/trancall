@@ -4,7 +4,7 @@
 
 import type { Result } from "@trancall/shared-kernel";
 import type { UserId } from "@trancall/shared-kernel";
-import type { ContactEntry } from "../schemas.js";
+import type { ContactEntry } from "../schemas";
 
 export interface ContactRepository {
   /**

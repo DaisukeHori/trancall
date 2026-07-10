@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, View, type ViewProps } from "react-native";
-import { useTheme } from "../theme/index.js";
+import { useTheme } from "../theme/index";
 
 export interface CardProps extends Omit<ViewProps, "style"> {
   padding?: number;

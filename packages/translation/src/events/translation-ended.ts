@@ -13,7 +13,7 @@ import {
   ParticipantIdSchema,
   OutputLanguage,
 } from "@trancall/shared-kernel";
-import { TranslationSessionEndedReasonSchema } from "../schemas.js";
+import { TranslationSessionEndedReasonSchema } from "../schemas";
 
 // #46/#49: reason は SessionEndedPayloadSchema / TranslationUsageSchema と同じ
 // TranslationSessionEndedReasonSchema (5 値、agent_publish_failed 含む) を参照する。

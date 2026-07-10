@@ -19,14 +19,14 @@ import {
   type LiveSubtitleDelta,
   LiveSubtitleDeltaSchema,
   FullTranscriptSchema,
-} from "./schemas.js";
-import type { FullTranscript } from "./schemas.js";
-import type { SegmentRepository } from "./repositories/segment-repository.js";
-import type { AccessRepository } from "./repositories/access-repository.js";
-import { createSegmentService } from "./services/segment-service.js";
-import { createAccessService } from "./services/access-service.js";
-import { createSearchService } from "./services/search-service.js";
-import { createExportService, type ExportFormat, type ExportInput, type RoomMeta } from "./services/export-service.js";
+} from "./schemas";
+import type { FullTranscript } from "./schemas";
+import type { SegmentRepository } from "./repositories/segment-repository";
+import type { AccessRepository } from "./repositories/access-repository";
+import { createSegmentService } from "./services/segment-service";
+import { createAccessService } from "./services/access-service";
+import { createSearchService } from "./services/search-service";
+import { createExportService, type ExportFormat, type ExportInput, type RoomMeta } from "./services/export-service";
 
 /**
  * roomId / userId から room メタ情報を解決するプロバイダ。

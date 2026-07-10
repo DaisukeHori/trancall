@@ -17,8 +17,8 @@ import { z } from "zod";
 import type { Result, AppError } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { PlanTier } from "../schemas.js";
-import type { CheckoutSessionViewModel, UpgradePreview } from "../view-models/index.js";
+import type { PlanTier } from "../schemas";
+import type { CheckoutSessionViewModel, UpgradePreview } from "../view-models/index";
 
 // =============================================================================
 // 設定

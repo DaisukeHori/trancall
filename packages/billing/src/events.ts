@@ -13,8 +13,8 @@ import type { UserId } from "@trancall/shared-kernel";
 import type {
   BillingSubscriptionUpgradedEvent,
   BillingSubscriptionCanceledEvent,
-} from "./view-models/index.js";
-import type { PlanTier, PurchaseChannel } from "./schemas.js";
+} from "./view-models/index";
+import type { PlanTier, PurchaseChannel } from "./schemas";
 
 // =============================================================================
 // EventBus インターフェース (shared-kernel 公開 or DI 注入)

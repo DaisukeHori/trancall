@@ -3,9 +3,9 @@
  */
 
 import type { UserId } from "@trancall/shared-kernel";
-import type { PublicProfile } from "../schemas.js";
-import type { ProfileSearchRepository } from "../repositories/profile-search-repository.js";
-import type { BlockRepository } from "../repositories/block-repository.js";
+import type { PublicProfile } from "../schemas";
+import type { ProfileSearchRepository } from "../repositories/profile-search-repository";
+import type { BlockRepository } from "../repositories/block-repository";
 
 export interface SearchService {
   /**

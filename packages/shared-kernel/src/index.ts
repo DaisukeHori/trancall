@@ -3,50 +3,50 @@ export {
   TranslationSessionIdSchema, LiveKitTrackSidSchema, OpenAISessionIdSchema,
   brandUserId, brandRoomId, brandParticipantId, brandTrackId,
   brandTranslationSessionId, brandLiveKitTrackSid, brandOpenAISessionId,
-} from "./schemas/brand.js";
+} from "./schemas/brand";
 
 export type {
   UserId, RoomId, TrackId, ParticipantId, TranslationSessionId,
   LiveKitTrackSid, OpenAISessionId,
-} from "./schemas/brand.js";
+} from "./schemas/brand";
 
 export {
   AppError, validate, ok, err,
-} from "./schemas/result.js";
+} from "./schemas/result";
 
 export type {
   Result, ResultOk, ResultErr, ResultOf,
-} from "./schemas/result.js";
+} from "./schemas/result";
 
 export {
   OutputLanguage, InputLanguage,
-} from "./schemas/language.js";
+} from "./schemas/language";
 
 export {
   DomainEventBase,
-} from "./schemas/events.js";
+} from "./schemas/events";
 
 export {
   ConsentScopeSchema,
   LegalDocumentVersionSchema,
   ConsentRecordSchema,
   RequiredConsentViewSchema,
-} from "./schemas/consent.js";
+} from "./schemas/consent";
 
 export type {
   ConsentScope,
   LegalDocumentVersion,
   ConsentRecord,
   RequiredConsentView,
-} from "./schemas/consent.js";
+} from "./schemas/consent";
 
 // Mobile-only: PERMISSION_* error codes (server には伝播しない)
 export {
   PERMISSION_ERROR_CODES,
   PERMISSION_ERROR_CODE_VALUES,
   isPermissionErrorCode,
-} from "./schemas/permission-error-codes.js";
+} from "./schemas/permission-error-codes";
 
 export type {
   PermissionErrorCode,
-} from "./schemas/permission-error-codes.js";
+} from "./schemas/permission-error-codes";

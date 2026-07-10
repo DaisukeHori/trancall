@@ -17,16 +17,16 @@ import {
 import type {
   SubscriptionState,
   RecordUsageCommand,
-} from "../schemas.js";
-import { PLAN_CONFIGS } from "../schemas.js";
-import type { SubscriptionRepository } from "../repositories/subscription-repository.js";
-import type { UsageRepository } from "../repositories/usage-repository.js";
+} from "../schemas";
+import { PLAN_CONFIGS } from "../schemas";
+import type { SubscriptionRepository } from "../repositories/subscription-repository";
+import type { UsageRepository } from "../repositories/usage-repository";
 import {
   calcAmountYen,
   calcRemainingSeconds,
   calcUsedMinutes,
   calcRemainingMinutes,
-} from "./plan-calculator.js";
+} from "./plan-calculator";
 
 export interface RecordUsageResult {
   subscriptionState: SubscriptionState;

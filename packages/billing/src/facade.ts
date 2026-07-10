@@ -22,30 +22,30 @@ import type {
   RecordUsageCommand,
   PlanTier,
   SubscriptionRow,
-} from "./schemas.js";
-import { PLAN_CONFIGS, RecordUsageCommand as RecordUsageCommandSchema } from "./schemas.js";
-import type { SubscriptionRepository } from "./repositories/subscription-repository.js";
-import type { UsageRepository } from "./repositories/usage-repository.js";
-import type { ReservationRepository } from "./repositories/reservation-repository.js";
-import type { WebhookEventRepository } from "./repositories/webhook-event-repository.js";
-import type { ExternalPurchaseTokenRepository } from "./repositories/external-purchase-token-repository.js";
-import { createSubscriptionService } from "./services/subscription-service.js";
-import { createUsageMeteringService } from "./services/usage-metering.js";
-import { createReservationService } from "./services/reservation-service.js";
-import type { StripeAdapter } from "./adapters/stripe-adapter.js";
-import type { AppleIapAdapter } from "./adapters/apple-iap-adapter.js";
-import type { GooglePlayAdapter } from "./adapters/google-play-adapter.js";
-import type { StripeWebCheckoutAdapter } from "./adapters/stripe-web-checkout-adapter.js";
-import type { IapAdapter } from "./adapters/iap-adapter.js";
-import type { ExternalPurchaseAdapter } from "./adapters/external-purchase-adapter.js";
-import type { EventBus } from "./events.js";
-import { publishSubscriptionUpgraded, publishSubscriptionCanceled } from "./events.js";
+} from "./schemas";
+import { PLAN_CONFIGS, RecordUsageCommand as RecordUsageCommandSchema } from "./schemas";
+import type { SubscriptionRepository } from "./repositories/subscription-repository";
+import type { UsageRepository } from "./repositories/usage-repository";
+import type { ReservationRepository } from "./repositories/reservation-repository";
+import type { WebhookEventRepository } from "./repositories/webhook-event-repository";
+import type { ExternalPurchaseTokenRepository } from "./repositories/external-purchase-token-repository";
+import { createSubscriptionService } from "./services/subscription-service";
+import { createUsageMeteringService } from "./services/usage-metering";
+import { createReservationService } from "./services/reservation-service";
+import type { StripeAdapter } from "./adapters/stripe-adapter";
+import type { AppleIapAdapter } from "./adapters/apple-iap-adapter";
+import type { GooglePlayAdapter } from "./adapters/google-play-adapter";
+import type { StripeWebCheckoutAdapter } from "./adapters/stripe-web-checkout-adapter";
+import type { IapAdapter } from "./adapters/iap-adapter";
+import type { ExternalPurchaseAdapter } from "./adapters/external-purchase-adapter";
+import type { EventBus } from "./events";
+import { publishSubscriptionUpgraded, publishSubscriptionCanceled } from "./events";
 import type {
   PlanComparisonView,
   UpgradePreview,
   IapTransactionResult,
   StoreKitExternalRedirectResult,
-} from "./view-models/index.js";
+} from "./view-models/index";
 
 // =============================================================================
 // ヘルパー

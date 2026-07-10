@@ -6,7 +6,7 @@
 
 import type { Result } from "@trancall/shared-kernel";
 import type { RoomId, UserId } from "@trancall/shared-kernel";
-import type { TranscriptAccess } from "../schemas.js";
+import type { TranscriptAccess } from "../schemas";
 
 export interface AccessRepository {
   /**

@@ -7,9 +7,9 @@
  */
 
 import { type Result, ok } from "@trancall/shared-kernel";
-import type { TranscriptSegment } from "../schemas.js";
-import { TranscriptSegmentSchema } from "../schemas.js";
-import type { SegmentRepository } from "../repositories/segment-repository.js";
+import type { TranscriptSegment } from "../schemas";
+import { TranscriptSegmentSchema } from "../schemas";
+import type { SegmentRepository } from "../repositories/segment-repository";
 
 export interface SegmentService {
   /**

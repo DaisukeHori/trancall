@@ -6,7 +6,7 @@
  */
 
 // Facade（唯一の外部エントリポイント）
-export { createRoomFacade } from "./facade.js";
+export { createRoomFacade } from "./facade";
 export type {
   RoomFacade,
   RoomFacadeDeps,
@@ -15,7 +15,7 @@ export type {
   RoomHistoryResponse,
   GetRoomHistoryQuery,
   CreateCallOptions,
-} from "./facade.js";
+} from "./facade";
 
 // Schemas（モジュール境界の契約）
 export {
@@ -23,27 +23,27 @@ export {
   ParticipantRoleSchema,
   ParticipantSchema,
   RoomStateSchema,
-} from "./schemas.js";
+} from "./schemas";
 
 export type {
   RoomStatus,
   ParticipantRole,
   Participant,
   RoomState,
-} from "./schemas.js";
+} from "./schemas";
 
 // Error codes
-export { RoomErrorCode } from "./errors.js";
-export type { RoomErrorCode as RoomErrorCodeType } from "./errors.js";
+export { RoomErrorCode } from "./errors";
+export type { RoomErrorCode as RoomErrorCodeType } from "./errors";
 
 // Repository interfaces（apps/server 側での実装用）
-export type { RoomRepository } from "./repositories/room-repository.js";
-export type { ParticipantRepository } from "./repositories/participant-repository.js";
+export type { RoomRepository } from "./repositories/room-repository";
+export type { ParticipantRepository } from "./repositories/participant-repository";
 
 // EventBus interface
-export type { EventBus, RoomDomainEvent } from "./event-bus.js";
+export type { EventBus, RoomDomainEvent } from "./event-bus";
 
 // Domain Events
-export type { RoomCreatedEvent } from "./events/room-created.js";
-export type { ParticipantJoinedEvent } from "./events/participant-joined.js";
-export type { ParticipantLeftEvent } from "./events/participant-left.js";
+export type { RoomCreatedEvent } from "./events/room-created";
+export type { ParticipantJoinedEvent } from "./events/participant-joined";
+export type { ParticipantLeftEvent } from "./events/participant-left";

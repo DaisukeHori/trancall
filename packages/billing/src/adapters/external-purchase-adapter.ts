@@ -15,9 +15,9 @@ import crypto from "crypto";
 import type { Result, UserId } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { PlanTier } from "../schemas.js";
-import type { StoreKitExternalRedirectResult } from "../view-models/index.js";
-import type { ExternalPurchaseTokenRepository } from "../repositories/external-purchase-token-repository.js";
+import type { PlanTier } from "../schemas";
+import type { StoreKitExternalRedirectResult } from "../view-models/index";
+import type { ExternalPurchaseTokenRepository } from "../repositories/external-purchase-token-repository";
 
 // =============================================================================
 // 設定

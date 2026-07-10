@@ -5,36 +5,36 @@
  * services/ / repositories/ / adapters/ への直接 import は禁止。
  */
 
-export { createNotificationFacade } from "./facade.js";
-export type { NotificationFacade, NotificationFacadeDeps } from "./facade.js";
+export { createNotificationFacade } from "./facade";
+export type { NotificationFacade, NotificationFacadeDeps } from "./facade";
 
 export type {
   NotificationTarget,
   IncomingCallNotification,
   MissedCallPayload,
-} from "./schemas.js";
+} from "./schemas";
 
-export { createDeviceTokenService } from "./services/device-token-service.js";
-export type { DeviceTokenService } from "./services/device-token-service.js";
+export { createDeviceTokenService } from "./services/device-token-service";
+export type { DeviceTokenService } from "./services/device-token-service";
 
-export { createPushDispatcher } from "./services/push-dispatcher.js";
-export type { PushDispatcher, PushDispatcherDeps } from "./services/push-dispatcher.js";
+export { createPushDispatcher } from "./services/push-dispatcher";
+export type { PushDispatcher, PushDispatcherDeps } from "./services/push-dispatcher";
 
-export type { DeviceTokenRepository } from "./repositories/device-token-repository.js";
-export type { PushLogRepository } from "./repositories/push-log-repository.js";
+export type { DeviceTokenRepository } from "./repositories/device-token-repository";
+export type { PushLogRepository } from "./repositories/push-log-repository";
 
-export { createApnsAdapter } from "./adapters/apns-adapter.js";
-export type { ApnsAdapter, ApnsAdapterConfig } from "./adapters/apns-adapter.js";
+export { createApnsAdapter } from "./adapters/apns-adapter";
+export type { ApnsAdapter, ApnsAdapterConfig } from "./adapters/apns-adapter";
 
-export { createFcmAdapter } from "./adapters/fcm-adapter.js";
-export type { FcmAdapter, FcmAdapterConfig } from "./adapters/fcm-adapter.js";
+export { createFcmAdapter } from "./adapters/fcm-adapter";
+export type { FcmAdapter, FcmAdapterConfig } from "./adapters/fcm-adapter";
 
-export { loadConfig, parseConfig } from "./config.js";
-export type { NotificationConfig } from "./config.js";
+export { loadConfig, parseConfig } from "./config";
+export type { NotificationConfig } from "./config";
 
 export {
   signCallPayload,
   buildCallTimestamps,
   buildCanonicalString,
-} from "./signing/hmac.js";
-export type { CallPayloadSignable } from "./signing/hmac.js";
+} from "./signing/hmac";
+export type { CallPayloadSignable } from "./signing/hmac";

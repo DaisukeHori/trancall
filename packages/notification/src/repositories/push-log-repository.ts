@@ -4,7 +4,7 @@
 
 import type { Result } from "@trancall/shared-kernel";
 
-import type { PushLogWrite } from "../schemas.js";
+import type { PushLogWrite } from "../schemas";
 
 export interface PushLogRepository {
   /**

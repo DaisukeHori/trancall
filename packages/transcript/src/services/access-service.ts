@@ -8,7 +8,7 @@
 
 import { type Result, ok } from "@trancall/shared-kernel";
 import type { RoomId, UserId } from "@trancall/shared-kernel";
-import type { AccessRepository } from "../repositories/access-repository.js";
+import type { AccessRepository } from "../repositories/access-repository";
 
 export interface AccessService {
   /**

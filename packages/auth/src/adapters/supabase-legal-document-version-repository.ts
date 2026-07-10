@@ -19,7 +19,7 @@ import {
   LegalDocumentVersionSchema,
 } from "@trancall/shared-kernel";
 
-import { type LegalDocumentVersionRepository } from "../repositories/legal-document-version-repository.js";
+import { type LegalDocumentVersionRepository } from "../repositories/legal-document-version-repository";
 
 /**
  * Supabase クライアントの最小インターフェース (consent_versions 用)。

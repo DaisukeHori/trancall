@@ -1,8 +1,8 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type { OutputLanguage } from "@trancall/shared-kernel";
-import { Avatar } from "./Avatar.js";
-import { useTheme } from "../theme/index.js";
+import { Avatar } from "./Avatar";
+import { useTheme } from "../theme/index";
 
 export interface CallCardProps {
   name: string;
