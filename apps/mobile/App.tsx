@@ -3,7 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // Initialize i18n (side effect import)
-import "./src/i18n/index.js";
+import "./src/i18n/index";
 import { RootNavigator } from "./src/navigation/root-navigator";
 import { useIncomingCallPushListener } from "./src/hooks/use-incoming-call-push";
 import { useNotificationPermissionRequest } from "./src/hooks/use-notification-permission";
