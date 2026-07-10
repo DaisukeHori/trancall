@@ -195,6 +195,23 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # PR #75 CI実測: "No space left on device" でAndroidシステムイメージの準備が
+      # 失敗しemulatorが起動できなかった (ubuntu-latestランナーの既定ディスク容量が
+      # gradle/expo/monorepoの大きなnode_modulesビルドで逼迫する)。Androidビルドに
+      # 不要な大型プリインストール済みツールチェーン (.NET/Haskell/Swift/CodeQL等) を
+      # 削除して空き容量を確保する。Android SDK自体 (/usr/local/lib/android) は
+      # 削除しない。
+      - name: Free disk space
+        run: |
+          # NOTE: /usr/local/lib/android/sdk/ndk/* は実際にビルドで使われている
+          # (expo-modules-core の CMake タスクで実測確認済み) ため削除しない。
+          # Android/Node/Gradleに無関係な大型プリインストール済みツールチェーンのみ対象。
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/lib/jvm/temurin-8-jdk-amd64 /usr/lib/jvm/temurin-11-jdk-amd64 \
+            /opt/az /usr/local/.ghcup || true
+          df -h /
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
