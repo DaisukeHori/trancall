@@ -83,7 +83,7 @@ jobs:
         run: pod install
         working-directory: apps/mobile/ios
 
-      - name: Build Expo app for E2E (iOS Simulator, unsigned release)
+      - name: Build Expo app for E2E (iOS Simulator, unsigned debug)
         run: |
           set -euo pipefail
           cd apps/mobile/ios
@@ -101,24 +101,13 @@ jobs:
             exit 1
           fi
           echo "Building workspace=$WORKSPACE scheme=$SCHEME"
-          # -configuration Release (Debugではない): PR #75 CI実測。x86_64/arm64の
-          # 2重ビルドを解消(-destination "id=$SIMULATOR_UDID")した後も、Maestroが
-          # 起動直後の最初のUIスナップショット取得で "Unable to perform work on main
-          # run loop, process main thread busy for 30.0s" により毎回(2フロー中2フロー、
-          # 別々のlaunchApp: clearState: trueによる独立したコールドスタートそれぞれで)
-          # 失敗し、スクリーンショットは常にステータスバーとホームインジケータのみの
-          # 真っ白画面(React Native側のcontentが一切マウントされていない)だった。
-          # Android(同じくDebug configの assembleDebug)は同一コミットで問題なく
-          # 起動・描画できているため、アプリのJS/ビジネスロジック自体が壊れているの
-          # ではなく、iOS Debug configに固有の初期化オーバーヘッド(HERMES_ENABLE_
-          # DEBUGGER=1 によるHermesインスペクタ起動、RCTDevMenu/redbox等のdev-only
-          # セットアップ)がCIランナー上でメインスレッドを長時間占有している可能性が
-          # 高いと判断。アプリコード側に __DEV__ 依存は無く(grep実測でゼロ件)、
-          # E2Eモード判定は EXPO_PUBLIC_E2E_TEST_MODE 環境変数のみに依存する
-          # (Debug/Release非依存、apps/mobile/src/api/auth-api.ts isE2eTestMode)ため、
-          # Release configへの切り替えはアプリの実行時挙動を変えないと判断した。
-          # Releaseは常にJSバンドルを埋め込むため FORCE_BUNDLING=1 は本来不要だが、
-          # 明示的な意図を残すため無害な指定として残す。
+          # FORCE_BUNDLING=1: the RN "Bundle React Native code and images" build
+          # phase script normally skips embedding the JS bundle for Debug builds
+          # (it expects a live Metro dev server instead). CI has no Metro server
+          # running, so without this the app would show a "Could not connect to
+          # development server" screen instead of actually launching. This forces
+          # the bundle to be embedded like a Release build while keeping Debug
+          # configuration (and therefore no code signing requirement) otherwise.
           #
           # -destination "id=$SIMULATOR_UDID" (instead of the generic
           # "generic/platform=iOS Simulator"): PR #75 CI実測でこのstepのログを解析した
@@ -133,7 +122,7 @@ jobs:
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
-            -configuration Release \
+            -configuration Debug \
             -sdk iphonesimulator \
             -destination "id=$SIMULATOR_UDID" \
             -derivedDataPath build \
@@ -148,12 +137,9 @@ jobs:
       - name: Install app on simulator
         run: |
           set -euo pipefail
-          # Release-iphonesimulator: Build stepを -configuration Release に変更した
-          # ことに合わせて検索パスも更新 (旧 Debug-iphonesimulator のままだと
-          # .app バンドルが見つからずこのstepが失敗する)。
-          APP_PATH=$(find apps/mobile/ios/build -name "*.app" -path "*Release-iphonesimulator*" | head -1)
+          APP_PATH=$(find apps/mobile/ios/build -name "*.app" -path "*Debug-iphonesimulator*" | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "::error::No .app bundle found under apps/mobile/ios/build (Release-iphonesimulator)"
+            echo "::error::No .app bundle found under apps/mobile/ios/build (Debug-iphonesimulator)"
             exit 1
           fi
           echo "Installing $APP_PATH"
