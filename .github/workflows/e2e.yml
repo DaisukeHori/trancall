@@ -76,6 +76,7 @@ jobs:
         run: pnpm --filter @trancall/app-mobile exec expo prebuild --platform ios --no-install
         env:
           EXPO_PUBLIC_API_BASE_URL: http://localhost:4010
+          EXPO_PUBLIC_E2E_TEST_MODE: "true"
           NODE_ENV: test
 
       - name: Install CocoaPods dependencies
@@ -119,6 +120,7 @@ jobs:
             FORCE_BUNDLING=1
         env:
           EXPO_PUBLIC_API_BASE_URL: http://localhost:4010
+          EXPO_PUBLIC_E2E_TEST_MODE: "true"
           NODE_ENV: test
 
       - name: Install app on simulator
@@ -279,6 +281,7 @@ jobs:
         run: pnpm --filter @trancall/app-mobile exec expo prebuild --platform android --no-install
         env:
           EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:4010
+          EXPO_PUBLIC_E2E_TEST_MODE: "true"
           NODE_ENV: test
 
       - name: Build debug APK
@@ -294,6 +297,16 @@ jobs:
         # actual property name it reads.
         run: ./gradlew assembleDebug -PbundleInDebug=true --no-daemon
         working-directory: apps/mobile/android
+        env:
+          # このステップが実際にMetroでJSバンドルを生成する場所 (前段のPrebuildステップの
+          # env: はGradleのbundleDebugJsAndAssetsタスクには引き継がれない、各stepのenv:は
+          # そのstepのみ有効なため個別に必要)。EXPO_PUBLIC_E2E_TEST_MODEが無いとE2E専用
+          # モックログイン (apps/mobile/src/api/auth-api.ts isE2eTestMode) が発火せず、
+          # 全フローがログイン画面で "Email" テキストを見つけられず失敗する
+          # (PR #75 CI実測)。
+          EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:4010
+          EXPO_PUBLIC_E2E_TEST_MODE: "true"
+          NODE_ENV: test
 
       - name: Locate debug APK
         run: |

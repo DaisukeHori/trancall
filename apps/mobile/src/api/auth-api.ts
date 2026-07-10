@@ -200,10 +200,21 @@ export async function signOut(): Promise<void> {
 // unset for E2E builds, would call createClient("") and fail before ever
 // reaching the network).
 //
-// This branch is gated on NODE_ENV === "test", which .github/workflows/e2e.yml
-// sets for the E2E-only build steps and which is never set for production
-// (EAS / app-store) builds. Production login/signup always uses the Supabase
-// path above, unchanged.
+// This branch is gated on EXPO_PUBLIC_E2E_TEST_MODE === "true", which
+// .github/workflows/e2e.yml sets for the E2E-only build steps and which is never
+// set for production (EAS / app-store) builds. Production login/signup always
+// uses the Supabase path above, unchanged.
+//
+// NOTE: this was originally gated on NODE_ENV === "test", but Metro statically
+// inlines `process.env.NODE_ENV` based on its own dev/prod bundling mode
+// (via babel-preset-expo's environment-variable transform), NOT from the
+// invoking shell's NODE_ENV at `xcodebuild`/`gradlew` time — so that check
+// never actually evaluated to true in a real compiled bundle (confirmed via
+// PR #75 CI: the mock-login branch never activated, flows fell through to the
+// real Supabase path and failed to find "Email"/"Sign In" on screen).
+// EXPO_PUBLIC_-prefixed vars ARE guaranteed by Expo's babel transform to be
+// inlined from the actual build-time shell env, which is the officially
+// documented mechanism for this exact use case.
 
 const MockAuthUserSchema = z.object({
   userId: z.string(),
@@ -230,7 +241,7 @@ const MockProfileEnvelopeSchema = z.object({
 
 /** True only for the Maestro E2E build/run (see .github/workflows/e2e.yml). */
 export function isE2eTestMode(): boolean {
-  return process.env["NODE_ENV"] === "test";
+  return process.env["EXPO_PUBLIC_E2E_TEST_MODE"] === "true";
 }
 
 function mockUserToProfile(user: z.infer<typeof MockAuthUserSchema>): UserProfile {
