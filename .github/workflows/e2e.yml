@@ -192,6 +192,39 @@ jobs:
           # ドキュメント推奨値の180秒に引き上げる。
           MAESTRO_DRIVER_STARTUP_TIMEOUT: 180000
 
+      - name: Collect iOS crash diagnostics
+        if: always()
+        # PR #75 CI実測: -configuration Release への切替後、Maestroが "App crashed or
+        # stopped while executing flow, please check diagnostic logs" を報告するように
+        # なった (main-thread-busyからの症状変化)。実際のクラッシュ原因 (例外種別/
+        # スタックトレース) を特定するため、シミュレータのクラッシュレポート(.ips/.crash、
+        # macOSホストの ~/Library/Logs/DiagnosticReports に集約される) と、TranCall
+        # プロセスの unified logging (os_log/NSLog) 直近ログを収集する。スクリーンショット
+        # 収集stepと同様、副次的なデバッグ用outputのため失敗してもjobを赤くしない。
+        continue-on-error: true
+        run: |
+          set -x
+          mkdir -p ios-diagnostics
+          find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 \
+            \( -name "TranCall-*.ips" -o -name "TranCall-*.crash" \) \
+            -exec cp {} ios-diagnostics/ \; 2>/dev/null || true
+          xcrun simctl spawn "$SIMULATOR_UDID" log show \
+            --predicate 'process == "TranCall"' \
+            --style compact \
+            --last 10m \
+            > ios-diagnostics/simulator-log.txt 2>&1 || true
+          ls -la ios-diagnostics/ || true
+
+      - name: Upload iOS crash diagnostics
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-crash-diagnostics
+          path: ios-diagnostics/
+          retention-days: 7
+          if-no-files-found: warn
+
       - name: Upload Maestro test results
         if: always()
         # スクリーンショットのファイル名はMaestroがフロー名から自動生成し、
