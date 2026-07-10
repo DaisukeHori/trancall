@@ -11,8 +11,8 @@
 
 import { Linking, Platform } from "react-native";
 import { getLocales } from "expo-localization";
-import type { Result } from "../result.js";
-import { err } from "../result.js";
+import type { Result } from "../result";
+import { err } from "../result";
 
 // =============================================================================
 // 対象国リスト (docs/billing-ui-flow.md §8.1)

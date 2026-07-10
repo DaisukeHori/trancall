@@ -10,14 +10,14 @@ import {
   View,
 } from "react-native";
 import { Input, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useRecentCallsStore } from "../stores/recent-calls-store.js";
-import { useBillingStore } from "../stores/billing-store.js";
-import { RecentCallRow } from "../components/recent-call-row.js";
-import { EmptyState } from "../components/empty-state.js";
-import { HomeBalanceBanner } from "../components/HomeBalanceBanner.js";
+import { useTranslation } from "../i18n/index";
+import { useRecentCallsStore } from "../stores/recent-calls-store";
+import { useBillingStore } from "../stores/billing-store";
+import { RecentCallRow } from "../components/recent-call-row";
+import { EmptyState } from "../components/empty-state";
+import { HomeBalanceBanner } from "../components/HomeBalanceBanner";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { RecentStackParamList } from "../navigation/recent-stack.js";
+import type { RecentStackParamList } from "../navigation/recent-stack";
 
 type Props = NativeStackScreenProps<RecentStackParamList, "HomeMain">;
 

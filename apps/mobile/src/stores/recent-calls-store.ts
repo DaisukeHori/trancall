@@ -7,9 +7,9 @@
  * docs/api-spec.md §GET /api/rooms/history 準拠
  */
 import { create } from "zustand";
-import { getRoomHistory } from "../api/room-api.js";
-import type { RoomHistoryEntry } from "../api/room-api.js";
-import { useAuthStore } from "./auth-store.js";
+import { getRoomHistory } from "../api/room-api";
+import type { RoomHistoryEntry } from "../api/room-api";
+import { useAuthStore } from "./auth-store";
 
 // Re-export RoomHistoryEntry so consumers can import from this module
 export type { RoomHistoryEntry };

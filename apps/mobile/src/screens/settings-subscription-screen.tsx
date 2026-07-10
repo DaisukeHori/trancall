@@ -20,9 +20,9 @@ import {
 } from "react-native";
 import { Button, PlanCard, useTheme } from "@trancall/ui-kit";
 import type { UpgradePreview } from "@trancall/billing";
-import { useTranslation } from "../i18n/index.js";
-import { useBillingStore } from "../stores/billing-store.js";
-import { handleStripeDeepLink } from "../lib/billing/stripe-deep-link.js";
+import { useTranslation } from "../i18n/index";
+import { useBillingStore } from "../stores/billing-store";
+import { handleStripeDeepLink } from "../lib/billing/stripe-deep-link";
 
 // =============================================================================
 // CurrentPlanCard — 現在のプラン概要 + 残量プログレスバー

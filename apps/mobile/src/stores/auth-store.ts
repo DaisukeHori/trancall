@@ -2,7 +2,7 @@ import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
 import { OutputLanguage } from "@trancall/shared-kernel";
 import type { Result } from "@trancall/shared-kernel";
-import type { UserProfile } from "../api/auth-api.js";
+import type { UserProfile } from "../api/auth-api";
 import {
   signInWithSupabase,
   signUpWithSupabase,
@@ -13,7 +13,7 @@ import {
   signUpViaMockServer,
   getProfileViaMockServer,
   signOutViaMockServer,
-} from "../api/auth-api.js";
+} from "../api/auth-api";
 
 const SESSION_KEY = "trancall:session";
 

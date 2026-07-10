@@ -15,17 +15,17 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import type { AuthState } from "../stores/auth-store.js";
-import { useRecentCallsStore } from "../stores/recent-calls-store.js";
-import type { RecentCallsState } from "../stores/recent-calls-store.js";
+import { useTranslation } from "../i18n/index";
+import { useAuthStore } from "../stores/auth-store";
+import type { AuthState } from "../stores/auth-store";
+import { useRecentCallsStore } from "../stores/recent-calls-store";
+import type { RecentCallsState } from "../stores/recent-calls-store";
 import {
   submitInquiry,
   type SupportCategory,
-} from "../api/support-api.js";
+} from "../api/support-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { SettingsStackParamList } from "../navigation/settings-stack.js";
+import type { SettingsStackParamList } from "../navigation/settings-stack";
 
 // ---------------------------------------------------------------------------
 // expo-* helpers — optional deps, fallback gracefully

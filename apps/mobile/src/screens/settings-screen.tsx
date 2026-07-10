@@ -18,9 +18,9 @@ import type {
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
 import { Avatar, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import type { SettingsStackParamList } from "../navigation/settings-stack.js";
+import { useTranslation } from "../i18n/index";
+import { useAuthStore } from "../stores/auth-store";
+import type { SettingsStackParamList } from "../navigation/settings-stack";
 
 type SettingsNavigationProp = NativeStackNavigationProp<SettingsStackParamList, "SettingsMain">;
 

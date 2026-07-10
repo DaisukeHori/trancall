@@ -19,9 +19,9 @@ import {
   View,
 } from "react-native";
 import { Badge, Button, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { StatsCard, StatsRow } from "../components/stats-card.js";
-import { CostSummary } from "../components/CostSummary.js";
+import { useTranslation } from "../i18n/index";
+import { StatsCard, StatsRow } from "../components/stats-card";
+import { CostSummary } from "../components/CostSummary";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 // ---------------------------------------------------------------------------

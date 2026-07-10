@@ -17,7 +17,7 @@ import { Linking } from "react-native";
 import {
   parseExternalSuccessLink,
   type ParsedExternalSuccessLink,
-} from "./billing/external-purchase.js";
+} from "./billing/external-purchase";
 
 // =============================================================================
 // Deep link パスの定数

@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { z } from "zod";
 import { useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
+import { useTranslation } from "../i18n/index";
 import licensesRaw from "../assets/licenses.json";
 
 // ----------------------------------------------------------------

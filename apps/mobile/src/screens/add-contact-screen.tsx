@@ -12,12 +12,12 @@ import {
   View,
 } from "react-native";
 import { Avatar, Button, Input, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useContactsStore } from "../stores/contacts-store.js";
-import { searchUsers, createInviteLink } from "../api/contacts-api.js";
-import type { PublicProfile } from "../api/contacts-api.js";
+import { useTranslation } from "../i18n/index";
+import { useContactsStore } from "../stores/contacts-store";
+import { searchUsers, createInviteLink } from "../api/contacts-api";
+import type { PublicProfile } from "../api/contacts-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { RecentStackParamList } from "../navigation/recent-stack.js";
+import type { RecentStackParamList } from "../navigation/recent-stack";
 
 // Note: add-contact-screen is shared between RecentStack and ContactsStack.
 // Using RecentStackParamList as primary; ContactsStack uses the same screen.

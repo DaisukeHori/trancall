@@ -10,14 +10,14 @@ import {
   View,
 } from "react-native";
 import { Avatar, Button, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useContactsStore } from "../stores/contacts-store.js";
-import { useRecentCallsStore } from "../stores/recent-calls-store.js";
-import { reportUser } from "../api/contacts-api.js";
-import { RecentCallRow } from "../components/recent-call-row.js";
-import { rootNavigationRef } from "../navigation/navigation-ref.js";
+import { useTranslation } from "../i18n/index";
+import { useContactsStore } from "../stores/contacts-store";
+import { useRecentCallsStore } from "../stores/recent-calls-store";
+import { reportUser } from "../api/contacts-api";
+import { RecentCallRow } from "../components/recent-call-row";
+import { rootNavigationRef } from "../navigation/navigation-ref";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { RecentStackParamList } from "../navigation/recent-stack.js";
+import type { RecentStackParamList } from "../navigation/recent-stack";
 
 type Props = NativeStackScreenProps<RecentStackParamList, "ContactProfile">;
 

@@ -1,11 +1,11 @@
 import { create } from "zustand";
-import type { ContactEntry } from "../api/contacts-api.js";
+import type { ContactEntry } from "../api/contacts-api";
 import {
   getContacts,
   addContact as apiAddContact,
   removeContact as apiRemoveContact,
   blockUser as apiBlockUser,
-} from "../api/contacts-api.js";
+} from "../api/contacts-api";
 
 export interface ContactsState {
   contacts: ContactEntry[];

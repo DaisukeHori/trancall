@@ -11,7 +11,7 @@
  */
 import { createNavigationContainerRef } from "@react-navigation/native";
 import type { NavigatorScreenParams } from "@react-navigation/native";
-import type { CallStackParamList } from "./call-overlay.js";
+import type { CallStackParamList } from "./call-overlay";
 
 export type RootStackParamList = {
   Main: undefined;

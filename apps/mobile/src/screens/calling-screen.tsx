@@ -14,12 +14,12 @@ import {
   View,
 } from "react-native";
 import { Avatar, Badge, useTheme, callTokens } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useCallStore } from "../stores/call-store.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import { endCall as apiEndCall } from "../api/room-api.js";
+import { useTranslation } from "../i18n/index";
+import { useCallStore } from "../stores/call-store";
+import { useAuthStore } from "../stores/auth-store";
+import { endCall as apiEndCall } from "../api/room-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { CallStackParamList } from "../navigation/call-overlay.js";
+import type { CallStackParamList } from "../navigation/call-overlay";
 
 type Props = NativeStackScreenProps<CallStackParamList, "Calling">;
 

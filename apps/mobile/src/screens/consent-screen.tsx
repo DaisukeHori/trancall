@@ -26,9 +26,9 @@ import {
 } from "react-native";
 import { Button, useTheme } from "@trancall/ui-kit";
 import type { RequiredConsentView } from "@trancall/shared-kernel";
-import { useTranslation } from "../i18n/index.js";
-import { recordConsent } from "../api/consent-api.js";
-import { useAuthStore, selectSession } from "../stores/auth-store.js";
+import { useTranslation } from "../i18n/index";
+import { recordConsent } from "../api/consent-api";
+import { useAuthStore, selectSession } from "../stores/auth-store";
 
 // ============================================================
 // Props

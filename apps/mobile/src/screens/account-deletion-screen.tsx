@@ -15,13 +15,13 @@ import {
   View,
 } from "react-native";
 import { Button, Input, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { resolveErrorMessage } from "../lib/error-i18n.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import { deleteAccount as apiDeleteAccount } from "../api/auth-api.js";
-import { signInWithSupabase, signInViaMockServer, isE2eTestMode } from "../api/auth-api.js";
+import { useTranslation } from "../i18n/index";
+import { resolveErrorMessage } from "../lib/error-i18n";
+import { useAuthStore } from "../stores/auth-store";
+import { deleteAccount as apiDeleteAccount } from "../api/auth-api";
+import { signInWithSupabase, signInViaMockServer, isE2eTestMode } from "../api/auth-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { SettingsStackParamList } from "../navigation/settings-stack.js";
+import type { SettingsStackParamList } from "../navigation/settings-stack";
 
 type Props = NativeStackScreenProps<SettingsStackParamList, "AccountDeletion">;
 

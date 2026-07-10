@@ -1,9 +1,9 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { ContactsScreen } from "../screens/contacts-screen.js";
-import { ContactProfileScreen } from "../screens/contact-profile-screen.js";
-import { AddContactScreen } from "../screens/add-contact-screen.js";
-import type { ContactEntry } from "../api/contacts-api.js";
+import { ContactsScreen } from "../screens/contacts-screen";
+import { ContactProfileScreen } from "../screens/contact-profile-screen";
+import { AddContactScreen } from "../screens/add-contact-screen";
+import type { ContactEntry } from "../api/contacts-api";
 
 export type ContactsStackParamList = {
   ContactsMain: undefined;

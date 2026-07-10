@@ -11,6 +11,6 @@
  */
 import { registerRootComponent } from "expo";
 
-import App from "./App.js";
+import App from "./App";
 
 registerRootComponent(App);

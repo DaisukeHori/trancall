@@ -25,20 +25,20 @@ import {
   type CallEvent,
   type CallState,
   type IncomingCallPushPayload,
-} from "./src/CallBridge.types.js";
+} from "./src/CallBridge.types";
 
 export {
   CallStateSchema,
   CallEventSchema,
   IncomingCallPushPayloadSchema,
-} from "./src/CallBridge.types.js";
+} from "./src/CallBridge.types";
 export type {
   CallState,
   CallEvent,
   IncomingCallPushPayload,
   CallBridgeError,
   CallBridgeErrorCode,
-} from "./src/CallBridge.types.js";
+} from "./src/CallBridge.types";
 
 /** Native module が emit する単一 event 名。payload は CallEventSchema で判別する。 */
 type TranCallBridgeEventsMap = Record<"onCallBridgeEvent", (event: unknown) => void>;

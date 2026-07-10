@@ -16,13 +16,13 @@
  * 必ず呼び出しリークを防ぐ。
  */
 import type { OutputLanguage } from "@trancall/shared-kernel";
-import type { SubtitleDelta } from "../../stores/subtitle-store.js";
-import type { RoomHandle } from "./connect.js";
+import type { SubtitleDelta } from "../../stores/subtitle-store";
+import type { RoomHandle } from "./connect";
 import {
   makeTranslationStatusDataChannelHandler,
   type TranslationStatusActions,
-} from "./translation-status.js";
-import { makeSubtitleDataChannelHandler } from "./subtitles.js";
+} from "./translation-status";
+import { makeSubtitleDataChannelHandler } from "./subtitles";
 
 /**
  * translation.status (degraded/recovered) と subtitle.delta の両方を

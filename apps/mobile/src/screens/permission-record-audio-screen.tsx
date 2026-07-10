@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
+import { useTranslation } from "../i18n/index";
 
 // =============================================================================
 // Props

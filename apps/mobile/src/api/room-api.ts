@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import type { Result } from "@trancall/shared-kernel";
-import { apiFetch } from "./client.js";
+import { apiFetch } from "./client";
 
 // --- Response Schemas ---
 

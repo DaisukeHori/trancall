@@ -12,8 +12,8 @@
  * で送られてくるため、`trancall` キー配下からフィールドを取得する。
  */
 import { Platform } from "react-native";
-import { getCallKeep } from "./index.js";
-import { i18n } from "../../i18n/index.js";
+import { getCallKeep } from "./index";
+import { i18n } from "../../i18n/index";
 import { z } from "zod";
 
 // --- Payload schema (docs/native-call-bridge.md §6.1) ---

@@ -18,7 +18,7 @@
  * 実機検証待ち、詳細は connect.ts のコメント参照)。
  */
 import { TranslationStatusChannelPayloadSchema } from "@trancall/translation";
-import type { TranslationStatusStoreState } from "../../stores/translation-status-store.js";
+import type { TranslationStatusStoreState } from "../../stores/translation-status-store";
 
 /** テスト・DI のためにストアの actions を注入できる型 */
 export interface TranslationStatusActions {

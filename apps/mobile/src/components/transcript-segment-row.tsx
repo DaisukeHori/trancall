@@ -7,7 +7,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Avatar, useTheme } from "@trancall/ui-kit";
-import type { TranscriptSegment } from "../api/transcript-api.js";
+import type { TranscriptSegment } from "../api/transcript-api";
 
 export interface TranscriptSegmentRowProps {
   segment: TranscriptSegment;

@@ -13,7 +13,7 @@ import { z } from "zod";
 import type { Result } from "@trancall/shared-kernel";
 import type { RequiredConsentView } from "@trancall/shared-kernel";
 import { RequiredConsentViewSchema } from "@trancall/shared-kernel";
-import { apiFetch } from "./client.js";
+import { apiFetch } from "./client";
 
 // ============================================================
 // Schemas

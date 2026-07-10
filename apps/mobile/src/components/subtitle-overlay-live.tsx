@@ -7,7 +7,7 @@
 import React from "react";
 import { SubtitleOverlay } from "@trancall/ui-kit";
 import type { SubtitleSegment } from "@trancall/ui-kit";
-import { useSubtitleStore } from "../stores/subtitle-store.js";
+import { useSubtitleStore } from "../stores/subtitle-store";
 
 export interface SubtitleOverlayLiveProps {
   isDark?: boolean;

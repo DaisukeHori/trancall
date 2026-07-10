@@ -20,8 +20,8 @@
  */
 import { TranslationStatusChannelPayloadSchema } from "@trancall/translation";
 import type { OutputLanguage } from "@trancall/shared-kernel";
-import type { SubtitleDelta } from "../../stores/subtitle-store.js";
-import { TRANSLATION_STATUS_CHANNEL_TOPIC } from "./translation-status.js";
+import type { SubtitleDelta } from "../../stores/subtitle-store";
+import { TRANSLATION_STATUS_CHANNEL_TOPIC } from "./translation-status";
 
 /**
  * Data Channel の topic (module-contracts.md §3.4 canonical)。

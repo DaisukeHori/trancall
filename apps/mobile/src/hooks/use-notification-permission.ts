@@ -6,8 +6,8 @@
  * PermissionNotificationsScreen (ソフトバナー) を表示するトリガーにする。
  */
 import { useEffect } from "react";
-import { ensureNotificationPermission } from "../lib/permissions/index.js";
-import { usePermissionStore } from "../stores/permission-store.js";
+import { ensureNotificationPermission } from "../lib/permissions/index";
+import { usePermissionStore } from "../stores/permission-store";
 
 export function useNotificationPermissionRequest(): void {
   const setDeniedPermission = usePermissionStore((state) => state.setDeniedPermission);

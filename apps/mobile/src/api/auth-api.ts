@@ -2,8 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Result } from "@trancall/shared-kernel";
 import { OutputLanguage } from "@trancall/shared-kernel";
-import { apiFetch } from "./client.js";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+import { apiFetch } from "./client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config";
 
 // Supabase client (singleton)
 let _supabaseClient: ReturnType<typeof createClient> | null = null;

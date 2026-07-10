@@ -9,8 +9,8 @@
  */
 
 import { Platform } from "react-native";
-import type { Result } from "../result.js";
-import { err } from "../result.js";
+import type { Result } from "../result";
+import { err } from "../result";
 import type { IapTransactionResult } from "@trancall/billing";
 
 // =============================================================================

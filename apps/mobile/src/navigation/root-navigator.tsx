@@ -3,22 +3,22 @@ import { Modal, View, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useAuthStore, selectIsAuthenticated } from "../stores/auth-store.js";
+import { useTranslation } from "../i18n/index";
+import { useAuthStore, selectIsAuthenticated } from "../stores/auth-store";
 import {
   useConsentStore,
   selectPendingConsentRedirect,
-} from "../stores/consent-store.js";
-import { getRequiredConsents } from "../api/consent-api.js";
-import { AuthStack } from "./auth-stack.js";
-import { MainTabs } from "./main-tabs.js";
-import { CallStack } from "./call-overlay.js";
-import { ConsentScreen } from "../screens/consent-screen.js";
-import { rootNavigationRef, type RootStackParamList } from "./navigation-ref.js";
-import { usePermissionStore, selectDeniedPermission } from "../stores/permission-store.js";
-import { PermissionRecordAudioScreen } from "../screens/permission-record-audio-screen.js";
-import { PermissionNotificationsScreen } from "../screens/permission-notifications-screen.js";
-import { PermissionManageOwnCallsScreen } from "../screens/permission-manage-own-calls-screen.js";
+} from "../stores/consent-store";
+import { getRequiredConsents } from "../api/consent-api";
+import { AuthStack } from "./auth-stack";
+import { MainTabs } from "./main-tabs";
+import { CallStack } from "./call-overlay";
+import { ConsentScreen } from "../screens/consent-screen";
+import { rootNavigationRef, type RootStackParamList } from "./navigation-ref";
+import { usePermissionStore, selectDeniedPermission } from "../stores/permission-store";
+import { PermissionRecordAudioScreen } from "../screens/permission-record-audio-screen";
+import { PermissionNotificationsScreen } from "../screens/permission-notifications-screen";
+import { PermissionManageOwnCallsScreen } from "../screens/permission-manage-own-calls-screen";
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 

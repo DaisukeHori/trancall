@@ -25,7 +25,7 @@ import {
 } from "@trancall/billing";
 import type { SubscriptionState as SubscriptionStateType } from "@trancall/billing";
 import { PLAN_CONFIGS, PlanTier } from "@trancall/billing";
-import { useAuthStore } from "./auth-store.js";
+import { useAuthStore } from "./auth-store";
 import {
   getSubscription,
   getPlanComparison,
@@ -35,7 +35,7 @@ import {
   startExternalPurchase as apiStartExternalPurchase,
   completeExternalPurchase as apiCompleteExternalPurchase,
   cancelSubscription as apiCancelSubscription,
-} from "../api/billing-api.js";
+} from "../api/billing-api";
 
 // =============================================================================
 // Error code → UI テーブル

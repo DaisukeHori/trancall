@@ -8,7 +8,7 @@
  * tsc の型チェック時は dynamic import で参照しない。
  * 実行時に require() で読み込み、存在しなければエラーを throw。
  */
-import { ensureMicrophonePermission } from "../permissions/index.js";
+import { ensureMicrophonePermission } from "../permissions/index";
 
 /**
  * #32: マイク権限が未許可の場合に throw されるエラー。

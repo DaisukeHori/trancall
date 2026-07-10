@@ -15,9 +15,9 @@
  * (VoIP push リスナーは Native → JS event 経由で任意のタイミングで発火するため)。
  */
 import { useEffect } from "react";
-import { registerVoIPPushListeners, type VoIPPushPayload } from "../lib/callkit/voip-push.js";
-import { callBridge, type CallEvent } from "../../modules/call-bridge/index.js";
-import { rootNavigationRef } from "../navigation/navigation-ref.js";
+import { registerVoIPPushListeners, type VoIPPushPayload } from "../lib/callkit/voip-push";
+import { callBridge, type CallEvent } from "../../modules/call-bridge/index";
+import { rootNavigationRef } from "../navigation/navigation-ref";
 
 /**
  * VoIPPushPayload を CallStack の IncomingCall route params に変換してナビゲートする。

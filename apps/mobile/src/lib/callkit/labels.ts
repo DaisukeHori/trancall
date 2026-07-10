@@ -20,7 +20,7 @@
  */
 
 import type { TFunction } from "i18next";
-import type { CallKitLabels } from "./index.js";
+import type { CallKitLabels } from "./index";
 
 export function getCallKitLabels(t: TFunction): CallKitLabels {
   return {

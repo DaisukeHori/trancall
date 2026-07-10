@@ -16,19 +16,19 @@ import {
 } from "react-native";
 import { Avatar, Badge, Button, useTheme } from "@trancall/ui-kit";
 import { callTokens } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useCallStore } from "../stores/call-store.js";
-import { useAuthStore } from "../stores/auth-store.js";
+import { useTranslation } from "../i18n/index";
+import { useCallStore } from "../stores/call-store";
+import { useAuthStore } from "../stores/auth-store";
 import {
   useBillingStore,
   selectPreCallCostEstimate,
   computeHistoryAverageMinutes,
-} from "../stores/billing-store.js";
-import { useRecentCallsStore } from "../stores/recent-calls-store.js";
-import { PreCallCostEstimate } from "../components/PreCallCostEstimate.js";
-import { createCall } from "../api/room-api.js";
+} from "../stores/billing-store";
+import { useRecentCallsStore } from "../stores/recent-calls-store";
+import { PreCallCostEstimate } from "../components/PreCallCostEstimate";
+import { createCall } from "../api/room-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { CallStackParamList } from "../navigation/call-overlay.js";
+import type { CallStackParamList } from "../navigation/call-overlay";
 
 type Props = NativeStackScreenProps<CallStackParamList, "PreCall">;
 

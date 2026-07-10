@@ -29,14 +29,14 @@ import {
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Badge, Button, useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { TranscriptSearchBar } from "../components/transcript-search-bar.js";
-import { TranscriptSegmentRow } from "../components/transcript-segment-row.js";
-import { useTranscriptStore, type TranscriptFilter } from "../stores/transcript-store.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import type { TranscriptSegment } from "../api/transcript-api.js";
+import { useTranslation } from "../i18n/index";
+import { TranscriptSearchBar } from "../components/transcript-search-bar";
+import { TranscriptSegmentRow } from "../components/transcript-segment-row";
+import { useTranscriptStore, type TranscriptFilter } from "../stores/transcript-store";
+import { useAuthStore } from "../stores/auth-store";
+import type { TranscriptSegment } from "../api/transcript-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { PostCallStackParamList } from "./call-summary-screen.js";
+import type { PostCallStackParamList } from "./call-summary-screen";
 
 type Props = NativeStackScreenProps<PostCallStackParamList, "FullTranscript">;
 

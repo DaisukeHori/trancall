@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { OutputLanguage } from "@trancall/shared-kernel";
 import type { Result } from "@trancall/shared-kernel";
-import { apiFetch } from "./client.js";
-import { useAuthStore } from "../stores/auth-store.js";
+import { apiFetch } from "./client";
+import { useAuthStore } from "../stores/auth-store";
 
 // --- Schemas ---
 

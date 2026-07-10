@@ -22,19 +22,19 @@ import {
   View,
 } from "react-native";
 import { Avatar, Badge, useTheme, callTokens } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { useCallStore } from "../stores/call-store.js";
-import { useSubtitleStore } from "../stores/subtitle-store.js";
-import { useAuthStore } from "../stores/auth-store.js";
-import { useTranslationStatusStore } from "../stores/translation-status-store.js";
-import { SubtitleOverlayLive } from "../components/subtitle-overlay-live.js";
-import { endCall as apiEndCall } from "../api/room-api.js";
-import { getCallKeep } from "../lib/callkit/index.js";
-import { connectToRoom, MicrophonePermissionDeniedError, type RoomHandle } from "../lib/livekit/connect.js";
-import { subscribeTranslationDataChannel } from "../lib/livekit/data-channel-subscription.js";
-import { usePermissionStore } from "../stores/permission-store.js";
+import { useTranslation } from "../i18n/index";
+import { useCallStore } from "../stores/call-store";
+import { useSubtitleStore } from "../stores/subtitle-store";
+import { useAuthStore } from "../stores/auth-store";
+import { useTranslationStatusStore } from "../stores/translation-status-store";
+import { SubtitleOverlayLive } from "../components/subtitle-overlay-live";
+import { endCall as apiEndCall } from "../api/room-api";
+import { getCallKeep } from "../lib/callkit/index";
+import { connectToRoom, MicrophonePermissionDeniedError, type RoomHandle } from "../lib/livekit/connect";
+import { subscribeTranslationDataChannel } from "../lib/livekit/data-channel-subscription";
+import { usePermissionStore } from "../stores/permission-store";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { CallStackParamList } from "../navigation/call-overlay.js";
+import type { CallStackParamList } from "../navigation/call-overlay";
 
 type Props = NativeStackScreenProps<CallStackParamList, "InCall">;
 

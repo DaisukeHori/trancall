@@ -2,7 +2,7 @@
  * @deprecated Stage 2 (docs/native-call-bridge.md §3.3): この react-native-callkeep wrapper は
  * 設計 canonical の "自前 Expo Modules API" 方針 (react-native-callkeep は不採用) に反する。
  * 新規実装は `apps/mobile/modules/call-bridge` (CallBridge Expo Module,
- * `import { callBridge } from "../../modules/call-bridge/index.js"`) を使うこと。
+ * `import { callBridge } from "../../modules/call-bridge/index"`) を使うこと。
  *
  * `in-call-screen.tsx` / `incoming-call-screen.tsx` / `voip-push.ts` は現状まだこのラッパーに
  * 依存しているため、後方互換のため当面残す。Sprint 4 で callBridge.endCall / answerCall /

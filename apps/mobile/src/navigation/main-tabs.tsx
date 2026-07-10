@@ -1,10 +1,10 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useTheme } from "@trancall/ui-kit";
-import { useTranslation } from "../i18n/index.js";
-import { RecentStack } from "./recent-stack.js";
-import { ContactsStack } from "./contacts-stack.js";
-import { SettingsStack } from "./settings-stack.js";
+import { useTranslation } from "../i18n/index";
+import { RecentStack } from "./recent-stack";
+import { ContactsStack } from "./contacts-stack";
+import { SettingsStack } from "./settings-stack";
 
 export type MainTabParamList = {
   Home: undefined;

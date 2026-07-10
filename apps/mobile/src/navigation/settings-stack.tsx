@@ -1,13 +1,13 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useTheme } from "@trancall/ui-kit";
-import { SettingsScreen } from "../screens/settings-screen.js";
-import { FaqScreen } from "../screens/faq-screen.js";
-import { OssLicensesScreen } from "../screens/oss-licenses-screen.js";
-import { AccountDeletionScreen } from "../screens/account-deletion-screen.js";
-import { SupportScreen } from "../screens/support-screen.js";
-import { SettingsSubscriptionScreen } from "../screens/settings-subscription-screen.js";
-import { useTranslation } from "../i18n/index.js";
+import { SettingsScreen } from "../screens/settings-screen";
+import { FaqScreen } from "../screens/faq-screen";
+import { OssLicensesScreen } from "../screens/oss-licenses-screen";
+import { AccountDeletionScreen } from "../screens/account-deletion-screen";
+import { SupportScreen } from "../screens/support-screen";
+import { SettingsSubscriptionScreen } from "../screens/settings-subscription-screen";
+import { useTranslation } from "../i18n/index";
 
 export type SettingsStackParamList = {
   SettingsMain: undefined;
