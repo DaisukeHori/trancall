@@ -22,6 +22,14 @@ jobs:
     # ビルド(24分19秒)は完走するがiOS特有の主要因が未解消のため、Releaseビルドを
     # 完走させて実際にMaestroまで到達させるための時間的余裕として80分に拡大する。
     timeout-minutes: 80
+    # PR #75 CI実測: main-thread-busyハング(x86_64/arm64二重ビルド解消・Release切替で
+    # 解消済み)の後、Release構成で "AppRegistry.runApplication() Registered callable
+    # JavaScript modules (n = 0)" というRCTBridge初期化タイミング起因とみられる別の
+    # クラッシュが毎回(8/8フロー)発生することが判明した。i18next初期化の未捕捉例外
+    # 仮説は実際のクラッシュログで否定済み(詳細: フォローアップIssue参照)。ローカル
+    # Xcode実機再現が必要な段階に達したため、iOS E2Eを一旦non-blocking化し、
+    # Android/lint/test/typecheckのみでマージ可能な状態にする(ユーザー判断)。
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
