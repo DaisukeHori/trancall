@@ -151,6 +151,9 @@ importers:
       '@types/react':
         specifier: ~19.1.17
         version: 19.1.17
+      babel-preset-expo:
+        specifier: ~54.0.11
+        version: 54.0.11(@babel/core@7.29.0)(@babel/runtime@7.29.2)(expo@54.0.35(@babel/core@7.29.0)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3))(react-refresh@0.14.2)
       license-checker-rseidelsohn:
         specifier: ^4.4.2
         version: 4.4.2
