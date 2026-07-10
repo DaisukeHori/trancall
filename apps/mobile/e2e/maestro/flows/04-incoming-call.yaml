@@ -6,7 +6,7 @@ tags: [P0, call]
     clearState: true
 - runFlow: shared/login_as_e2e_user.yaml
 - runScript:
-    file: ../../scripts/trigger-incoming-call.js
+    file: ../scripts/trigger-incoming-call.js
 - assertVisible:
     text: ${T_call_incomingCall}
 - assertVisible:

@@ -24,7 +24,7 @@ tags: [P0, gate, billing]
 - launchApp:
     clearState: true
 - runScript:
-    file: ../../scripts/set-billing-zero.js
+    file: ../scripts/set-billing-zero.js
 - tapOn:
     text: ${T_auth_signIn}
 - tapOn:
