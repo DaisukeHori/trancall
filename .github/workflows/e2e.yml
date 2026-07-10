@@ -15,7 +15,13 @@ jobs:
     # macos-15 (既定 Xcode 16.x) を使用する (PR #75 CI実測: macos-14 で "React Native requires
     # XCode >= 16.1. Found 15.4." により Podfile 評価が失敗することを確認)。
     runs-on: macos-15
-    timeout-minutes: 45
+    # PR #75 CI実測: -configuration Release への切り替え (Debug config固有の
+    # dev-onlyオーバーヘッドを排除する目的、詳細はBuildステップのコメント参照) を
+    # 試したところ、Releaseの最適化ビルド自体が45分中39分58秒を消費して完走せず
+    # (Maestro flowに一度も到達できず) cancelされた。Debug + 単一アーキテクチャ
+    # ビルド(24分19秒)は完走するがiOS特有の主要因が未解消のため、Releaseビルドを
+    # 完走させて実際にMaestroまで到達させるための時間的余裕として80分に拡大する。
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
 
@@ -83,7 +89,7 @@ jobs:
         run: pod install
         working-directory: apps/mobile/ios
 
-      - name: Build Expo app for E2E (iOS Simulator, unsigned debug)
+      - name: Build Expo app for E2E (iOS Simulator, unsigned release)
         run: |
           set -euo pipefail
           cd apps/mobile/ios
@@ -101,28 +107,45 @@ jobs:
             exit 1
           fi
           echo "Building workspace=$WORKSPACE scheme=$SCHEME"
-          # FORCE_BUNDLING=1: the RN "Bundle React Native code and images" build
-          # phase script normally skips embedding the JS bundle for Debug builds
-          # (it expects a live Metro dev server instead). CI has no Metro server
-          # running, so without this the app would show a "Could not connect to
-          # development server" screen instead of actually launching. This forces
-          # the bundle to be embedded like a Release build while keeping Debug
-          # configuration (and therefore no code signing requirement) otherwise.
+          # -configuration Release (Debugではない): PR #75 CI実測。x86_64/arm64の
+          # 2重ビルドを解消(-destination "id=$SIMULATOR_UDID")した後も、Maestroが
+          # 起動直後の最初のUIスナップショット取得で "Unable to perform work on main
+          # run loop, process main thread busy for 30.0s" により毎回(2フロー中2フロー、
+          # 別々のlaunchApp: clearState: trueによる独立したコールドスタートそれぞれで)
+          # 失敗し、スクリーンショットは常にステータスバーとホームインジケータのみの
+          # 真っ白画面(React Native側のcontentが一切マウントされていない)だった。
+          # Android(同じくDebug configの assembleDebug)は同一コミットで問題なく
+          # 起動・描画できているため、アプリのJS/ビジネスロジック自体が壊れているの
+          # ではなく、iOS Debug configに固有の初期化オーバーヘッド(HERMES_ENABLE_
+          # DEBUGGER=1 によるHermesインスペクタ起動、RCT_ENABLE_INSPECTOR経由で
+          # Metro dev serverが存在しなくても ws://localhost:8081/inspector/device への
+          # 接続を試み続ける無限リトライ実装 [react-native/React/CoreModules/
+          # RCTDevSettings.mm, RCTInspectorDevServerHelper.mm 実ソース確認済み]、
+          # RCTDevMenu/redbox等のdev-onlyセットアップ)がCIランナー上でメインスレッドを
+          # 長時間占有している可能性が高いと判断。アプリコード側に __DEV__ 依存は
+          # 無く(grep実測でゼロ件)、E2Eモード判定は EXPO_PUBLIC_E2E_TEST_MODE 環境
+          # 変数のみに依存する(Debug/Release非依存、apps/mobile/src/api/auth-api.ts
+          # isE2eTestMode)ため、Release configへの切り替えはアプリの実行時挙動を
+          # 変えないと判断した。
+          # 初回試行(timeout-minutes: 45のまま)ではRelease最適化ビルド自体が
+          # 39分58秒で完走せずcancelされた(Maestroに一度も到達できず)。ジョブの
+          # timeout-minutesを80に拡大し、Releaseビルドを完走させた上で実際に
+          # Maestro flowまで到達させて症状の変化を確認する。
+          # Releaseは常にJSバンドルを埋め込むため FORCE_BUNDLING=1 は本来不要だが、
+          # 明示的な意図を残すため無害な指定として残す。
           #
           # -destination "id=$SIMULATOR_UDID" (instead of the generic
           # "generic/platform=iOS Simulator"): PR #75 CI実測でこのstepのログを解析した
           # ところ、generic destinationはCIランナー(Apple Silicon, arm64)には不要な
           # x86_64スライスも含めた全アーキテクチャ向けにuniversal buildを行っており、
           # 916個の各ソースファイルがx86_64/arm64の両方で2重コンパイルされ、xcodebuild
-          # 単体で32分32秒(ジョブ全体45分の72%)を消費していた。この結果、Maestro
-          # flow実行に残る時間が5〜8分しかなくなり、1本目のflowが失敗しただけで
-          # ジョブ全体がタイムアウトしていた。既にBoot iOS SimulatorステップでUDIDを
+          # 単体で32分32秒を消費していた。既にBoot iOS SimulatorステップでUDIDを
           # 確定させた実機シミュレータをそのまま指定することで、そのシミュレータの
           # 実アーキテクチャ(arm64)のみをビルド対象にでき、ビルド時間をほぼ半減できる。
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
-            -configuration Debug \
+            -configuration Release \
             -sdk iphonesimulator \
             -destination "id=$SIMULATOR_UDID" \
             -derivedDataPath build \
@@ -137,9 +160,12 @@ jobs:
       - name: Install app on simulator
         run: |
           set -euo pipefail
-          APP_PATH=$(find apps/mobile/ios/build -name "*.app" -path "*Debug-iphonesimulator*" | head -1)
+          # Release-iphonesimulator: Build stepを -configuration Release に変更した
+          # ことに合わせて検索パスも更新 (旧 Debug-iphonesimulator のままだと
+          # .app バンドルが見つからずこのstepが失敗する)。
+          APP_PATH=$(find apps/mobile/ios/build -name "*.app" -path "*Release-iphonesimulator*" | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "::error::No .app bundle found under apps/mobile/ios/build (Debug-iphonesimulator)"
+            echo "::error::No .app bundle found under apps/mobile/ios/build (Release-iphonesimulator)"
             exit 1
           fi
           echo "Installing $APP_PATH"
