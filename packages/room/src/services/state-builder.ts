@@ -8,7 +8,7 @@ import type { Result, UserId } from "@trancall/shared-kernel";
 import {
   RoomIdSchema, UserIdSchema, ParticipantIdSchema,
 } from "@trancall/shared-kernel";
-import type { RoomRow, ParticipantRow, RoomState } from "../schemas";
+import type { RoomRow, ParticipantRow, RoomState } from "../schemas.ts";
 
 /**
  * DB 行から RoomState を組み立てる。

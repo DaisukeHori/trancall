@@ -1,7 +1,7 @@
-export { ProfileSchema } from "./schemas";
-export type { Profile } from "./schemas";
+export { ProfileSchema } from "./schemas.ts";
+export type { Profile } from "./schemas.ts";
 
-export { createAuthFacade } from "./facade";
+export { createAuthFacade } from "./facade.ts";
 export type {
   AuthFacade,
   ProfileRepository,
@@ -9,20 +9,20 @@ export type {
   LegalDocumentVersionRepository,
   AuthEventBus,
   CreateAuthFacadeOptions,
-} from "./facade";
+} from "./facade.ts";
 
 export {
   AuthConsentRecordedEventSchema,
   AuthConsentRevokedEventSchema,
-} from "./events";
+} from "./events.ts";
 export type {
   AuthConsentRecordedEvent,
   AuthConsentRevokedEvent,
   AuthDomainEvent,
-} from "./events";
+} from "./events.ts";
 
-export { createSupabaseConsentRepository } from "./adapters/supabase-consent-repository";
-export type { SupabaseClientLike as ConsentSupabaseClientLike } from "./adapters/supabase-consent-repository";
+export { createSupabaseConsentRepository } from "./adapters/supabase-consent-repository.ts";
+export type { SupabaseClientLike as ConsentSupabaseClientLike } from "./adapters/supabase-consent-repository.ts";
 
-export { createSupabaseLegalDocumentVersionRepository } from "./adapters/supabase-legal-document-version-repository";
-export type { SupabaseClientLike as LegalDocSupabaseClientLike } from "./adapters/supabase-legal-document-version-repository";
+export { createSupabaseLegalDocumentVersionRepository } from "./adapters/supabase-legal-document-version-repository.ts";
+export type { SupabaseClientLike as LegalDocSupabaseClientLike } from "./adapters/supabase-legal-document-version-repository.ts";

@@ -5,9 +5,9 @@
  * docs/module-contracts.md Section 3.2 の EventBus 契約に準拠。
  */
 
-import type { RoomCreatedEvent } from "./events/room-created";
-import type { ParticipantJoinedEvent } from "./events/participant-joined";
-import type { ParticipantLeftEvent } from "./events/participant-left";
+import type { RoomCreatedEvent } from "./events/room-created.ts";
+import type { ParticipantJoinedEvent } from "./events/participant-joined.ts";
+import type { ParticipantLeftEvent } from "./events/participant-left.ts";
 
 export type RoomDomainEvent =
   | RoomCreatedEvent

@@ -12,7 +12,7 @@ import * as admin from "firebase-admin";
 import type { Result, AppError } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { FcmDataPayload } from "../schemas";
+import type { FcmDataPayload } from "../schemas.ts";
 
 export interface FcmAdapterConfig {
   projectId: string;

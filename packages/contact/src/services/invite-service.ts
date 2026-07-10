@@ -10,9 +10,9 @@ import {
 } from "@trancall/shared-kernel";
 
 import { nanoid } from "nanoid";
-import type { ContactEntry } from "../schemas";
-import type { InviteRepository } from "../repositories/invite-repository";
-import type { ContactRepository } from "../repositories/contact-repository";
+import type { ContactEntry } from "../schemas.ts";
+import type { InviteRepository } from "../repositories/invite-repository.ts";
+import type { ContactRepository } from "../repositories/contact-repository.ts";
 
 /** 招待トークン長 (nanoid で 30 文字) */
 const TOKEN_LENGTH = 30;

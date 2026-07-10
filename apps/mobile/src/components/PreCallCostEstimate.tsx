@@ -13,7 +13,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Button, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index";
-import type { PreCallCostEstimate as PreCallCostEstimateType } from "@trancall/billing";
+import type { PreCallCostEstimate as PreCallCostEstimateType } from "@trancall/billing/client";
 
 export interface PreCallCostEstimateProps {
   /** 見積通話時間 (分) */

@@ -15,7 +15,7 @@
 
 import type { Result } from "@trancall/shared-kernel";
 import type { UserId } from "@trancall/shared-kernel";
-import type { PlanTier } from "../schemas";
+import type { PlanTier } from "../schemas.ts";
 
 // =============================================================================
 // トークン行型

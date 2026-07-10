@@ -8,7 +8,7 @@
 import type { Result } from "@trancall/shared-kernel";
 import type { UserId } from "@trancall/shared-kernel";
 
-import type { DeviceTokenRow, NotificationTarget } from "../schemas";
+import type { DeviceTokenRow, NotificationTarget } from "../schemas.ts";
 
 export interface DeviceTokenRepository {
   /**

@@ -11,7 +11,7 @@ import { fileURLToPath } from "url";
 import { Readable } from "stream";
 import { type Result, ok, err } from "@trancall/shared-kernel";
 import type { RoomId } from "@trancall/shared-kernel";
-import type { TranscriptSegment } from "../schemas";
+import type { TranscriptSegment } from "../schemas.ts";
 
 export type ExportFormat = "pdf" | "txt";
 

@@ -17,14 +17,14 @@ import type {
   UpgradePreview,
   PreCallCostEstimate,
   PlanTierType,
-} from "@trancall/billing";
+} from "@trancall/billing/client";
 import {
   initialBillingScreenState,
   BillingErrorViewModelSchema,
   type BillingErrorViewModel,
-} from "@trancall/billing";
-import type { SubscriptionState as SubscriptionStateType } from "@trancall/billing";
-import { PLAN_CONFIGS, PlanTier } from "@trancall/billing";
+} from "@trancall/billing/client";
+import type { SubscriptionState as SubscriptionStateType } from "@trancall/billing/client";
+import { PLAN_CONFIGS, PlanTier } from "@trancall/billing/client";
 import { useAuthStore } from "./auth-store";
 import {
   getSubscription,

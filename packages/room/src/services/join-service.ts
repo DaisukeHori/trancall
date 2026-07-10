@@ -6,12 +6,12 @@
 
 import type { Result, UserId, RoomId } from "@trancall/shared-kernel";
 
-import type { RoomState } from "../schemas";
-import type { RoomRepository } from "../repositories/room-repository";
-import type { ParticipantRepository } from "../repositories/participant-repository";
-import type { EventBus } from "../event-bus";
-import { createParticipantJoinedEvent } from "../events/participant-joined";
-import { buildRoomState } from "./state-builder";
+import type { RoomState } from "../schemas.ts";
+import type { RoomRepository } from "../repositories/room-repository.ts";
+import type { ParticipantRepository } from "../repositories/participant-repository.ts";
+import type { EventBus } from "../event-bus.ts";
+import { createParticipantJoinedEvent } from "../events/participant-joined.ts";
+import { buildRoomState } from "./state-builder.ts";
 
 export interface JoinServiceDeps {
   roomRepo: RoomRepository;

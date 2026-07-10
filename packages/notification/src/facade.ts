@@ -11,14 +11,14 @@ import type {
   NotificationTarget,
   IncomingCallNotification,
   MissedCallPayload,
-} from "./schemas";
+} from "./schemas.ts";
 import {
   NotificationTargetSchema,
   IncomingCallNotificationSchema,
   MissedCallPayloadSchema,
-} from "./schemas";
-import type { DeviceTokenService } from "./services/device-token-service";
-import type { PushDispatcher } from "./services/push-dispatcher";
+} from "./schemas.ts";
+import type { DeviceTokenService } from "./services/device-token-service.ts";
+import type { PushDispatcher } from "./services/push-dispatcher.ts";
 
 export interface NotificationFacade {
   /**

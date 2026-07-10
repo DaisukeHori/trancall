@@ -8,9 +8,9 @@
 
 import { type Result, err } from "@trancall/shared-kernel";
 import type { RoomId, UserId } from "@trancall/shared-kernel";
-import type { TranscriptSegment } from "../schemas";
-import type { SegmentRepository } from "../repositories/segment-repository";
-import type { AccessRepository } from "../repositories/access-repository";
+import type { TranscriptSegment } from "../schemas.ts";
+import type { SegmentRepository } from "../repositories/segment-repository.ts";
+import type { AccessRepository } from "../repositories/access-repository.ts";
 
 export interface SearchService {
   /**

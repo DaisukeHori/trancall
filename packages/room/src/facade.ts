@@ -10,15 +10,15 @@ import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade } from "@trancall/notification";
 
-import type { RoomState } from "./schemas";
-import type { RoomRepository } from "./repositories/room-repository";
-import type { ParticipantRepository } from "./repositories/participant-repository";
-import type { EventBus } from "./event-bus";
-import { createCallLifecycleService, type CreateCallOptions } from "./services/call-lifecycle-service";
-import { createJoinService } from "./services/join-service";
-import { buildRoomState } from "./services/state-builder";
+import type { RoomState } from "./schemas.ts";
+import type { RoomRepository } from "./repositories/room-repository.ts";
+import type { ParticipantRepository } from "./repositories/participant-repository.ts";
+import type { EventBus } from "./event-bus.ts";
+import { createCallLifecycleService, type CreateCallOptions } from "./services/call-lifecycle-service.ts";
+import { createJoinService } from "./services/join-service.ts";
+import { buildRoomState } from "./services/state-builder.ts";
 
-export type { CreateCallOptions } from "./services/call-lifecycle-service";
+export type { CreateCallOptions } from "./services/call-lifecycle-service.ts";
 
 // =============================================================================
 // インターフェース

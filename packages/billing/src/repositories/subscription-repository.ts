@@ -11,7 +11,7 @@ import type {
   SubscriptionRow,
   PlanTier,
   PurchaseChannel,
-} from "../schemas";
+} from "../schemas.ts";
 
 export interface SubscriptionRepository {
   /**

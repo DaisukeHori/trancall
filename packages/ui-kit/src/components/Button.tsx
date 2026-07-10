@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   type TouchableOpacityProps,
 } from "react-native";
-import { useTheme } from "../theme/index";
-import { useTranslation } from "../i18n/index";
+import { useTheme } from "../theme/index.ts";
+import { useTranslation } from "../i18n/index.ts";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg";

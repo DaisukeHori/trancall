@@ -13,13 +13,13 @@ import {
   err,
 } from "@trancall/shared-kernel";
 
-import type { SubscriptionState } from "../schemas";
-import { PLAN_CONFIGS } from "../schemas";
-import type { SubscriptionRepository } from "../repositories/subscription-repository";
+import type { SubscriptionState } from "../schemas.ts";
+import { PLAN_CONFIGS } from "../schemas.ts";
+import type { SubscriptionRepository } from "../repositories/subscription-repository.ts";
 import {
   calcUsedMinutes,
   calcRemainingMinutes,
-} from "./plan-calculator";
+} from "./plan-calculator.ts";
 
 export interface SubscriptionServiceDeps {
   subscriptionRepo: SubscriptionRepository;

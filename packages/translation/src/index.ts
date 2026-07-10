@@ -7,8 +7,8 @@
  */
 
 // Facade
-export { createTranslationFacade } from "./facade";
-export type { TranslationFacade, TranslationFacadeDeps } from "./facade";
+export { createTranslationFacade } from "./facade.ts";
+export type { TranslationFacade, TranslationFacadeDeps } from "./facade.ts";
 
 // Schemas (公開)
 export {
@@ -27,7 +27,7 @@ export {
   TranslationRecoveredEventSchema,
   TranslationStatusChannelPayloadSchema,
   TranslationUsageSchema,
-} from "./schemas";
+} from "./schemas.ts";
 
 export type {
   TranslationSessionEndedReason,
@@ -45,26 +45,26 @@ export type {
   TranslationRecoveredEvent,
   TranslationStatusChannelPayload,
   TranslationUsage,
-} from "./schemas";
+} from "./schemas.ts";
 
 // Repository interfaces (Server インフラ層で実装する)
-export type { TranslationSessionRepository } from "./repositories/translation-session-repository";
-export type { AgentMetricsRepository } from "./repositories/agent-metrics-repository";
-export type { TranslationEventOutboxRepository, OutboxRecord } from "./repositories/translation-event-outbox-repository";
+export type { TranslationSessionRepository } from "./repositories/translation-session-repository.ts";
+export type { AgentMetricsRepository } from "./repositories/agent-metrics-repository.ts";
+export type { TranslationEventOutboxRepository, OutboxRecord } from "./repositories/translation-event-outbox-repository.ts";
 
 // Domain Events
 export {
   TranslationStartedEventSchema,
   createTranslationStartedEvent,
-} from "./events/translation-started";
-export type { TranslationStartedEvent } from "./events/translation-started";
+} from "./events/translation-started.ts";
+export type { TranslationStartedEvent } from "./events/translation-started.ts";
 
 export {
   TranslationEndedEventSchema,
   createTranslationEndedEvent,
-} from "./events/translation-ended";
-export type { TranslationEndedEvent } from "./events/translation-ended";
+} from "./events/translation-ended.ts";
+export type { TranslationEndedEvent } from "./events/translation-ended.ts";
 
 // Utilities (re-export for convenience)
-export { shouldStartSession } from "./services/language-pair";
-export { calcBillableSeconds, calcUsageFromRecord } from "./services/usage-calculator";
+export { shouldStartSession } from "./services/language-pair.ts";
+export { calcBillableSeconds, calcUsageFromRecord } from "./services/usage-calculator.ts";

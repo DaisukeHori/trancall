@@ -8,9 +8,9 @@
 import type { Result, UserId } from "@trancall/shared-kernel";
 import { err } from "@trancall/shared-kernel";
 
-import type { DeviceTokenRow, NotificationTarget } from "../schemas";
-import { NotificationTargetSchema } from "../schemas";
-import type { DeviceTokenRepository } from "../repositories/device-token-repository";
+import type { DeviceTokenRow, NotificationTarget } from "../schemas.ts";
+import { NotificationTargetSchema } from "../schemas.ts";
+import type { DeviceTokenRepository } from "../repositories/device-token-repository.ts";
 
 export interface DeviceTokenService {
   /**

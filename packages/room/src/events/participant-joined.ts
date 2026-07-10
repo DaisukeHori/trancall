@@ -11,7 +11,7 @@ import {
   DomainEventBase, RoomIdSchema, UserIdSchema,
   type RoomId, type UserId,
 } from "@trancall/shared-kernel";
-import { ParticipantRoleSchema } from "../schemas";
+import { ParticipantRoleSchema } from "../schemas.ts";
 
 export const ParticipantJoinedPayloadSchema = z.object({
   roomId: RoomIdSchema,

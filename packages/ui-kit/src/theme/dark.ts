@@ -1,5 +1,5 @@
-import { colors, spacing, typography, radii } from "../tokens";
-import type { Theme } from "./light";
+import { colors, spacing, typography, radii } from "../tokens.ts";
+import type { Theme } from "./light.ts";
 
 export const darkTheme: Theme = {
   colors: colors.dark,

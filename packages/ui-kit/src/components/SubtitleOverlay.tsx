@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { colors } from "../tokens";
+import { colors } from "../tokens.ts";
 
 export type SubtitleMode = "Both" | "OriginalOnly" | "TranslationOnly";
 

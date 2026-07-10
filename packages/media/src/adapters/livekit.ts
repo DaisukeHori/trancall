@@ -27,7 +27,7 @@ import {
   type IssueAccessTokenResponse,
   ParticipantMetadataSchema,
   type ParticipantMetadata,
-} from "../schemas";
+} from "../schemas.ts";
 
 // --- 設定 ---
 

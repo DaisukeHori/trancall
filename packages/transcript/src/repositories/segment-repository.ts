@@ -7,7 +7,7 @@
 
 import type { Result } from "@trancall/shared-kernel";
 import type { RoomId, ParticipantId } from "@trancall/shared-kernel";
-import type { TranscriptSegment } from "../schemas";
+import type { TranscriptSegment } from "../schemas.ts";
 
 export interface SegmentRepository {
   /**

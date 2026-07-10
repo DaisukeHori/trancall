@@ -11,13 +11,13 @@ import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade, IncomingCallNotification } from "@trancall/notification";
 
-import type { RoomState, ParticipantRow } from "../schemas";
-import type { RoomRepository } from "../repositories/room-repository";
-import type { ParticipantRepository } from "../repositories/participant-repository";
-import type { EventBus } from "../event-bus";
-import { createRoomCreatedEvent } from "../events/room-created";
-import { createParticipantLeftEvent } from "../events/participant-left";
-import { buildRoomState } from "./state-builder";
+import type { RoomState, ParticipantRow } from "../schemas.ts";
+import type { RoomRepository } from "../repositories/room-repository.ts";
+import type { ParticipantRepository } from "../repositories/participant-repository.ts";
+import type { EventBus } from "../event-bus.ts";
+import { createRoomCreatedEvent } from "../events/room-created.ts";
+import { createParticipantLeftEvent } from "../events/participant-left.ts";
+import { buildRoomState } from "./state-builder.ts";
 
 /**
  * 2巡目 finding3: invitee 事前登録 (upsert, joined_at: null) の best-effort リトライ。

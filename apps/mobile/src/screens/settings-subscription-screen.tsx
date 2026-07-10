@@ -19,7 +19,7 @@ import {
   View,
 } from "react-native";
 import { Button, PlanCard, useTheme } from "@trancall/ui-kit";
-import type { UpgradePreview } from "@trancall/billing";
+import type { UpgradePreview } from "@trancall/billing/client";
 import { useTranslation } from "../i18n/index";
 import { useBillingStore } from "../stores/billing-store";
 import { handleStripeDeepLink } from "../lib/billing/stripe-deep-link";

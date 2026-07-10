@@ -6,11 +6,11 @@
  */
 
 // Facade（唯一の外部エントリポイント）
-export { createBillingFacade } from "./facade";
+export { createBillingFacade } from "./facade.ts";
 export type {
   BillingFacade,
   BillingFacadeDeps,
-} from "./facade";
+} from "./facade.ts";
 // IapTransactionResult / StoreKitExternalRedirectResult / PlanComparisonView / UpgradePreview は
 // view-models/index.ts から canonical export される (下記参照)
 
@@ -28,7 +28,7 @@ export {
   WebhookEvent,
   CreateCheckoutSessionCommand,
   SubscriptionRow,
-} from "./schemas";
+} from "./schemas.ts";
 export type {
   PlanTier as PlanTierType,
   PurchaseChannel as PurchaseChannelType,
@@ -41,17 +41,17 @@ export type {
   WebhookEvent as WebhookEventType,
   CreateCheckoutSessionCommand as CreateCheckoutSessionCommandType,
   SubscriptionRow as SubscriptionRowType,
-} from "./schemas";
+} from "./schemas.ts";
 
 // Repository interfaces（apps/server 側での実装用）
-export type { SubscriptionRepository } from "./repositories/subscription-repository";
-export type { UsageRepository } from "./repositories/usage-repository";
-export type { ReservationRepository } from "./repositories/reservation-repository";
-export type { WebhookEventRepository } from "./repositories/webhook-event-repository";
+export type { SubscriptionRepository } from "./repositories/subscription-repository.ts";
+export type { UsageRepository } from "./repositories/usage-repository.ts";
+export type { ReservationRepository } from "./repositories/reservation-repository.ts";
+export type { WebhookEventRepository } from "./repositories/webhook-event-repository.ts";
 export type {
   ExternalPurchaseTokenRepository,
   ExternalPurchaseTokenRow,
-} from "./repositories/external-purchase-token-repository";
+} from "./repositories/external-purchase-token-repository.ts";
 
 // View Models（BillingFacade 拡張メソッドの入出力型 / UI 状態型）
 export {
@@ -67,7 +67,7 @@ export {
   BillingSubscriptionCanceledEventSchema,
   BillingDomainEventSchema,
   initialBillingScreenState,
-} from "./view-models/index";
+} from "./view-models/index.ts";
 export type {
   PlanComparisonView,
   UpgradePreview,
@@ -82,67 +82,67 @@ export type {
   BillingSubscriptionUpgradedEvent,
   BillingSubscriptionCanceledEvent,
   BillingDomainEvent,
-} from "./view-models/index";
+} from "./view-models/index.ts";
 
 // Adapter factories（apps/server 側での注入用）
 export {
   createStripeAdapter,
-} from "./adapters/stripe-adapter";
+} from "./adapters/stripe-adapter.ts";
 export type {
   StripeAdapter,
   StripeAdapterConfig,
   StripePriceIds,
-} from "./adapters/stripe-adapter";
+} from "./adapters/stripe-adapter.ts";
 
 export {
   createAppleIapAdapter,
   APPLE_PRODUCT_ID_MAP,
-} from "./adapters/apple-iap-adapter";
+} from "./adapters/apple-iap-adapter.ts";
 export type {
   AppleIapAdapter,
   AppleIapWebhookResult,
-} from "./adapters/apple-iap-adapter";
+} from "./adapters/apple-iap-adapter.ts";
 
 export {
   createGooglePlayAdapter,
   GOOGLE_PRODUCT_ID_MAP,
-} from "./adapters/google-play-adapter";
+} from "./adapters/google-play-adapter.ts";
 export type {
   GooglePlayAdapter,
   GooglePlayWebhookResult,
-} from "./adapters/google-play-adapter";
+} from "./adapters/google-play-adapter.ts";
 
 export {
   createStripeWebCheckoutAdapter,
-} from "./adapters/stripe-web-checkout-adapter";
+} from "./adapters/stripe-web-checkout-adapter.ts";
 export type {
   StripeWebCheckoutAdapter,
   StripeWebCheckoutConfig,
-} from "./adapters/stripe-web-checkout-adapter";
+} from "./adapters/stripe-web-checkout-adapter.ts";
 
 export {
   createIapAdapter,
   APPLE_IAP_PRODUCT_ID_MAP,
   // #23: apps/server の Apple Webhook (signedPayload JWS) 署名検証で再利用するため export
   verifyJwsSignature,
-} from "./adapters/iap-adapter";
+} from "./adapters/iap-adapter.ts";
 export type {
   IapAdapter,
   IapAdapterConfig,
   VerifiedIapTransaction,
-} from "./adapters/iap-adapter";
+} from "./adapters/iap-adapter.ts";
 
 export {
   createExternalPurchaseAdapter,
-} from "./adapters/external-purchase-adapter";
+} from "./adapters/external-purchase-adapter.ts";
 export type {
   ExternalPurchaseAdapter,
   ExternalPurchaseAdapterConfig,
-} from "./adapters/external-purchase-adapter";
+} from "./adapters/external-purchase-adapter.ts";
 
 // DomainEvent ヘルパー
-export type { EventBus } from "./events";
+export type { EventBus } from "./events.ts";
 export {
   publishSubscriptionUpgraded,
   publishSubscriptionCanceled,
-} from "./events";
+} from "./events.ts";

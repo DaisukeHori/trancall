@@ -7,7 +7,7 @@
  */
 
 import type { Result} from "@trancall/shared-kernel";
-import type { WebhookEvent, WebhookProvider } from "../schemas";
+import type { WebhookEvent, WebhookProvider } from "../schemas.ts";
 
 export interface WebhookEventRepository {
   /**

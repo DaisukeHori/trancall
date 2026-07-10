@@ -6,8 +6,8 @@
  * HMAC 署名は docs/notification-detail.md §3 仕様に厳密に従う。
  */
 
-import type { ApnsVoipPayload, FcmDataPayload, IncomingCallNotification, MissedCallPayload } from "../schemas";
-import { signCallPayload, buildCallTimestamps } from "../signing/hmac";
+import type { ApnsVoipPayload, FcmDataPayload, IncomingCallNotification, MissedCallPayload } from "../schemas.ts";
+import { signCallPayload, buildCallTimestamps } from "../signing/hmac.ts";
 
 // ---------------------------------------------------------------------------
 // iOS APNs VoIP Push payload

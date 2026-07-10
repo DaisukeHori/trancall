@@ -28,9 +28,9 @@ export default defineConfig({
         __dirname,
         "../../packages/ui-kit/src/index.ts",
       ),
-      "@trancall/billing": path.resolve(
+      "@trancall/billing/client": path.resolve(
         __dirname,
-        "../../packages/billing/src/index.ts",
+        "../../packages/billing/src/client.ts",
       ),
       "@trancall/translation": path.resolve(
         __dirname,
@@ -49,9 +49,9 @@ export default defineConfig({
         __dirname,
         "../../packages/ui-kit/src/index.ts",
       ),
-      "@trancall/billing": path.resolve(
+      "@trancall/billing/client": path.resolve(
         __dirname,
-        "../../packages/billing/src/index.ts",
+        "../../packages/billing/src/client.ts",
       ),
       "@trancall/translation": path.resolve(
         __dirname,

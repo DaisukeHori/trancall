@@ -7,7 +7,7 @@
 
 import type { Result, UserId } from "@trancall/shared-kernel";
 import type { TranslationSessionId } from "@trancall/shared-kernel";
-import type { UsageReservation } from "../schemas";
+import type { UsageReservation } from "../schemas.ts";
 
 export interface ReservationRepository {
   /**

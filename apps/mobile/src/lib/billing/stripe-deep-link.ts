@@ -11,7 +11,7 @@
  */
 
 import { z } from "zod";
-import { StoreKitExternalRedirectResultSchema } from "@trancall/billing";
+import { StoreKitExternalRedirectResultSchema } from "@trancall/billing/client";
 
 // =============================================================================
 // Deep link URL スキーム定数

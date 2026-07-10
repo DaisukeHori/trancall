@@ -11,35 +11,35 @@ export {
   TranscriptSegmentSchema,
   TranscriptAccessSchema,
   FullTranscriptSchema,
-} from "./schemas";
+} from "./schemas.ts";
 
 export type {
   LiveSubtitleDelta,
   TranscriptSegment,
   TranscriptAccess,
   FullTranscript,
-} from "./schemas";
+} from "./schemas.ts";
 
 // Facade
-export { createTranscriptFacade } from "./facade";
+export { createTranscriptFacade } from "./facade.ts";
 export type {
   TranscriptFacade,
   RoomMetaProvider,
   LegalDocVersionRepository,
   TranscriptFacadeDeps,
-} from "./facade";
+} from "./facade.ts";
 
 // Repository interfaces (for DI wiring in apps/server)
-export type { SegmentRepository } from "./repositories/segment-repository";
-export type { AccessRepository } from "./repositories/access-repository";
+export type { SegmentRepository } from "./repositories/segment-repository.ts";
+export type { AccessRepository } from "./repositories/access-repository.ts";
 
 // Service utilities (for apps/server retention calculation)
 export {
   calcRetentionUntil,
   calcRetentionUntilByPlan,
   RETENTION_DAYS,
-} from "./services/segment-service";
-export type { PlanTierKey } from "./services/segment-service";
+} from "./services/segment-service.ts";
+export type { PlanTierKey } from "./services/segment-service.ts";
 
 // Export format type and related types
-export type { ExportFormat, ExportInput, ExportResult, RoomMeta } from "./services/export-service";
+export type { ExportFormat, ExportInput, ExportResult, RoomMeta } from "./services/export-service.ts";

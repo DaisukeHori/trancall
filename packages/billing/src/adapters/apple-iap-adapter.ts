@@ -17,8 +17,8 @@ import { z } from "zod";
 import type { Result, AppError } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { PlanTier } from "../schemas";
-import { APPLE_IAP_PRODUCT_ID_MAP } from "./iap-adapter";
+import type { PlanTier } from "../schemas.ts";
+import { APPLE_IAP_PRODUCT_ID_MAP } from "./iap-adapter.ts";
 
 // Apple App Store Server Notifications V2 ペイロードスキーマ
 // https://developer.apple.com/documentation/appstoreservernotifications

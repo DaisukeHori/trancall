@@ -7,8 +7,8 @@
 
 import { RoomIdSchema, ParticipantIdSchema, validate } from "@trancall/shared-kernel";
 
-import { TranslationSessionRecordSchema, TranslationUsageSchema } from "../schemas";
-import type { TranslationSessionRecord, TranslationUsage } from "../schemas";
+import { TranslationSessionRecordSchema, TranslationUsageSchema } from "../schemas.ts";
+import type { TranslationSessionRecord, TranslationUsage } from "../schemas.ts";
 import type { Result } from "@trancall/shared-kernel";
 
 /**

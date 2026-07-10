@@ -1,6 +1,6 @@
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import { useTheme } from "../theme/index";
+import { useTheme } from "../theme/index.ts";
 
 export type AvatarSize = "sm" | "md" | "lg" | "xl";
 

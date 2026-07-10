@@ -11,7 +11,7 @@
 import { Platform } from "react-native";
 import type { Result } from "../result";
 import { err } from "../result";
-import type { IapTransactionResult } from "@trancall/billing";
+import type { IapTransactionResult } from "@trancall/billing/client";
 
 // =============================================================================
 // Product ID 定義 (docs/billing-ui-flow.md §7.2)

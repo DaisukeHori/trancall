@@ -26,8 +26,8 @@ import { z } from "zod";
 import type { Result, AppError } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
-import type { PlanTier } from "../schemas";
-import type { IapTransactionResult } from "../view-models/index";
+import type { PlanTier } from "../schemas.ts";
+import type { IapTransactionResult } from "../view-models/index.ts";
 
 // =============================================================================
 // Apple productId → PlanTier マッピング (canonical 定義)

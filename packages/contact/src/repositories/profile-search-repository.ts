@@ -2,7 +2,7 @@
  * ProfileSearchRepository — ユーザー検索データアクセスインターフェース
  */
 
-import type { PublicProfile } from "../schemas";
+import type { PublicProfile } from "../schemas.ts";
 
 export interface ProfileSearchRepository {
   /**

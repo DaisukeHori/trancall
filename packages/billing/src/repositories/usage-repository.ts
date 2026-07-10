@@ -7,7 +7,7 @@
 
 import type { Result, UserId } from "@trancall/shared-kernel";
 import type { TranslationSessionId } from "@trancall/shared-kernel";
-import type { UsageWindow, RecordUsageCommand } from "../schemas";
+import type { UsageWindow, RecordUsageCommand } from "../schemas.ts";
 
 export interface UsageRepository {
   /**

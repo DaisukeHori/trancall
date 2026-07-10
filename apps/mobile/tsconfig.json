@@ -15,9 +15,10 @@
     "paths": {
       "@trancall/ui-kit": ["../../packages/ui-kit/src/index.ts"],
       "@trancall/shared-kernel": ["../../packages/shared-kernel/src/index.ts"],
-      "@trancall/billing": ["../../packages/billing/src/index.ts"],
+      "@trancall/billing/client": ["../../packages/billing/src/client.ts"],
       "@trancall/translation": ["../../packages/translation/src/index.ts"]
     },
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
