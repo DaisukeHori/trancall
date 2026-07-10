@@ -337,9 +337,23 @@ jobs:
           # タイムアウトになることを確認)。バックスラッシュ改行継続も同様に壊れる
           # (別途実測済み)。状態を共有する必要のあるコマンド列は `&&` で1行に
           # 結合し、同一 sh -c プロセス内で完結させる。
+          # logcat をクリアしてから実行し、テスト後に全バッファをファイルへdumpする
+          # (成功/失敗に関わらず `;` で必ず実行。JS実行時の実際の例外はMaestroの
+          # スクリーンショット/レポートには現れず、logcatのReactNativeJSタグにのみ
+          # 出力されるため、原因診断にはこれが必須)。
           script: |
+            adb logcat -c
             adb install -r "$APK_PATH"
-            ENV_ARGS=$(node "$GITHUB_WORKSPACE/apps/mobile/e2e/print-maestro-env-args.js") && eval maestro test "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/flows/" --include-tags P0 --config "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/config.yaml" --format junit --output "$GITHUB_WORKSPACE/maestro-results-android.xml" "$ENV_ARGS"
+            ENV_ARGS=$(node "$GITHUB_WORKSPACE/apps/mobile/e2e/print-maestro-env-args.js") && eval maestro test "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/flows/" --include-tags P0 --config "$GITHUB_WORKSPACE/apps/mobile/e2e/maestro/config.yaml" --format junit --output "$GITHUB_WORKSPACE/maestro-results-android.xml" "$ENV_ARGS" ; adb logcat -d > "$GITHUB_WORKSPACE/android-logcat.txt" ; true
+
+      - name: Upload logcat
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-logcat
+          path: android-logcat.txt
+          retention-days: 7
 
       - name: Upload Maestro test results
         if: always()
