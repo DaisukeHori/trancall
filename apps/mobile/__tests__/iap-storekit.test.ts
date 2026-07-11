@@ -52,6 +52,7 @@ import {
   purchasePlan,
   finishIapTransaction,
   getRestoredTransactions,
+  resolveRestoredTransactions,
 } from "../src/lib/billing/iap-storekit.js";
 
 // =============================================================================
@@ -337,5 +338,41 @@ describe("getRestoredTransactions", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("BILLING_IAP_RECEIPT_INVALID");
     expect(result.error.retryable).toBe(false);
+  });
+});
+
+// =============================================================================
+// M-4: settings-subscription-screen.tsx の Restore Purchases 配線ヘルパー
+// =============================================================================
+
+describe("resolveRestoredTransactions", () => {
+  it("ok:true の場合はそのまま IapTransactionResult[] を返す", () => {
+    const transactions = [
+      {
+        originalTransactionId: "original-txn-001",
+        productId: MOCK_LIGHT_PRODUCT_ID,
+        purchaseDate: "2026-05-01T00:00:00.000Z",
+        expirationDate: null,
+        signedJws: "signed.jws.token",
+        isUpgrade: false,
+      },
+    ];
+
+    const result = resolveRestoredTransactions({ ok: true, data: transactions });
+
+    expect(result).toEqual(transactions);
+  });
+
+  it("ok:false (非 iOS / native module 未導入等) の場合は空配列にフォールバックする", () => {
+    const result = resolveRestoredTransactions({
+      ok: false,
+      error: {
+        code: "BILLING_CHANNEL_NOT_AVAILABLE",
+        message: "react-native-iap is not available",
+        retryable: false,
+      },
+    });
+
+    expect(result).toEqual([]);
   });
 });

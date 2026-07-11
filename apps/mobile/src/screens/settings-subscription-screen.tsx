@@ -23,6 +23,7 @@ import type { UpgradePreview } from "@trancall/billing/client";
 import { useTranslation } from "../i18n/index";
 import { useBillingStore } from "../stores/billing-store";
 import { handleStripeDeepLink } from "../lib/billing/stripe-deep-link";
+import { getRestoredTransactions, resolveRestoredTransactions } from "../lib/billing/iap-storekit";
 
 // =============================================================================
 // CurrentPlanCard — 現在のプラン概要 + 残量プログレスバー
@@ -498,13 +499,20 @@ export function SettingsSubscriptionScreen() {
   // =========================================================================
   // Restore Purchases — iOS App Store ガイドライン必須
   // docs/billing-ui-flow.md §12
+  //
+  // M-4: react-native-iap 経由で StoreKit.Transaction.currentEntitlements
+  // (getRestoredTransactions、lib/billing/iap-storekit.ts) から実際のローカル
+  // トランザクションを取得し、IapTransactionResult[] としてサーバーに送る。
+  // getRestoredTransactions は iOS 以外 / react-native-iap native module 未導入環境
+  // (Expo Go・このリポジトリの現状の prebuild 前状態) では
+  // BILLING_CHANNEL_NOT_AVAILABLE 相当のエラーを返す設計のため、その場合は
+  // 空配列にフォールバックして送信する (Sprint 3 までの挙動を後方互換で維持)。
+  // ⚠️ device-verification-required: StoreKit.Transaction の実動作は iOS 実機での
+  // 検証が必須 (docs/billing-ui-flow.md §12.4 注意事項)。
   // =========================================================================
   const handleRestorePurchases = useCallback(async () => {
-    // StoreKit.Transaction.currentEntitlements は iOS runtime でのみ動作する。
-    // react-native-iap 経由で取得した IapTransactionResult[] を渡すのが本番実装だが、
-    // Sprint 3 では空配列でサーバーに問い合わせる (server 側で Stripe/IAP 履歴を再確認)
-    // docs/billing-ui-flow.md §12.4 注意事項
-    await restorePurchasesAction([]);
+    const restoredResult = await getRestoredTransactions();
+    await restorePurchasesAction(resolveRestoredTransactions(restoredResult));
   }, [restorePurchasesAction]);
 
   // =========================================================================

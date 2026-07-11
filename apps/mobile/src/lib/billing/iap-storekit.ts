@@ -396,6 +396,25 @@ export async function getRestoredTransactions(): Promise<
 }
 
 // =============================================================================
+// M-4: Restore Purchases 画面連携ヘルパー
+// =============================================================================
+
+/**
+ * getRestoredTransactions() の Result を Restore Purchases アクション
+ * (billing-store.ts restorePurchases) に渡す IapTransactionResult[] に変換する。
+ *
+ * 失敗時 (非 iOS / react-native-iap native module 未導入環境等) は空配列に
+ * フォールバックする。空配列でも server 側で Stripe/IAP 履歴を再確認する
+ * 既存フロー (docs/billing-ui-flow.md §12.4) が動くため、restorePurchases 自体は
+ * 呼び出しを継続する。
+ */
+export function resolveRestoredTransactions(
+  result: Result<IapTransactionResult[]>,
+): IapTransactionResult[] {
+  return result.ok ? result.data : [];
+}
+
+// =============================================================================
 // Error mapping
 // docs/billing-ui-flow.md §7.5
 // =============================================================================
