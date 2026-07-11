@@ -15,6 +15,10 @@ import { join } from "node:path";
 import yaml from "js-yaml";
 
 import {
+  connectLiveTranscriptCapture,
+  type ConnectTranscriptCapture,
+} from "./livekit-transcript-capture.js";
+import {
   type QARunResult,
   type QATurnResult,
   type ScenarioFixture,
@@ -30,7 +34,15 @@ export interface RunnerConfig {
   supabaseUrl: string | null;
   supabaseServiceRoleKey: string | null;
   mockMode: boolean;
+  /**
+   * L-3: ライブ実行時、1 ターンあたり LiveKit Data Channel の subtitle.delta
+   * (isFinal=true) 到着を待つ最大時間 (ms)。タイムアウトした場合は
+   * translated_text を空のまま残し、QA オペレータの手入力にフォールバックする。
+   */
+  liveCaptureTimeoutMs: number;
 }
+
+const DEFAULT_LIVE_CAPTURE_TIMEOUT_MS = 15000;
 
 export function loadRunnerConfig(): RunnerConfig {
   const livekitUrl = process.env["LIVEKIT_URL"] ?? null;
@@ -46,6 +58,14 @@ export function loadRunnerConfig(): RunnerConfig {
     !livekitApiKey ||
     !livekitApiSecret;
 
+  const liveCaptureTimeoutMsEnv = process.env["QA_LIVE_CAPTURE_TIMEOUT_MS"];
+  const parsedTimeout = liveCaptureTimeoutMsEnv
+    ? Number.parseInt(liveCaptureTimeoutMsEnv, 10)
+    : NaN;
+  const liveCaptureTimeoutMs = Number.isFinite(parsedTimeout) && parsedTimeout > 0
+    ? parsedTimeout
+    : DEFAULT_LIVE_CAPTURE_TIMEOUT_MS;
+
   return {
     livekitUrl,
     livekitApiKey,
@@ -53,6 +73,7 @@ export function loadRunnerConfig(): RunnerConfig {
     supabaseUrl,
     supabaseServiceRoleKey,
     mockMode,
+    liveCaptureTimeoutMs,
   };
 }
 
@@ -134,10 +155,18 @@ export async function runScenarioMock(
  * NOTE: Phase 1a では QA 担当者が手動で TranCall 通話を行うため、
  * このランナーはスクリプト cue の表示と結果記録を担当する。
  * 自動音声再生は Phase 1c 以降の自動化ロードマップ (D11) で実装予定。
+ *
+ * L-3: トランスクリプト取得は LiveKit Data Channel (`translation.status` topic の
+ * `subtitle.delta` isFinal=true) を自動購読する (`connectCapture`, デフォルトは
+ * `connectLiveTranscriptCapture`)。各ターンは QA オペレータが発話した後、Agent が
+ * publish する最終確定字幕を最大 `config.liveCaptureTimeoutMs` 待って取得する。
+ * 接続不可・タイムアウト時は従来どおり translated_text を空のまま残し、
+ * QA オペレータの evaluator-sheet 手入力にフォールバックする。
  */
 export async function runScenarioLive(
   fixture: ScenarioFixture,
-  config: RunnerConfig
+  config: RunnerConfig,
+  connectCapture: ConnectTranscriptCapture = connectLiveTranscriptCapture
 ): Promise<QARunResult> {
   if (!config.livekitUrl || !config.livekitApiKey || !config.livekitApiSecret) {
     throw new Error("LiveKit config is required for live run");
@@ -155,6 +184,29 @@ export async function runScenarioLive(
   console.log("Context:", fixture.context ?? "");
   console.log("\nStarting turns. Press Enter after each turn to proceed.\n");
 
+  // L-3: LiveKit Data Channel からの自動トランスクリプト取得を試みる。
+  // 接続失敗時は capture=null のまま続行し、手入力運用にフォールバックする。
+  let capture: Awaited<ReturnType<ConnectTranscriptCapture>> = null;
+  try {
+    capture = await connectCapture({
+      livekitUrl: config.livekitUrl,
+      livekitApiKey: config.livekitApiKey,
+      livekitApiSecret: config.livekitApiSecret,
+      roomName,
+    });
+  } catch (e) {
+    console.warn(
+      "[runner] LiveKit transcript capture connect failed, falling back to manual entry:",
+      e instanceof Error ? e.message : String(e)
+    );
+    capture = null;
+  }
+  if (!capture) {
+    console.warn(
+      "[runner] LiveKit transcript capture unavailable — translated_text will be filled manually via evaluator-sheet"
+    );
+  }
+
   const turnResults: QATurnResult[] = [];
 
   for (const turn of fixture.turns) {
@@ -165,17 +217,40 @@ export async function runScenarioLive(
       console.log(`Eval: ${turn.eval_point}`);
     }
 
-    // In live mode: wait for QA operator to speak and record translation
-    // This is a placeholder — actual transcript capture would integrate with LiveKit API
+    // L-3: capture が利用可能なら Data Channel の subtitle.delta (isFinal) を待つ。
+    // タイムアウト・未接続時は空のまま残す (QA オペレータ手入力運用、既存挙動維持)。
+    let translatedText = "";
+    if (capture) {
+      const captured = await capture.nextFinalSubtitle(config.liveCaptureTimeoutMs);
+      if (captured !== null) {
+        translatedText = captured;
+      } else {
+        console.warn(
+          `[runner] No live transcript captured for turn ${turn.turn} within ${config.liveCaptureTimeoutMs}ms, leaving blank for manual entry`
+        );
+      }
+    }
+
     const turnResult: QATurnResult = {
       turn_number: turn.turn,
       source_text: turn.script_text,
-      translated_text: "", // Filled by QA operator via evaluator-sheet
+      translated_text: translatedText, // capture 失敗時は QA オペレータが evaluator-sheet 経由で手入力
       expected_translation: turn.expected_translation,
       latency_ms: null,
       eval_point: turn.eval_point,
     };
     turnResults.push(turnResult);
+  }
+
+  if (capture) {
+    try {
+      await capture.disconnect();
+    } catch (e) {
+      console.warn(
+        "[runner] LiveKit transcript capture disconnect failed (best-effort):",
+        e instanceof Error ? e.message : String(e)
+      );
+    }
   }
 
   return {

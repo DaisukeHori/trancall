@@ -10,11 +10,17 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import type {
+  ConnectTranscriptCapture,
+  TranscriptCapture,
+} from "../livekit-transcript-capture.js";
 import {
   loadRunnerConfig,
+  runScenarioLive,
   runScenarioMock,
   saveRunResults,
 } from "../runner.js";
+import type { RunnerConfig } from "../runner.js";
 import type { ScenarioFixture } from "../schemas.js";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -119,6 +125,7 @@ describe("runScenarioMock", () => {
     supabaseUrl: null,
     supabaseServiceRoleKey: null,
     mockMode: true,
+    liveCaptureTimeoutMs: 15000,
   };
 
   it("should return QARunResult with correct structure", async () => {
@@ -182,6 +189,7 @@ describe("saveRunResults", () => {
       supabaseUrl: null,
       supabaseServiceRoleKey: null,
       mockMode: true,
+      liveCaptureTimeoutMs: 15000,
     };
 
     const mockResult = await runScenarioMock(mockFixture, mockConfig);
@@ -202,6 +210,7 @@ describe("runner integration: mock run of all Phase 1a priority scenarios", () =
     supabaseUrl: null,
     supabaseServiceRoleKey: null,
     mockMode: true,
+    liveCaptureTimeoutMs: 15000,
   };
 
   const priorityFixtures: ScenarioFixture[] = ["S1", "S2", "S3", "S4", "S5"].map(
@@ -232,5 +241,103 @@ describe("runner integration: mock run of all Phase 1a priority scenarios", () =
       expect(result.turn_results.length).toBe(10);
       expect(result.error).toBeNull();
     }
+  });
+});
+
+// ─── L-3: runScenarioLive の自動トランスクリプト取得 ────────────────────────────
+
+describe("runScenarioLive (L-3 live transcript capture)", () => {
+  const liveConfig: RunnerConfig = {
+    livekitUrl: "wss://example.livekit.cloud",
+    livekitApiKey: "test-key",
+    livekitApiSecret: "test-secret",
+    supabaseUrl: null,
+    supabaseServiceRoleKey: null,
+    mockMode: false,
+    liveCaptureTimeoutMs: 1000,
+  };
+
+  function makeFakeCapture(texts: (string | null)[]): TranscriptCapture {
+    const queue = [...texts];
+    return {
+      nextFinalSubtitle: vi.fn(async () => queue.shift() ?? null),
+      disconnect: vi.fn(async () => undefined),
+    };
+  }
+
+  it("should throw when LiveKit config is missing", async () => {
+    await expect(
+      runScenarioLive(mockFixture, {
+        ...liveConfig,
+        livekitUrl: null,
+      })
+    ).rejects.toThrow("LiveKit config is required for live run");
+  });
+
+  it("should fill translated_text from captured subtitle.delta when capture succeeds", async () => {
+    const fakeCapture = makeFakeCapture([
+      "はじめまして、田中と申します。（自動取得）",
+      "こんにちは！シアトルのジョンです。（自動取得）",
+    ]);
+    const connectCapture: ConnectTranscriptCapture = vi.fn(async () => fakeCapture);
+
+    const result = await runScenarioLive(mockFixture, liveConfig, connectCapture);
+
+    expect(connectCapture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        livekitUrl: liveConfig.livekitUrl,
+        livekitApiKey: liveConfig.livekitApiKey,
+        livekitApiSecret: liveConfig.livekitApiSecret,
+      })
+    );
+    expect(result.turn_results.map((t) => t.translated_text)).toEqual([
+      "はじめまして、田中と申します。（自動取得）",
+      "こんにちは！シアトルのジョンです。（自動取得）",
+    ]);
+    expect(fakeCapture.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("should leave translated_text blank for a turn when capture returns null (timeout)", async () => {
+    const fakeCapture = makeFakeCapture([null, "second turn captured"]);
+    const connectCapture: ConnectTranscriptCapture = vi.fn(async () => fakeCapture);
+
+    const result = await runScenarioLive(mockFixture, liveConfig, connectCapture);
+
+    expect(result.turn_results[0]?.translated_text).toBe("");
+    expect(result.turn_results[1]?.translated_text).toBe("second turn captured");
+  });
+
+  it("should fall back to blank translated_text for all turns when connectCapture returns null", async () => {
+    const connectCapture: ConnectTranscriptCapture = vi.fn(async () => null);
+
+    const result = await runScenarioLive(mockFixture, liveConfig, connectCapture);
+
+    for (const turn of result.turn_results) {
+      expect(turn.translated_text).toBe("");
+    }
+  });
+
+  it("should fall back to blank translated_text for all turns when connectCapture throws", async () => {
+    const connectCapture: ConnectTranscriptCapture = vi.fn(async () => {
+      throw new Error("connect failed");
+    });
+
+    const result = await runScenarioLive(mockFixture, liveConfig, connectCapture);
+
+    for (const turn of result.turn_results) {
+      expect(turn.translated_text).toBe("");
+    }
+    expect(result.error).toBeNull();
+  });
+
+  it("should set room_name and preserve expected_translation/eval_point per turn", async () => {
+    const connectCapture: ConnectTranscriptCapture = vi.fn(async () => null);
+    const result = await runScenarioLive(mockFixture, liveConfig, connectCapture);
+
+    expect(result.room_name).toMatch(/^qa-ja-en-S1-\d+$/);
+    expect(result.turn_results[0]?.expected_translation).toBe(
+      mockFixture.turns[0]?.expected_translation
+    );
+    expect(result.turn_results[0]?.eval_point).toBe(mockFixture.turns[0]?.eval_point);
   });
 });
