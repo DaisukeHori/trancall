@@ -4,7 +4,9 @@
  * adapters/* 内では型アサーション例外許可（CLAUDE.md より）。
  *
  * - Google Play RTDN の SubscriptionNotification を解析
- * - 冪等性キー: purchaseToken
+ * - 冪等性キー: message.messageId (#61: Pub/Sub メッセージ単位での重複排除が正しい設計。
+ *   purchaseToken はサブスクの識別子であり同一トークンで複数の通知イベントが送られてくるため
+ *   idempotency key として使うと後続の正当な通知イベントまで重複扱いされてしまう)
  * - Pub/Sub 経由で届くメッセージを処理
  */
 
@@ -96,18 +98,23 @@ export function createGooglePlayAdapter() {
         const data = pubSubParsed.data.message.data;
         const decoded = decodeBase64Json(data);
         if (!decoded.ok) return decoded;
-        return this.parseNotification(decoded.data);
+        // #61: 冪等性キーには Pub/Sub メッセージ単位で一意な messageId を使う
+        return this.parseNotification(decoded.data, pubSubParsed.data.message.messageId);
       }
 
-      // 直接通知形式の場合（テスト用）
+      // 直接通知形式の場合（テスト用）。Pub/Sub エンベロープが無いため messageId は存在しない。
       return this.parseNotification(payload);
     },
 
     /**
      * デベロッパー通知を解析する。
+     * @param messageId Pub/Sub メッセージ ID (#61: 冪等性キーに使用)。
+     *   直接通知形式 (テスト用、エンベロープなし) の場合は未指定となり、
+     *   その場合のみ purchaseToken にフォールバックする。
      */
     parseNotification(
       rawNotification: unknown,
+      messageId?: string,
     ): Result<GooglePlayWebhookResult> {
       const parsed = DeveloperNotificationSchema.safeParse(rawNotification);
       if (!parsed.success) {
@@ -153,7 +160,9 @@ export function createGooglePlayAdapter() {
       }
 
       return ok({
-        idempotencyKey: sub.purchaseToken,
+        // #61: Pub/Sub message.messageId をメッセージ単位の冪等性キーとして使う。
+        // (直接通知形式=テスト用のみ purchaseToken にフォールバック)
+        idempotencyKey: messageId ?? sub.purchaseToken,
         notificationType: sub.notificationType,
         purchaseToken: sub.purchaseToken,
         subscriptionId: sub.subscriptionId,

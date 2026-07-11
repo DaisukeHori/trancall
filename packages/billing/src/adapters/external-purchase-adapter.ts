@@ -4,8 +4,10 @@
  * docs/billing-ui-flow.md v1.2 §8 canonical 設計準拠。
  *
  * 担当:
- * - startExternalPurchase: ExternalPurchaseTokenRepository.createToken + deep link URL 生成
- * - completeExternalPurchase: redirectToken 検証 (TTL / 使用済みチェック) + Stripe 経由 subscription 更新
+ * - generateRedirectToken / persistRedirectToken: [#44] redirectToken を Stripe Checkout
+ *   Session 作成前に生成し (success_url に埋め込むため)、Session 作成後に DB へ保存する
+ *   2 段階構成 (ExternalPurchaseTokenRepository.createToken + deep link URL 生成)
+ * - validateAndConsumeRedirectToken: redirectToken 検証 (TTL / 使用済みチェック) + Stripe 経由 subscription 更新
  * - Apple External Purchase Server API への取引報告 (§15.7)
  *
  * adapters/* 内では型アサーション例外許可 (CLAUDE.md)。
@@ -53,26 +55,40 @@ export function createExternalPurchaseAdapter(
 ) {
   return {
     /**
-     * External Purchase 開始処理。
-     * redirectToken を生成し DB に保存する。
-     * Stripe Checkout success_url に redirectToken を埋め込んだ URL を生成して返す。
+     * [#44] redirectToken を生成する。
+     *
+     * Stripe Checkout Session の success_url に埋め込む必要があるため、
+     * 必ず stripeWebCheckoutAdapter.createCheckoutSession() を呼ぶ **前** に実行すること
+     * (Stripe Checkout Session 作成後に success_url へ token を追加で埋め込む方法は
+     * 存在しないため、生成の順序が重要)。生成のみを行い DB への保存は行わない
+     * (保存には Stripe Checkout Session 作成後に確定する stripeSessionId が必要なため、
+     * persistRedirectToken() を別途呼ぶこと)。
+     */
+    generateRedirectToken(): string {
+      // crypto.randomBytes(32).toString("hex") → 64 文字
+      return crypto.randomBytes(32).toString("hex");
+    },
+
+    /**
+     * [#44] generateRedirectToken() で生成済みの redirectToken を DB に保存し、
+     * Apple External Purchase Server API へ取引開始を報告する。
+     * Stripe Checkout Session 作成 (stripeSessionId 確定) の **後** に呼ぶこと。
      *
      * @param userId ユーザー ID
      * @param targetTier 目標プラン
      * @param stripeCheckoutUrl Stripe Checkout Session URL (StripeWebCheckoutAdapter 生成済み)
      * @param stripeSessionId Stripe Checkout Session ID
+     * @param redirectToken generateRedirectToken() で生成済みのトークン
      * @returns redirectUrl — Safari で開く外部 URL (Stripe Checkout URL)
      */
-    async startExternalPurchase(
+    async persistRedirectToken(
       userId: Parameters<ExternalPurchaseTokenRepository["createToken"]>[0],
       targetTier: PlanTier,
       stripeCheckoutUrl: string,
       stripeSessionId: string,
+      redirectToken: string,
     ): Promise<Result<{ redirectUrl: string; redirectToken: string }>> {
-      // Step 1: redirectToken 生成 (crypto.randomBytes(32).toString("hex") → 64 文字)
-      const redirectToken = crypto.randomBytes(32).toString("hex");
-
-      // Step 2: DB にトークンを保存
+      // Step 1: DB にトークンを保存
       const createResult = await tokenRepo.createToken(
         userId,
         targetTier,
@@ -82,7 +98,7 @@ export function createExternalPurchaseAdapter(
       );
       if (!createResult.ok) return createResult;
 
-      // Step 3: Apple External Purchase Server API へ取引開始報告
+      // Step 2: Apple External Purchase Server API へ取引開始報告
       // Phase 1a: ログのみ (Phase 1b で実際の API 呼び出しに差し替え)
       reportExternalPurchaseStart({
         userId,
@@ -91,11 +107,10 @@ export function createExternalPurchaseAdapter(
         appleApiUrl: config.appleExternalPurchaseApiUrl,
       });
 
-      // Step 4: Stripe Checkout URL をそのまま返す
-      // (success_url は StripeWebCheckoutAdapter で既に redirectToken を含まない形で設定済み)
-      // ただし Stripe success_url の token は server 側 webhook で差し替えるのが正しい設計。
-      // Phase 1a では Stripe の success_url に token を含める実装は StripeWebCheckoutAdapter 側で行い、
-      // ここでは生成した redirectToken を返すのみとする。
+      // Step 3: Stripe Checkout URL をそのまま返す。
+      // [#44] redirectToken は既に stripeWebCheckoutAdapter.createCheckoutSession() 呼び出し時に
+      // success_url のクエリパラメータとして埋め込み済み (呼び出し順序については
+      // generateRedirectToken() の JSDoc 参照)。
       return ok({
         redirectUrl: stripeCheckoutUrl,
         redirectToken,

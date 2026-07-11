@@ -108,10 +108,12 @@ export interface AppContainer {
   /** #46: roomId ↔ billing 予約 sessionId 対応表。room-routes.ts が書き込み/読み取りに使う。 */
   roomReservationSessionRepo: RoomReservationSessionRepository;
   /**
-   * #27: account-routes.ts の POST /api/account/restore がサブスクリプションの
-   * cancelAtPeriodEnd フラグを復元するために直接使う (BillingFacade には
-   * 「取消の取り消し」に相当するメソッドが存在しないため、apps/server が自ら
-   * 生成した SubscriptionRepository 実装を account-routes 側にも注入する)。
+   * #27/#65: billing facade の構築に使う SubscriptionRepository 実装。
+   * 【#65 で解消】 account-routes.ts の POST /api/account/restore は従来これを
+   * 直接使ってサブスクリプションの cancelAtPeriodEnd フラグを復元していたが、
+   * BillingFacade.reactivateSubscription の追加により facade 経由に切り替わったため、
+   * account-routes.ts への直接注入は不要になった。他の直接利用が必要になった場合に
+   * 備え、コンテナからは引き続き参照可能にしておく。
    */
   subscriptionRepo: SubscriptionRepository;
   /**
