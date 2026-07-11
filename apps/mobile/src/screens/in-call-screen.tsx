@@ -26,6 +26,7 @@ import { useTranslation } from "../i18n/index";
 import { useCallStore } from "../stores/call-store";
 import { useSubtitleStore } from "../stores/subtitle-store";
 import { useAuthStore } from "../stores/auth-store";
+import { useBillingStore } from "../stores/billing-store";
 import { useTranslationStatusStore } from "../stores/translation-status-store";
 import { SubtitleOverlayLive } from "../components/subtitle-overlay-live";
 import { endCall as apiEndCall } from "../api/room-api";
@@ -102,6 +103,13 @@ export function InCallScreen({ route, navigation }: Props) {
   const myLanguage = profile?.native_language ?? "ja";
   const langPair = `${callerLanguage.toUpperCase()} → ${myLanguage.toUpperCase()}`;
 
+  // 課金残量・プラン (billing-store 経由、docs/billing-ui-flow.md §10.2 準拠)
+  const subscriptionState = useBillingStore((state) => state.subscriptionState);
+  const refreshSubscription = useBillingStore((state) => state.refreshSubscription);
+  const remainingMinutes = subscriptionState?.remainingMinutes ?? null;
+  const planTier = subscriptionState?.plan.tier ?? "free";
+  const plan = t(`billing.plans.${planTier}.label` as const);
+
   // Animation for status badge cross-fade (degraded→recovered, 200ms)
   const statusOpacity = useRef(new Animated.Value(1)).current;
   const [prevStatus, setPrevStatus] = useState(translationStatus);
@@ -109,10 +117,6 @@ export function InCallScreen({ route, navigation }: Props) {
   // Reconnecting pulse animation (1.4s, design-system 準拠)
   const reconnectPulse = useRef(new Animated.Value(1)).current;
   const reconnectLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-
-  // Cost estimate (placeholder — 実際の billing store 結線は Phase 2 で対応予定)
-  const remainingMin = 60;
-  const plan = t("billing.plans.free.label");
 
   // Set active on mount — intentional empty deps (run once on mount only)
   useEffect(() => {
@@ -125,6 +129,12 @@ export function InCallScreen({ route, navigation }: Props) {
       resetSubtitles();
     };
   }, []);
+
+  // 課金残量表示のため、画面表示時にサブスクリプション状態を更新する
+  // (pre-call-screen.tsx と同様のパターン、docs/billing-ui-flow.md §10.2.3)
+  useEffect(() => {
+    void refreshSubscription();
+  }, [refreshSubscription]);
 
   // LiveKit Room 接続 — connect.ts (native-call-bridge.md §3.2.2 step 8: JS 側で room.connect)
   //
@@ -359,12 +369,14 @@ export function InCallScreen({ route, navigation }: Props) {
           >
             {formatDuration(callDurationMs)}
           </Text>
-          <Text style={[styles.remaining, { color: c.textTertiary }]}>
-            {t("precall.remainingMinutes", {
-              minutes: String(remainingMin),
-              plan,
-            })}
-          </Text>
+          {remainingMinutes != null && (
+            <Text style={[styles.remaining, { color: c.textTertiary }]}>
+              {t("precall.remainingMinutes", {
+                minutes: String(remainingMinutes),
+                plan,
+              })}
+            </Text>
+          )}
         </View>
       </View>
 

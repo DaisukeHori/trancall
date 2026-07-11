@@ -219,7 +219,12 @@ export function IncomingCallScreen({ route, navigation }: Props) {
           >
             <Ionicons name="close" size={28} color={c.subtitleText} />
           </Pressable>
-          <Text style={[styles.actionLabel, { color: c.textSecondary, marginTop: s[8] }]}>
+          <Text
+            style={[
+              styles.actionLabel,
+              { color: c.textSecondary, marginTop: s[8], fontSize: theme.typography.caption.fontSize },
+            ]}
+          >
             {t("call.decline")}
           </Text>
         </View>
@@ -242,7 +247,12 @@ export function IncomingCallScreen({ route, navigation }: Props) {
           >
             <Ionicons name="call" size={26} color={c.subtitleText} />
           </Pressable>
-          <Text style={[styles.actionLabel, { color: c.textSecondary, marginTop: s[8] }]}>
+          <Text
+            style={[
+              styles.actionLabel,
+              { color: c.textSecondary, marginTop: s[8], fontSize: theme.typography.caption.fontSize },
+            ]}
+          >
             {t("call.accept")}
           </Text>
         </View>
@@ -308,7 +318,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actionLabel: {
-    fontSize: 13,
-  },
+  actionLabel: {},
 });
