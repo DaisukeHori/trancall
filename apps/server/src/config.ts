@@ -75,6 +75,16 @@ const ConfigSchema = z.object({
   IAP_APPLE_ENVIRONMENT: z.enum(["sandbox", "production"]).optional(),
   /** Apple Root CA (PEM 形式、1 枚)。指定時のみ x5c チェーン最上位証明書のピン留め検証を行う。 */
   APPLE_ROOT_CA_PEM: z.string().min(1).optional(),
+
+  // #61: Google Cloud Pub/Sub push サブスクリプションが POST /api/billing/webhook/google に
+  // 送ってくる OIDC ID トークン (Authorization: Bearer <token>) の audience 検証値。
+  // Google Cloud Console / gcloud で Pub/Sub push サブスクリプションを作成する際に設定する
+  // OIDC トークンの audience (通常は push endpoint の URL、例:
+  // "https://api.trancall.app/api/billing/webhook/google") と一致させる必要がある。
+  // 【運用者作業】 実際の値は Google Cloud Pub/Sub サブスクリプション作成時に決める運用値のため
+  // ここではダミー値を設定できない。未設定の場合 (production 含む) は fail-close
+  // (OIDC 検証を必須拒否として扱い、Google Play webhook を常に 401 で拒否する) とする。
+  GOOGLE_PLAY_PUBSUB_AUDIENCE: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

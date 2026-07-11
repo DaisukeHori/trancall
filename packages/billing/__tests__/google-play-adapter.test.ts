@@ -46,8 +46,29 @@ describe("GooglePlayAdapter.parseWebhookPayload", () => {
     if (!result.ok) return;
     expect(result.data.tier).toBe("standard");
     expect(result.data.purchaseToken).toBe("purchase_token_abc123");
-    expect(result.data.idempotencyKey).toBe("purchase_token_abc123");
+    // #61: idempotencyKey は Pub/Sub message.messageId (purchaseToken ではない)。
+    // 同一 purchaseToken でも複数の通知イベントが送られてくるため、purchaseToken を
+    // idempotency key にすると後続の正当な通知まで重複扱いされてしまうバグの修正。
+    expect(result.data.idempotencyKey).toBe("msg_001");
     expect(result.data.notificationType).toBe(4);
+  });
+
+  it("#61 Pub/Sub メッセージが異なれば同一 purchaseToken でも idempotencyKey は変わる (メッセージ単位の重複排除)", () => {
+    const adapter = createGooglePlayAdapter();
+    const payload1 = buildPubSubMessage(validNotification);
+    const payload2 = {
+      ...buildPubSubMessage(validNotification),
+      message: { ...buildPubSubMessage(validNotification).message, messageId: "msg_002" },
+    };
+
+    const result1 = adapter.parseWebhookPayload(payload1);
+    const result2 = adapter.parseWebhookPayload(payload2);
+    expect(result1.ok).toBe(true);
+    expect(result2.ok).toBe(true);
+    if (!result1.ok || !result2.ok) return;
+    // purchaseToken (サブスクの識別子) は同一だが、idempotencyKey (メッセージ単位) は異なる
+    expect(result1.data.purchaseToken).toBe(result2.data.purchaseToken);
+    expect(result1.data.idempotencyKey).not.toBe(result2.data.idempotencyKey);
   });
 
   it("直接通知形式も解析できる", () => {

@@ -104,6 +104,8 @@ export async function buildApp(
   registerBillingRoutes(fastify, {
     billing: container.billing,
     iapAdapterConfig: container.iapAdapterConfig,
+    // #61: 未設定なら fail-close (Google Play webhook を常に 401 で拒否) される
+    googlePlayPubsubAudience: config.GOOGLE_PLAY_PUBSUB_AUDIENCE,
   });
   registerTranscriptRoutes(fastify, { transcript: container.transcript });
   registerNotificationRoutes(fastify, { notification: container.notification });
