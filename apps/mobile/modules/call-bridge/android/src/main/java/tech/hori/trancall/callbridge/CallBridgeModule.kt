@@ -16,8 +16,6 @@
 // canonical: docs/native-call-bridge.md §7.1 (CallBridge JS API), §5 (Android Telecom)
 package tech.hori.trancall.callbridge
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioManager
 import android.net.Uri
@@ -32,7 +30,6 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.lang.ref.WeakReference
 
 private const val EVENT_NAME = "onCallBridgeEvent"
-private const val CALL_CHANNEL_ID = "trancall_call_channel"
 
 class CallBridgeModule : Module() {
 
@@ -47,7 +44,10 @@ class CallBridgeModule : Module() {
     OnCreate {
       instance = WeakReference(this@CallBridgeModule)
       PhoneAccounts.register(context)
-      ensureNotificationChannel(context)
+      // M-6: channel 作成ロジック本体は CallNotificationChannels (CallForegroundService と共有)
+      // に一元化済み。headless (FCM 経由) 起動時にこの OnCreate が先に走らないケースに備え、
+      // CallForegroundService.onStartCommand 側でも同じ ensure を呼ぶ (二重呼び出しは安全)。
+      CallNotificationChannels.ensureCallChannel(context)
     }
 
     OnDestroy {
@@ -110,19 +110,39 @@ class CallBridgeModule : Module() {
       promise.resolve(null)
     }
 
-    // answerCall (§7.1 note): 通常は Telecom UI / heads-up 通知の応答ボタン経由で
-    // Connection.onAnswer() が自動発火するため、JS 側 fallback としてのみ用意。
-    // Android の Connection インスタンスへは ConnectionService からのみアクセス可能なため、
-    // JS から任意の Connection を直接 answer させる公開 API は Telecom framework に存在しない。
-    // ⚠️ device-verification-required: 実質未実装 (Telecom 制約)。
-    AsyncFunction("answerCall") { _: String, promise: Promise ->
-      promise.reject(CallBridgeException("CALL_BRIDGE_CALL_NOT_FOUND", "answerCall from JS is not supported on Android Telecom (use system UI)"))
+    // answerCall (§7.1 note、M-7 対応): 通常は Telecom UI / heads-up 通知の応答ボタン経由で
+    // Connection.onAnswer() が自動発火するため、JS 側は fallback 用途。
+    // Android の Connection インスタンスは ConnectionService (この library module) が
+    // 生成した瞬間から同一プロセス内の通常の Kotlin オブジェクトであるため、
+    // CallConnectionStore (M-7 で新設、G-7 解消) 経由で参照を保持しておけば
+    // `TranCallConnection.answerFromJs()` (= `Connection.onAnswer()` を直接呼ぶ、
+    // 公式 API が public であるため合法) で uuid 指定の応答が可能になる。
+    AsyncFunction("answerCall") { uuid: String, promise: Promise ->
+      val connection = CallConnectionStore.currentConnection()
+      if (connection == null || connection.callUuid != uuid) {
+        promise.reject(
+          CallBridgeException("CALL_BRIDGE_CALL_NOT_FOUND", "No tracked TranCallConnection for uuid=$uuid"),
+        )
+        return@AsyncFunction
+      }
+      connection.answerFromJs()
+      promise.resolve(null)
     }
 
     AsyncFunction("endCall") { uuid: String, promise: Promise ->
-      // Telecom には CallKit の CXCallController 相当の「uuid 指定で外部から終話」公開 API が無い。
-      // TelecomManager.endCall() は「現在アクティブな通話」を終わらせる粒度の API のため、
-      // 単一通話前提の Phase 1a では妥当な近似として使う。
+      // M-7: uuid が一致する追跡中の Connection があれば、それを直接切断する
+      // (`TranCallConnection.endFromJs()` = `Connection.onDisconnect()` を直接呼ぶ、
+      // setDisconnected + destroy() で当該 Connection のみを正確に終話できる)。
+      val connection = CallConnectionStore.currentConnection()
+      if (connection != null && connection.callUuid == uuid) {
+        connection.endFromJs()
+        promise.resolve(null)
+        return@AsyncFunction
+      }
+
+      // フォールバック: 追跡中の Connection が見つからない場合のみ、
+      // Telecom の CallKit CXCallController 相当の「uuid 指定で外部から終話」公開 API が
+      // 無いための近似 (TelecomManager.endCall()、「現在アクティブな通話」粒度、deprecated)。
       val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
       if (telecomManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
         @Suppress("DEPRECATION")
@@ -147,9 +167,14 @@ class CallBridgeModule : Module() {
     }
 
     AsyncFunction("getCurrentCallState") { promise: Promise ->
-      // ⚠️ device-verification-required: 現状 call state の追跡は TranCallConnection 側に閉じており、
-      // Module から横断的に参照する仕組みが未実装 (Sprint 4 で共有 state store を追加予定)。
-      promise.resolve(null)
+      // M-7 (G-7 解消): CallConnectionStore が TranCallConnection と CallBridgeModule の
+      // 両方から参照できる共有 state store として機能する。
+      val state = CallConnectionStore.currentCallState()
+      if (state == null) {
+        promise.resolve(null)
+      } else {
+        promise.resolve(mapOf("uuid" to state.first, "state" to state.second))
+      }
     }
 
     // #H-3: HmacValidator.ts の JS 側 defense-in-depth 検証 (native-call-bridge.md §12.1)
@@ -160,17 +185,6 @@ class CallBridgeModule : Module() {
 
   companion object {
     private var instance: WeakReference<CallBridgeModule>? = null
-
-    private fun ensureNotificationChannel(context: Context) {
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-      val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
-      val channel = NotificationChannel(
-        CALL_CHANNEL_ID,
-        "通話",
-        NotificationManager.IMPORTANCE_HIGH,
-      )
-      manager.createNotificationChannel(channel)
-    }
 
     fun emitDeviceToken(token: String, platform: String) {
       instance?.get()?.sendEvent(
