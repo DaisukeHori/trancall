@@ -3,9 +3,9 @@
 | 項目 | 内容 |
 |---|---|
 | ドキュメント ID | CONTRACT-001 |
-| バージョン | 1.5.0 |
+| バージョン | 1.6.0 |
 | 作成日 | 2026-05-12 |
-| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、Issue #69 でリアルタイム品質トラッキング残課題 4 項目を実装済に同期、Issue #67/#72 で auth/contact facade 拡張・新規 HTTP ルートを実装済に同期) |
+| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、Issue #69 でリアルタイム品質トラッキング残課題 4 項目を実装済に同期、Issue #67/#72 で auth/contact facade 拡張・新規 HTTP ルートを実装済に同期、M-1/M-9/P-2 実装完了に同期) |
 | 対象 | Sprint 0 + Layer 1 完了モジュール + Sprint 2 D5/D7/D8 設計フェーズで拡張する billing / auth / shared-kernel 契約 |
 | 将来追加対象 | Sprint 3 で `packages/billing/src/facade.ts` (拡張 7 メソッド) / `packages/auth/src/facade.ts` (拡張 4 メソッド) / `packages/shared-kernel/src/schemas/native-call.ts` (新規) を実装、実装完了状態に同期 |
 
@@ -527,6 +527,14 @@ EventBus (in-process) は **server プロセス内** の購読しか届かない
 | `translation.degraded` | UI に degraded バッジ表示 | translation-agent | degraded 判定瞬間 1 回 |
 | `translation.recovered` | UI を normal 表示に復帰 | translation-agent | recovered 判定瞬間 1 回 |
 
+上記 3 種は topic `translation.status` の discriminated union で配信する。M-9 で追加した以下の 1 種は **別 topic** で配信する (通話課金の残量情報を字幕系イベントと混在させないため):
+
+| topic | event | 用途 | 発行元 | 発行頻度 |
+|---|---|---|---|---|
+| `billing.status` | `{ shouldContinue: boolean, remainingMinutes: number }` | 通話中残量ライブ表示 (M-10 が購読) | translation-agent | heartbeat 応答受信のたび (`heartbeatIntervalMs`、デフォルト 30 秒ごと) |
+
+`billing.status` の発行元は `TranslationSession.sendHeartbeat()` (`apps/translation-agent/src/translation-session.ts`) が `POST /internal/translation/heartbeat` の応答 (M-9 §7.4.2 参照) を受けて `"billing-status"` イベントを emit し、`agent.ts` の `session.on("billing-status", ...)` が `publishBillingStatusChannelData()` で `reliable: true` 送信する (`translation.status` と同じ best-effort 方針)。`shouldContinue=false` の場合は同時に翻訳セッションが `insufficient_balance` で停止するが、Data Channel publish 自体は `shouldContinue` の真偽に関わらず毎回行う。
+
 Data Channel は **reliable** モードで送信 (字幕損失防止)。バイト数を抑えるため flat な discriminated union:
 
 ```ts
@@ -796,18 +804,16 @@ Server 処理: `trancall_event.translation_sessions` に INSERT。`outputLanguag
   endedAt: ISO8601,
   durationMs: int (>=0),
   billableSeconds: int (>=0),  // ceil(durationMs / 1000)
-  reason: "participant_left" | "agent_shutdown" | "openai_fatal_error" | "client_requested" | "agent_publish_failed"
+  reason: "participant_left" | "agent_shutdown" | "openai_fatal_error" | "client_requested" | "agent_publish_failed" | "insufficient_balance"
 }
 ```
 Server 処理: `trancall_event.translation_sessions` を update。**フィールド `reason` → DB 列 `ended_reason` へマッピング** (DB 列名は予約語回避とセマンティクス明示のため別名を採用、`supabase/migrations/00002_add_translation_sessions_table.sql` のコメント参照)。
 
-`agent_publish_failed` は v1.1.0 で **契約上拡張** (Agent → LiveKit Track publish が連続失敗した場合の終了理由、判定条件は `docs/translation-pipeline-design.md` §10.3)。本 v1.1.0 時点で **実装側 Zod schema は未同期**:
-- `apps/translation-agent/src/internal-api-client.ts` L52-57 の `TranslationSessionEndedSchema.reason` は 4 値のまま
-- `packages/translation/src/schemas.ts` の Server 側 `AgentEventSchema` 内 session_ended も 4 値のまま
+`agent_publish_failed` は v1.1.0 で **契約上拡張** (Agent → LiveKit Track publish が連続失敗した場合の終了理由、判定条件は `docs/translation-pipeline-design.md` §10.3)。T8 (Sprint 2) で実装側 Zod schema (`apps/translation-agent/src/internal-api-client.ts` の `TranslationSessionEndedSchema.reason` / `packages/translation/src/schemas.ts` の `TranslationSessionEndedReasonSchema`) と同期済み。
 
-これらは `docs/translation-pipeline-design.md` §11 T8 (Sprint 2) で 5 値に同期する。本書 (canonical) は **契約 = 5 値** が正で、実装側は同期待ち状態。
+`insufficient_balance` は M-9 で **契約上拡張** (heartbeat 応答 `shouldContinue=false`、残高不足による翻訳セッション停止理由、`docs/billing-detail.md`「通話中断時のフロー」)。通話自体は継続し翻訳のみ停止する。実装側 Zod schema (上記 2 ファイル) は同期済み (reason enum は計 6 値)。
 
-Server で `translation.ended` DomainEvent を発行 → billing が購読して `recordUsage` (将来実装)。
+Server で `translation.ended` DomainEvent を発行 → billing が購読して `recordUsage` (実装済み、`apps/server/src/adapters/usage-metering-subscriber.ts`)。
 
 #### 7.4.3 `transcript.delta`
 ```ts
@@ -893,6 +899,7 @@ Agent 側 (`apps/translation-agent/src/internal-api-client.ts`) の Zod schema �
 | 2026-05-12 | 1.0.0 | 初版作成 (Layer 1 完了時点の canonical 抽出) |
 | 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、§3.1 表の当該行を 2 系統並列 (EventBus + LiveKit Data Channel) に更新、§7.4.2 session_ended の `reason` enum に `agent_publish_failed` を **契約上追加** (実装側 Zod 同期は T8 で実施)、§7.4.4 `openAIFirstDelta` のコメントを公式仕様 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正、ヘッダーのバージョン 1.0.0 → 1.1.0、`AgentJobId` を `z.uuid()` で当面運用 (Sprint 2 で brand 化予定)、EventBus / Data Channel 両系統で `timestamp` キー名を統一。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。`architecture.md` §5.3 の旧 Track 名 `mic-a` 表記は本 PR スコープ外、Sprint 2 別 PR で `raw-{participantId}` 形式に統一予定。|
 | 2026-05-12 | 1.3.0 | Sprint 2 D5/D7/D8 設計フェーズ統合: **§2.1 AuthFacade 拡張** (`recordConsent` / `hasConsent` / `revokeConsent` / `getRequiredConsents` 4 メソッド追加、`ConsentRepository` / `LegalDocumentVersionRepository` を要求、`docs/legal-and-consent.md` v1.1 §3 §4 が canonical)。**§2.3 BillingFacade 拡張** (`getPlanComparison` / `previewUpgrade` / `recordIapTransaction` / `startExternalPurchase` / `completeExternalPurchase` / `cancelSubscription` / `restorePurchases` 7 メソッド追加、`ExternalPurchaseTokenRepository` を要求、`docs/billing-ui-flow.md` v1.2 §5 が canonical)。**§3.1 DomainEvent 追加** (`billing.subscription_upgraded` / `billing.subscription_canceled` / `auth.consent_recorded` / `auth.consent_revoked` 4 種)。**§5 Error Code 追加** (`AUTH_CONSENT_REVOKED` / `AUTH_LEGAL_DOC_UNAVAILABLE` / `AUTH_CONSENT_VERSION_MISMATCH` / `AUTH_CONSENT_IRREVOCABLE` / `BILLING_IAP_RECEIPT_INVALID` / `BILLING_UPGRADE_PREVIEW_FAILED` / `BILLING_RESTORE_NO_PURCHASE` / `BILLING_INVALID_PLAN_CHANGE` 8 種)。新規 DB schema 所有 (billing が `trancall_billing.external_purchase_tokens`、auth が `trancall_auth.user_consents` を追加所有、Sprint 3 migration 00007/00008 で実装)。すべて設計書としての契約定義であり、実装側 (`packages/auth/src/facade.ts` / `packages/billing/src/facade.ts` / migrations) は Sprint 3 で順次実装、v1.4.0 で実装完了状態に同期する。v1.2.0 は欠番 (D5 単独 PR 時に未発行、D5+D7+D8 を本 v1.3.0 で統合)。|
+| 2026-07-12 | 1.6.0 | **未Issue化課題 M-1/M-9/P-2 実装完了に同期**。(1) **M-9 heartbeat 完全版**: `POST /internal/translation/heartbeat` が `{ok:true}` のみ返す簡易版から、billing facade 経由で残量を算出し `{shouldContinue, remainingMinutes}` を返す完全版に変更 (`docs/billing-detail.md`「通話中: heartbeat」step 2, 5 準拠)。`HeartbeatPayload` に `roomId` を追加 (billing 予約の userId 解決に必要、`RoomReservationSessionRepository.findByRoomId` を usage-metering-subscriber.ts (#46) と共用)。shouldContinue は既存の `billing.canStartCall` (残り1分以上 OR 支払い方法ありの超過課金プラン) を再利用。§7.4.2 `session_ended` の `reason` enum に `insufficient_balance` を追加 (heartbeat shouldContinue=false による翻訳セッション停止、`apps/translation-agent/src/translation-session.ts` の `sendHeartbeat()`/`end()` が対応)。**§3.4 に新規 topic `billing.status` を追加** (`{shouldContinue, remainingMinutes}`、mobile 側 M-10 の通話中残量ライブ表示と対をなすクロスモジュール契約、`TranslationSession` の `"billing-status"` イベント → `agent.ts` の `publishBillingStatusChannelData()` で publish)。(2) **M-1 previewUpgrade**: `packages/billing/src/adapters/stripe-adapter.ts` に残っていた未使用の `previewUpgrade` スタブ (proratedAmountYen:0/currentTier:'free' 固定) を削除。実装は既に `stripe-web-checkout-adapter.ts` の `getUpgradePreview` (`stripe.invoices.retrieveUpcoming` による実日割り計算) に一本化済みで facade から正しく呼ばれていたが、テストカバレッジが無かったため追加。(3) **P-2 storekit-external/report**: `BillingFacade.reportExternalPurchaseTransaction` を新規追加 (`ExternalPurchaseAdapter.reportMonthlyTransaction` に委譲、externalPurchaseToken の所有者/stripeSessionId 一致検証後 Apple 月次レポートキューへ登録)。`POST /api/billing/storekit-external/report` (`docs/api-spec.md`) を実装し「未実装 (Phase 2 予定)」の注記を解消。(4) **M-8 (調査のみ、実装変更なし)**: `apple-iap-adapter.ts` (Webhook 解析) と `iap-adapter.ts` (Client Transaction 検証) の「二重実装」課題を調査した結果、両者は productId マッピングを canonical (`APPLE_IAP_PRODUCT_ID_MAP`) に既に一本化済みで、責務分離 (Webhook vs Transaction) が正しい設計であることを確認。未使用の重複ヘルパー (`mapProductIdToTier` / `APPLE_PRODUCT_ID_MAP` 再エクスポート) のみ削除。(5) **L-12 (調査のみ、変更なし)**: `computeHistoryAverageMinutes` (通話履歴平均を pre-call 見積りの想定分数に使用、5 件未満は `DEFAULT_EXPECTED_MINUTES=15` にフォールバック) が既に実装・配線済みであることを確認、`docs/billing-ui-flow.md` §10.1 準拠。|
 | 2026-07-11 | 1.5.0 | **Issue #67 / #72 (auth/contact facade バイパス是正・エラー握りつぶし是正・新規 HTTP ルート) 実装完了に同期**。(1) **§2.1 AuthFacade**: 5 メソッド追加 — `publishUserRegistered` (Issue #67、`auth.user_registered` DomainEvent 発行の副作用のみ)、`updateProfile` / `recordLegacyConsentVersion` / `getProfileDeletionStatus` / `setProfileDeletedAt` (Issue #72.1、直接 supabase 呼び出しを facade 経由に是正)。要求 Repository に `ProfileWriteRepository` / `LegacyConsentRepository` / `ProfileDeletionRepository` (+ `ProfileUpdateFields` / `ProfileDeletionStatus` 型) を「省略可能な追加依存」として追加 (§4.1 にも反映、未注入時は `AUTH_PROFILE_WRITE_NOT_CONFIGURED` / `AUTH_CONSENT_NOT_CONFIGURED`)。(2) **§2.4 ContactFacade**: `listContacts` の戻り型を `Promise<ContactEntry[]>` → `Promise<Result<ContactEntry[], AppError>>` に変更 (Issue #72.2、旧実装が DB エラーを空配列と誤認して握りつぶしていた問題の是正。呼び出し元 `GET /api/contacts` も 500 伝播に対応済)。`consumeInviteLink` を呼ぶ新規 HTTP ルート `POST /api/contacts/invites/:token/consume` (Issue #72.4) を追加 (`docs/api-spec.md` にも記載)。(3) **§3.3**: `UserRegisteredEvent` の payload schema 参照を「Layer 3 で追加予定」から実装済 (`packages/auth/src/events.ts` の `AuthUserRegisteredEventSchema`、`AuthDomainEvent` union に `auth.user_registered` を含む) に更新 (Issue #67)。いずれもコード (`packages/auth/src/facade.ts` / `events.ts`、`packages/contact/src/facade.ts`、`apps/server/src/routes/contact-routes.ts`) が正で、本書はそれに同期。|
 | 2026-07-11 | 1.4.0 | **Issue #69 (リアルタイム品質トラッキング残課題 4 項目) 実装完了に同期**。(1) **§2.8 RoomFacade**: `createCall`/`joinCall` に `ROOM_USER_BLOCKED` (ブロック関係チェック) / `ROOM_FULL` (`ROOM_MAX_PARTICIPANTS=50` 定員チェック、`packages/room/src/constants.ts`) の実装を反映。新規 `BlockListRepository` (room 自己定義、`@trancall/contact` の `block_list` への read-only view、`ProfileSearchRepository` §4.4 と同型パターン) を要求 Repository に追加。(2) **§2.6 TranscriptFacade**: `grantAccess` メソッド新規追加 (insert-if-absent、冪等)。**§3.1**: `room.participant_joined` の購読モジュールに transcript を追加 (`apps/server/src/adapters/transcript-access-subscriber.ts` が room.getState + transcript.grantAccess を組み合わせるオーケストレーション、room→transcript 直接依存は追加しない)。**§4.6**: `AccessRepository` に `grant` メソッド追加。(3) `apps/translation-agent`: `TranslationSession.end()` が LiveKit `LocalAudioTrack.unpublishTrack` / `AudioSource.close` (`LocalAudioTrack.close(true)` 経由) を呼ぶよう修正 (`attachPublishedAudioResources()` で agent.ts から cleanup コールバックを注入)。旧実装はセッション終了時にこれらを一切呼んでおらずリソースリークしていた。(4) `apps/translation-agent`: `InternalApiClient.postHeartbeat` を新規追加し `TranslationSession` が `heartbeatIntervalMs` (デフォルト 30000ms、`docs/billing-detail.md` の heartbeat 30秒間隔に整合) ごとに `POST /internal/translation/heartbeat` (既存の server 側受信実装 `apps/server/src/routes/agent-routes.ts` の `HeartbeatBodySchema` に合わせた `agentJobId`/`sessionId`/`alive: true`/`occurredAt`/`metrics?` payload、既存の HMAC 署名方式を流用) を送信するよう実装。エージェント側ハートビート送信が従来存在しなかった。|
 

@@ -19,14 +19,12 @@
 
 **対処タイミング**: Sprint 4 で退会 API (`POST /api/account/delete`) のサーバー実装時に方針を確定。
 
-### 2.2 IAP adapter 2 実装統合 (T-7 連動)
+### 2.2 IAP adapter 2 実装統合 (T-7 連動) — 対処済み (M-8)
 
-- `packages/billing/src/adapters/apple-iap-adapter.ts` (Webhook 処理、旧 productId 形式 `trancall_light_monthly`)
-- `packages/billing/src/adapters/iap-adapter.ts` (StoreKit 2 Transaction 検証、canonical `com.trancall.subscription.light.monthly`)
+- `packages/billing/src/adapters/apple-iap-adapter.ts` (Webhook 処理)
+- `packages/billing/src/adapters/iap-adapter.ts` (StoreKit 2 Transaction 検証)
 
-両 adapter に JSDoc TODO は記録済。Sprint 4 で canonical 形式 (`com.trancall.subscription.*.monthly`) に統合する。
-
-**対処タイミング**: Sprint 4。
+**対処**: 再調査の結果、productId マッピングは既に canonical 形式 (`com.trancall.subscription.{light,standard,business}.monthly`) の単一ソース (`iap-adapter.ts` の `APPLE_IAP_PRODUCT_ID_MAP`) に一本化済みであることを確認 (`apple-iap-adapter.ts` はこれを import して使用)。2 adapter は「二重実装」ではなく、Apple → Server の Webhook 通知解析 (署名検証なし) と Client (StoreKit 2) → Server の Transaction 検証 (x5c 署名検証あり) という異なる責務を持つ独立した adapter であり、統合ではなく分離が正しい設計と判断した。未使用の重複ヘルパー (`mapProductIdToTier` / `APPLE_PRODUCT_ID_MAP` 再エクスポート) のみ削除した。本項目はクローズ。
 
 ### 2.3 `apps/server/src/config.ts` 関連
 
@@ -43,9 +41,13 @@ T-9 Round 2 で指摘された mock 501 が `ok({contentBase64, mime, filename})
 
 T-10 が `apps/server/src/middleware/error-handler.ts` に追加した `AUTH_CONSENT_REVOKE_FORBIDDEN: 403` は canonical `AUTH_CONSENT_IRREVOCABLE: 422` と重複。実コードパスでは未到達 (T-6 facade が `AUTH_CONSENT_IRREVOCABLE` を返す)。Sprint 4 で error-handler.ts から削除推奨。
 
-### 2.6 `/internal/translation/heartbeat` 未実装
+### 2.6 `/internal/translation/heartbeat` 未実装 — 対処済み (M-9)
 
-`docs/api-spec.md` で定義されているが T-10 スコープ外として未実装。Sprint 3 後半で Vercel/Render 経由 heartbeat 通知用に別タスクとして実装する。
+**対処**: エンドポイント自体は Sprint 3 後半で実装されたが、`{ok:true}` のみ返す簡易版に留まっていた。
+M-9 で billing facade 経由の残量算出 (`{shouldContinue, remainingMinutes}`) を実装し、Agent 側
+(`apps/translation-agent/src/translation-session.ts`) が `shouldContinue=false` (残高不足) を
+受けて `insufficient_balance` 理由で翻訳セッションを停止するよう対応した (`docs/billing-detail.md`
+「通話中: heartbeat」「通話中断時のフロー」準拠)。本項目はクローズ。
 
 ### 2.7 EventBus DomainEvent union に Translation 系イベント追加
 
@@ -59,9 +61,13 @@ T-24 実装で `maxLength={1000}` 採用、サーバー側 `SupportInquirySchema
 
 **対処方針**: Sprint 4 で 5000 文字に統一 (canonical 設計書優先)。
 
-### 2.9 PreCallCostEstimate `DEFAULT_EXPECTED_MINUTES = 15`
+### 2.9 PreCallCostEstimate `DEFAULT_EXPECTED_MINUTES = 15` — 対処済み (L-12)
 
-T-17 で hardcode。`docs/billing-ui-flow.md §10.1` に「通話履歴平均で置き換える」記載あり。Sprint 4 で履歴分析ロジック実装時に置き換え。
+**対処**: 再調査の結果、`apps/mobile/src/stores/billing-store.ts` の `computeHistoryAverageMinutes`
+(直近 10 件中 5 件以上あれば平均分数を使用、`docs/billing-ui-flow.md §10.1` 準拠) が既に実装され、
+`pre-call-screen.tsx` から `useRecentCallsStore` (実 `GET /api/rooms/history` 結合) 経由で配線済み
+であることを確認した。`DEFAULT_EXPECTED_MINUTES = 15` は履歴 5 件未満の場合のみ使われる fallback
+として意図通り残っている。本項目はクローズ。
 
 ### 2.10 `zh-ja` quality-qa fixture 不足
 

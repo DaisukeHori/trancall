@@ -126,6 +126,8 @@ export async function buildApp(
     config,
     eventBus: container.eventBus,
     supabase: container.supabase,
+    // M-9: heartbeat の shouldContinue/remainingMinutes 算出で roomId → userId 解決に使う
+    roomReservationSessionRepo: container.roomReservationSessionRepo,
   });
 
   // 起動ログ

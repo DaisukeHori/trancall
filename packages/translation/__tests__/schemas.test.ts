@@ -22,17 +22,19 @@ const occurredAt = "2026-05-12T00:00:00.000Z";
 // #49: TranslationSessionEndedReasonSchema / SessionEndedPayloadSchema
 //
 // apps/translation-agent/src/internal-api-client.ts の TranslationSessionEndedSchema.reason
-// (module-contracts.md §7.4.2) と 5 値で同期していることを検証する。
+// (module-contracts.md §7.4.2) と 6 値で同期していることを検証する。
 // この非同期により session_ended が 400 になり課金セッションが閉じない問題があった。
+// M-9: insufficient_balance (heartbeat shouldContinue=false による翻訳停止) を追加。
 // =============================================================================
 
-describe("#49: TranslationSessionEndedReasonSchema (reason enum 5値)", () => {
+describe("#49/M-9: TranslationSessionEndedReasonSchema (reason enum 6値)", () => {
   const validReasons = [
     "participant_left",
     "agent_shutdown",
     "openai_fatal_error",
     "client_requested",
     "agent_publish_failed",
+    "insufficient_balance",
   ] as const;
 
   it.each(validReasons)("reason=%s を受理する", (reason) => {
@@ -62,6 +64,14 @@ describe("#49: SessionEndedPayloadSchema (Agent → Server /internal/agent/event
     const result = SessionEndedPayloadSchema.safeParse({
       ...basePayload,
       reason: "agent_publish_failed",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("reason=insufficient_balance でパース成功する (M-9: 6値目、heartbeat 残高不足による翻訳停止)", () => {
+    const result = SessionEndedPayloadSchema.safeParse({
+      ...basePayload,
+      reason: "insufficient_balance",
     });
     expect(result.success).toBe(true);
   });

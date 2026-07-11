@@ -186,6 +186,159 @@ describe("StripeWebCheckoutAdapter.createCheckoutSession", () => {
   });
 });
 
+// =============================================================================
+// M-1: アップグレード日割りプレビュー (Stripe proration preview)
+// =============================================================================
+
+describe("StripeWebCheckoutAdapter.getUpgradePreview (M-1)", () => {
+  it("同一プランへの変更は BILLING_INVALID_PLAN_CHANGE を返す", async () => {
+    const adapter = createStripeWebCheckoutAdapter(config);
+    const result = await adapter.getUpgradePreview("sub_test", "standard", "standard");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("BILLING_INVALID_PLAN_CHANGE");
+  });
+
+  it("Free プランからの upgrade (stripeSubscriptionId=null) は proratedAmountYen=0 を返す", async () => {
+    const adapter = createStripeWebCheckoutAdapter(config);
+    const result = await adapter.getUpgradePreview(null, "free", "light");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.currentTier).toBe("free");
+    expect(result.data.targetTier).toBe("light");
+    expect(result.data.proratedAmountYen).toBe(0);
+    expect(result.data.effectiveImmediately).toBe(true);
+    expect(result.data.confirmationRequired).toBe(true);
+  });
+
+  it("currentTier=free (stripeSubscriptionId が指定されていても) は proratedAmountYen=0 を返す", async () => {
+    const adapter = createStripeWebCheckoutAdapter(config);
+    // Free プランは Stripe subscription を持たないはずだが、念のため
+    // currentTier === "free" 側の分岐も検証する (防御的分岐)。
+    const result = await adapter.getUpgradePreview("sub_test", "free", "standard");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.proratedAmountYen).toBe(0);
+  });
+
+  it("正常系: 有料プラン間 upgrade は stripe.invoices.retrieveUpcoming の amount_due を日割り額として返す", async () => {
+    const Stripe = await import("stripe");
+    const retrieveSubscription = vi.fn().mockResolvedValue({
+      id: "sub_test",
+      current_period_end: 1_702_600_000,
+      items: { data: [{ id: "si_test" }] },
+    });
+    const retrieveUpcoming = vi.fn().mockResolvedValue({ amount_due: 1240, currency: "jpy" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(() => ({
+      checkout: { sessions: { create: vi.fn(), retrieve: vi.fn() } },
+      subscriptions: { retrieve: retrieveSubscription },
+      invoices: { retrieveUpcoming },
+    }));
+
+    const adapter = createStripeWebCheckoutAdapter(config);
+    const result = await adapter.getUpgradePreview("sub_test", "light", "standard");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.currentTier).toBe("light");
+    expect(result.data.targetTier).toBe("standard");
+    expect(result.data.proratedAmountYen).toBe(1240);
+    expect(result.data.nextBillingDate).toBe(new Date(1_702_600_000 * 1000).toISOString());
+    expect(result.data.effectiveImmediately).toBe(true);
+    expect(result.data.confirmationRequired).toBe(true);
+
+    // Stripe へ渡すパラメータ (対象 price / proration behavior) を検証
+    expect(retrieveUpcoming).toHaveBeenCalledWith({
+      subscription: "sub_test",
+      subscription_items: [{ id: "si_test", price: "price_standard" }],
+      subscription_proration_behavior: "create_prorations",
+    });
+  });
+
+  it("invoice.amount_due が負値の場合は proratedAmountYen=0 にクランプする", async () => {
+    const Stripe = await import("stripe");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(() => ({
+      checkout: { sessions: { create: vi.fn(), retrieve: vi.fn() } },
+      subscriptions: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: "sub_test",
+          current_period_end: 1_702_600_000,
+          items: { data: [{ id: "si_test" }] },
+        }),
+      },
+      invoices: {
+        retrieveUpcoming: vi.fn().mockResolvedValue({ amount_due: -500, currency: "jpy" }),
+      },
+    }));
+
+    const adapter = createStripeWebCheckoutAdapter(config);
+    const result = await adapter.getUpgradePreview("sub_test", "standard", "business");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.proratedAmountYen).toBe(0);
+  });
+
+  it("targetTier の Price ID が未設定の場合は BILLING_UPGRADE_PREVIEW_FAILED を返す", async () => {
+    const adapter = createStripeWebCheckoutAdapter({
+      ...config,
+      priceIds: { light: "price_light", standard: "", business: "price_business" },
+    });
+    const result = await adapter.getUpgradePreview("sub_test", "light", "standard");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("BILLING_UPGRADE_PREVIEW_FAILED");
+  });
+
+  it("Stripe Subscription に items が無い場合は BILLING_UPGRADE_PREVIEW_FAILED を返す", async () => {
+    const Stripe = await import("stripe");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(() => ({
+      checkout: { sessions: { create: vi.fn(), retrieve: vi.fn() } },
+      subscriptions: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: "sub_test",
+          current_period_end: 1_702_600_000,
+          items: { data: [] },
+        }),
+      },
+      invoices: { retrieveUpcoming: vi.fn() },
+    }));
+
+    const adapter = createStripeWebCheckoutAdapter(config);
+    const result = await adapter.getUpgradePreview("sub_test", "light", "standard");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("BILLING_UPGRADE_PREVIEW_FAILED");
+  });
+
+  it("異常系: Stripe API 失敗時は BILLING_UPGRADE_PREVIEW_FAILED を返す", async () => {
+    const Stripe = await import("stripe");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(() => ({
+      checkout: { sessions: { create: vi.fn(), retrieve: vi.fn() } },
+      subscriptions: {
+        retrieve: vi.fn().mockRejectedValue(new Error("network error")),
+      },
+      invoices: { retrieveUpcoming: vi.fn() },
+    }));
+
+    const adapter = createStripeWebCheckoutAdapter(config);
+    const result = await adapter.getUpgradePreview("sub_test", "light", "standard");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("BILLING_UPGRADE_PREVIEW_FAILED");
+  });
+});
+
 describe("StripeWebCheckoutAdapter.retrieveCheckoutSession (#44)", () => {
   it("正常系: paymentStatus/subscriptionId を返す", async () => {
     const adapter = createStripeWebCheckoutAdapter(config);

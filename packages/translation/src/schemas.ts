@@ -20,9 +20,13 @@ import {
 // TranslationSessionEndedReason — session_ended / usage / record 共通の終了理由 enum
 //
 // #49: apps/translation-agent/src/internal-api-client.ts の
-// TranslationSessionEndedSchema.reason (module-contracts.md §7.4.2) と 5 値で同期する。
+// TranslationSessionEndedSchema.reason (module-contracts.md §7.4.2) と 6 値で同期する。
 // ここで一元管理し、SessionEndedPayloadSchema / TranslationSessionRecordSchema /
 // TranslationUsageSchema の 3 箇所で使い回すことで将来の非同期を防ぐ。
+//
+// M-9: `insufficient_balance` は heartbeat 応答 (shouldContinue=false、残高不足) を
+// 受けて Agent が翻訳セッションを停止する際の終了理由として追加 (docs/billing-detail.md
+// 「通話中断時のフロー」)。通話自体は継続し、翻訳のみ停止する。
 // =============================================================================
 
 export const TranslationSessionEndedReasonSchema = z.enum([
@@ -31,6 +35,7 @@ export const TranslationSessionEndedReasonSchema = z.enum([
   "openai_fatal_error",
   "client_requested",
   "agent_publish_failed",
+  "insufficient_balance",
 ]);
 export type TranslationSessionEndedReason = z.infer<typeof TranslationSessionEndedReasonSchema>;
 

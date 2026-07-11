@@ -9,6 +9,8 @@
  *   2 段階構成 (ExternalPurchaseTokenRepository.createToken + deep link URL 生成)
  * - validateAndConsumeRedirectToken: redirectToken 検証 (TTL / 使用済みチェック) + Stripe 経由 subscription 更新
  * - Apple External Purchase Server API への取引報告 (§15.7)
+ * - reportMonthlyTransaction: [P-2] Apple StoreKit External Purchase 取引の月次レポート受付
+ *   (docs/api-spec.md 「POST /api/billing/storekit-external/report」canonical 準拠)
  *
  * adapters/* 内では型アサーション例外許可 (CLAUDE.md)。
  */
@@ -18,7 +20,11 @@ import type { Result, UserId } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
 
 import type { PlanTier } from "../schemas.ts";
-import type { StoreKitExternalRedirectResult } from "../view-models/index.ts";
+import type {
+  StoreKitExternalRedirectResult,
+  StoreKitExternalReportCommand,
+  StoreKitExternalReportResult,
+} from "../view-models/index.ts";
 import type { ExternalPurchaseTokenRepository } from "../repositories/external-purchase-token-repository.ts";
 
 // =============================================================================
@@ -189,6 +195,66 @@ export function createExternalPurchaseAdapter(
         stripeSessionId: tokenRow.stripeSessionId,
       });
     },
+
+    /**
+     * [P-2] Apple StoreKit External Purchase 取引の月次レポート受付。
+     * docs/api-spec.md 「POST /api/billing/storekit-external/report」canonical 準拠。
+     *
+     * `command.externalPurchaseToken` は ExternalPurchaseAdapter が発行した redirectToken
+     * (`generateRedirectToken()` / `persistRedirectToken()`) を指す。取引が実在し
+     * 呼び出しユーザーの所有物であることを `tokenRepo.findByToken` で確認してから
+     * Apple 月次レポートキューへ登録する (フォージされた取引データの混入防止)。
+     *
+     * @param userId 呼び出し元 (実際にリクエストしている) ユーザー ID
+     * @param command 報告する取引情報
+     */
+    async reportMonthlyTransaction(
+      userId: UserId,
+      command: StoreKitExternalReportCommand,
+    ): Promise<Result<StoreKitExternalReportResult>> {
+      // Step 1: トークンが実在し、報告対象の取引と紐づいていることを確認する
+      const findResult = await tokenRepo.findByToken(command.externalPurchaseToken);
+      if (!findResult.ok) {
+        return err({
+          code: "BILLING_PAYMENT_FAILED",
+          message: "externalPurchaseToken が見つかりません",
+          retryable: false,
+        });
+      }
+      const tokenRow = findResult.data;
+
+      // Step 2: 所有者一致確認 (なりすまし/誤送信防止)
+      if (tokenRow.userId !== userId) {
+        return err({
+          code: "BILLING_PAYMENT_FAILED",
+          message: "externalPurchaseToken の所有者が一致しません",
+          retryable: false,
+        });
+      }
+
+      // Step 3: stripeSessionId の一致確認 (別取引への誤報告防止)
+      if (tokenRow.stripeSessionId !== command.stripeSessionId) {
+        return err({
+          code: "VALIDATION_ERROR",
+          message: "stripeSessionId が externalPurchaseToken と一致しません",
+          retryable: false,
+        });
+      }
+
+      // Step 4: Apple 月次レポートキューへ登録
+      // Phase 1a: ログ出力のみ (Phase 1b で実際の Apple External Purchase Server API
+      // 呼び出しに差し替え。reportExternalPurchaseStart / reportExternalPurchaseComplete と同じ方針)。
+      reportExternalPurchaseMonthly({
+        userId,
+        targetTier: tokenRow.targetTier,
+        stripeSessionId: command.stripeSessionId,
+        amountYen: command.amountYen,
+        occurredAt: command.occurredAt,
+        appleApiUrl: config.appleExternalPurchaseApiUrl,
+      });
+
+      return ok({ queuedForAppleReport: true });
+    },
   };
 }
 
@@ -223,6 +289,31 @@ interface ExternalPurchaseCompleteParams {
   stripeSessionId: string;
   stripeSubscriptionId: string;
   appleApiUrl: string | undefined;
+}
+
+interface ExternalPurchaseMonthlyReportParams {
+  userId: string;
+  targetTier: PlanTier;
+  stripeSessionId: string;
+  amountYen: number;
+  occurredAt: string;
+  appleApiUrl: string | undefined;
+}
+
+/**
+ * [P-2] Apple StoreKit External Purchase 取引の月次レポートをキューに登録する。
+ * Phase 1a: ログ出力のみ (Apple は毎月請求書を送付し、開発者は 30 日以内に支払う運用のため、
+ * 実際の Apple External Purchase Server API 呼び出しは Phase 1b で実装する)。
+ */
+function reportExternalPurchaseMonthly(params: ExternalPurchaseMonthlyReportParams): void {
+  // Phase 1a: ログ出力のみ
+  // Phase 1b: POST https://api.storekit.itunes.apple.com/externalPurchase/v1/report (monthly)
+  const apiNote = params.appleApiUrl !== undefined ? ` (API: ${params.appleApiUrl})` : " (Phase 1a: log only)";
+  console.log(
+    `[ExternalPurchase] MONTHLY report: userId=${params.userId} tier=${params.targetTier}` +
+      ` session=${params.stripeSessionId} amountYen=${params.amountYen}` +
+      ` occurredAt=${params.occurredAt}${apiNote}`,
+  );
 }
 
 function reportExternalPurchaseComplete(

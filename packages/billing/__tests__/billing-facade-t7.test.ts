@@ -10,6 +10,7 @@
  * - cancelSubscription (正常系 1, 異常系 1: IAP 即時キャンセル不可)
  * - restorePurchases (正常系 2, 異常系 1)
  * - 二重消費防止テスト (markUsed race condition)
+ * - reportExternalPurchaseTransaction (P-2, 正常系 1, 異常系 2)
  */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -303,6 +304,7 @@ function makeMockExternalPurchaseAdapter(overrides: {
   generateRedirectToken?: unknown;
   persistRedirectToken?: unknown;
   validateAndConsumeRedirectToken?: unknown;
+  reportMonthlyTransaction?: unknown;
 } = {}): ExternalPurchaseAdapter {
   return {
     // [#44] Stripe Checkout Session 作成前に呼ばれる同期メソッド
@@ -321,6 +323,11 @@ function makeMockExternalPurchaseAdapter(overrides: {
         targetTier: "standard",
         stripeSessionId: "cs_ext_001",
       },
+    }),
+    // [P-2] Apple StoreKit External Purchase 月次レポート受付
+    reportMonthlyTransaction: overrides.reportMonthlyTransaction ?? vi.fn().mockResolvedValue({
+      ok: true,
+      data: { queuedForAppleReport: true },
     }),
   } as unknown as ExternalPurchaseAdapter;
 }
@@ -1316,6 +1323,90 @@ describe("ExternalPurchaseTokenRepository.markUsed — 二重消費防止", () =
     const facade = createBillingFacade(deps);
 
     const result = await facade.completeExternalPurchase(userId, redirect);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("BILLING_PAYMENT_FAILED");
+  });
+});
+
+// =============================================================================
+// テスト: reportExternalPurchaseTransaction (P-2)
+// =============================================================================
+
+describe("BillingFacade.reportExternalPurchaseTransaction (P-2)", () => {
+  it("正常系: 境界バリデーション後 externalPurchaseAdapter.reportMonthlyTransaction に委譲する", async () => {
+    const userId = makeUserId();
+    const reportMock = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { queuedForAppleReport: true },
+    });
+    const deps = makeDeps({
+      externalPurchaseAdapter: makeMockExternalPurchaseAdapter({
+        reportMonthlyTransaction: reportMock,
+      }),
+    });
+    const facade = createBillingFacade(deps);
+
+    const command = {
+      externalPurchaseToken: "a".repeat(64),
+      stripeSessionId: "cs_report_001",
+      amountYen: 2980,
+      occurredAt: new Date().toISOString(),
+    };
+    const result = await facade.reportExternalPurchaseTransaction(userId, command);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.queuedForAppleReport).toBe(true);
+    expect(reportMock).toHaveBeenCalledWith(userId, command);
+  });
+
+  it("異常系: 境界バリデーション失敗時 (externalPurchaseToken 欠如) は VALIDATION_ERROR を返し adapter を呼ばない", async () => {
+    const userId = makeUserId();
+    const reportMock = vi.fn();
+    const deps = makeDeps({
+      externalPurchaseAdapter: makeMockExternalPurchaseAdapter({
+        reportMonthlyTransaction: reportMock,
+      }),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.reportExternalPurchaseTransaction(userId, {
+      externalPurchaseToken: "",
+      stripeSessionId: "cs_report_001",
+      amountYen: 2980,
+      occurredAt: new Date().toISOString(),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("VALIDATION_ERROR");
+    expect(reportMock).not.toHaveBeenCalled();
+  });
+
+  it("異常系: adapter がエラーを返した場合そのまま伝播する", async () => {
+    const userId = makeUserId();
+    const deps = makeDeps({
+      externalPurchaseAdapter: makeMockExternalPurchaseAdapter({
+        reportMonthlyTransaction: vi.fn().mockResolvedValue({
+          ok: false,
+          error: {
+            code: "BILLING_PAYMENT_FAILED",
+            message: "externalPurchaseToken の所有者が一致しません",
+            retryable: false,
+          },
+        }),
+      }),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.reportExternalPurchaseTransaction(userId, {
+      externalPurchaseToken: "a".repeat(64),
+      stripeSessionId: "cs_report_001",
+      amountYen: 2980,
+      occurredAt: new Date().toISOString(),
+    });
 
     expect(result.ok).toBe(false);
     if (result.ok) return;

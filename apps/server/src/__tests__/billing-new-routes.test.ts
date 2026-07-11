@@ -8,12 +8,22 @@
  * GET  /api/billing/plan-comparison
  * POST /api/billing/preview-upgrade
  * POST /api/billing/cancel
+ *
+ * P-2 追加:
+ * POST /api/billing/storekit-external/report
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+/* eslint-disable @typescript-eslint/unbound-method --
+ * vi.mocked(container.X.Y) は vitest の定番パターンだが、typescript-eslint の
+ * unbound-method は「メソッド参照を this なしで渡している」と誤検知する
+ * (vi.mocked は呼び出さず型情報のみラップするため実害なし)。ファイル全体で無効化する。
+ */
+
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildTestApp } from "./helpers/test-app.js";
 import { createMockContainer } from "./helpers/mock-container.js";
+import type { AppContainer } from "../container.js";
 
 const AUTH_HEADER = { authorization: "Bearer mock-valid-token" };
 
@@ -32,6 +42,13 @@ async function createApp(): Promise<FastifyInstance> {
   const container = createMockContainer();
   const app = await buildTestApp(container);
   return app;
+}
+
+// P-2: billing mock を個別に上書きしたいテスト用に container も返す
+async function createAppWithContainer(): Promise<{ app: FastifyInstance; container: AppContainer }> {
+  const container = createMockContainer();
+  const app = await buildTestApp(container);
+  return { app, container };
 }
 
 describe("POST /api/billing/iap/transaction", () => {
@@ -297,5 +314,100 @@ describe("POST /api/billing/cancel", () => {
     });
 
     expect(response.statusCode).toBe(401);
+  });
+});
+
+// =============================================================================
+// P-2: POST /api/billing/storekit-external/report
+// =============================================================================
+describe("POST /api/billing/storekit-external/report (P-2)", () => {
+  let app: FastifyInstance;
+  beforeAll(async () => { app = await createApp(); });
+  afterAll(async () => { await app.close(); });
+
+  const validPayload = {
+    externalPurchaseToken: "a".repeat(64),
+    stripeSessionId: "cs_test_report_001",
+    amountYen: 2980,
+    occurredAt: "2026-05-11T10:00:00.000Z",
+  };
+
+  it("有効なペイロードで 200 を返し queuedForAppleReport=true を返す", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/billing/storekit-external/report",
+      headers: AUTH_HEADER,
+      payload: validPayload,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as {
+      ok: boolean;
+      data: { queuedForAppleReport: boolean };
+    };
+    expect(body.ok).toBe(true);
+    expect(body.data.queuedForAppleReport).toBe(true);
+  });
+
+  it("externalPurchaseToken が欠けていたら 400 を返す", async () => {
+    const { externalPurchaseToken: _omit, ...rest } = validPayload;
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/billing/storekit-external/report",
+      headers: AUTH_HEADER,
+      payload: rest,
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("amountYen が負値なら 400 を返す", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/billing/storekit-external/report",
+      headers: AUTH_HEADER,
+      payload: { ...validPayload, amountYen: -100 },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("認証なしで 401 を返す", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/billing/storekit-external/report",
+      payload: validPayload,
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("billing.reportExternalPurchaseTransaction がエラーを返す場合そのエラーコードで応答する", async () => {
+    const { app: isolatedApp, container } = await createAppWithContainer();
+    try {
+      vi.mocked(container.billing.reportExternalPurchaseTransaction).mockResolvedValueOnce({
+        ok: false,
+        error: {
+          code: "BILLING_PAYMENT_FAILED",
+          message: "externalPurchaseToken の所有者が一致しません",
+          retryable: false,
+          httpStatus: 402,
+        },
+      });
+
+      const response = await isolatedApp.inject({
+        method: "POST",
+        url: "/api/billing/storekit-external/report",
+        headers: AUTH_HEADER,
+        payload: validPayload,
+      });
+
+      expect(response.statusCode).toBe(402);
+      const body = JSON.parse(response.body) as { ok: boolean; error: { code: string } };
+      expect(body.ok).toBe(false);
+      expect(body.error.code).toBe("BILLING_PAYMENT_FAILED");
+    } finally {
+      await isolatedApp.close();
+    }
   });
 });
