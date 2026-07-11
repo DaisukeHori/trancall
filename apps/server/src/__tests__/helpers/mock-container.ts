@@ -221,6 +221,8 @@ export function createMockContainer(): AppContainer {
       currentPeriodEnd: new Date().toISOString(),
       cancelAtPeriodEnd: false,
     })),
+    // P-2: POST /api/billing/storekit-external/report
+    reportExternalPurchaseTransaction: vi.fn().mockResolvedValue(ok({ queuedForAppleReport: true })),
   };
 
   // Contact facade mock

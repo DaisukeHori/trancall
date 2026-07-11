@@ -15,6 +15,9 @@
  * GET  /api/billing/plan-comparison          — プラン比較ビュー
  * POST /api/billing/preview-upgrade          — アップグレード日割りプレビュー
  * POST /api/billing/cancel                   — サブスクリプションキャンセル
+ *
+ * P-2 追加:
+ * POST /api/billing/storekit-external/report — Apple StoreKit External Purchase 月次レポート受付
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
@@ -70,6 +73,14 @@ const PreviewUpgradeSchema = z.object({
 
 const CancelSubscriptionSchema = z.object({
   atPeriodEnd: z.boolean().default(true),
+});
+
+// P-2: POST /api/billing/storekit-external/report (docs/api-spec.md 322 行目)
+const StoreKitExternalReportSchema = z.object({
+  externalPurchaseToken: z.string().min(1),
+  stripeSessionId: z.string().min(1),
+  amountYen: z.number().int().nonnegative(),
+  occurredAt: z.iso.datetime(),
 });
 
 // #23: Apple App Store Server Notifications V2 は `{ signedPayload: "<JWS>" }` 形式で届く。
@@ -443,4 +454,36 @@ export function registerBillingRoutes(
     }
     return reply.status(200).send({ ok: true, data: result.data });
   });
+
+  // POST /api/billing/storekit-external/report — P-2: Apple StoreKit External Purchase
+  // 取引の月次レポート受付 (docs/api-spec.md 322 行目)
+  fastify.post(
+    "/api/billing/storekit-external/report",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!checkBillingRateLimit(request.userId)) {
+        return reply.status(429).send({
+          ok: false,
+          error: { code: "BILLING_RATE_LIMITED", message: "リクエスト頻度が高すぎます。1分後に再試行してください。", retryable: true },
+        });
+      }
+
+      const parsed = StoreKitExternalReportSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          ok: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+            retryable: false,
+          },
+        });
+      }
+
+      const result = await billing.reportExternalPurchaseTransaction(request.userId, parsed.data);
+      if (!result.ok) {
+        return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
+      }
+      return reply.status(200).send({ ok: true, data: result.data });
+    },
+  );
 }

@@ -67,6 +67,9 @@ export {
   BillingSubscriptionCanceledEventSchema,
   BillingDomainEventSchema,
   initialBillingScreenState,
+  // [P-2] storekit-external/report
+  StoreKitExternalReportCommandSchema,
+  StoreKitExternalReportResultSchema,
 } from "./view-models/index.ts";
 export type {
   PlanComparisonView,
@@ -82,6 +85,9 @@ export type {
   BillingSubscriptionUpgradedEvent,
   BillingSubscriptionCanceledEvent,
   BillingDomainEvent,
+  // [P-2] storekit-external/report
+  StoreKitExternalReportCommand,
+  StoreKitExternalReportResult,
 } from "./view-models/index.ts";
 
 // Adapter factories（apps/server 側での注入用）
@@ -96,7 +102,6 @@ export type {
 
 export {
   createAppleIapAdapter,
-  APPLE_PRODUCT_ID_MAP,
 } from "./adapters/apple-iap-adapter.ts";
 export type {
   AppleIapAdapter,

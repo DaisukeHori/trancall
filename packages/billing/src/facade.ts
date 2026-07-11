@@ -45,7 +45,10 @@ import type {
   UpgradePreview,
   IapTransactionResult,
   StoreKitExternalRedirectResult,
+  StoreKitExternalReportCommand,
+  StoreKitExternalReportResult,
 } from "./view-models/index.ts";
+import { StoreKitExternalReportCommandSchema } from "./view-models/index.ts";
 
 // =============================================================================
 // ヘルパー
@@ -224,6 +227,19 @@ export interface BillingFacade {
     userId: UserId,
     transactions: IapTransactionResult[],
   ): Promise<Result<{ restoredCount: number; subscription: SubscriptionState | null }>>;
+
+  /**
+   * [P-2] Apple StoreKit External Purchase 取引の月次レポート受付。
+   * docs/api-spec.md 「POST /api/billing/storekit-external/report」canonical 準拠。
+   * externalPurchaseToken (ExternalPurchaseAdapter が発行した redirectToken) が
+   * 呼び出しユーザーの所有物であることを検証してから Apple 月次レポートキューへ登録する。
+   * @idempotent false (呼び出しごとに新規レポートとしてキューへ登録する)
+   * @retryable true
+   */
+  reportExternalPurchaseTransaction(
+    userId: UserId,
+    command: StoreKitExternalReportCommand,
+  ): Promise<Result<StoreKitExternalReportResult>>;
 }
 
 // =============================================================================
@@ -1143,6 +1159,20 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
         restoredCount: verifiedTransactions.length,
         subscription: stateResult.data,
       });
+    },
+
+    // =========================================================================
+    // [P-2] reportExternalPurchaseTransaction
+    // =========================================================================
+    async reportExternalPurchaseTransaction(
+      userId: UserId,
+      command: StoreKitExternalReportCommand,
+    ): Promise<Result<StoreKitExternalReportResult>> {
+      // 境界バリデーション
+      const validated = validate(StoreKitExternalReportCommandSchema, command);
+      if (!validated.ok) return validated;
+
+      return externalPurchaseAdapter.reportMonthlyTransaction(userId, validated.data);
     },
   };
 }
