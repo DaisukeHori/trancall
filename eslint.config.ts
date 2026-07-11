@@ -53,6 +53,8 @@ export default tseslint.config(
       "**/translation-session.ts",
       // mobile: native SDK 境界ラッパー (LiveKit RN / CallKit / VoIP Push / IAP・StoreKit External Purchase)
       "**/lib/livekit/connect.ts",
+      "**/lib/livekit/audio-session.ts",
+      "**/lib/livekit/register-globals.ts",
       "**/lib/callkit/index.ts",
       "**/lib/callkit/voip-push.ts",
       "**/lib/billing/iap-storekit.ts",
