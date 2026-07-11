@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createHmac } from "node:crypto";
+import { ok, err, brandUserId } from "@trancall/shared-kernel";
 import { buildTestApp } from "./helpers/test-app.js";
 import { createMockContainer } from "./helpers/mock-container.js";
 import { TEST_CONFIG } from "./helpers/test-app.js";
@@ -555,10 +556,11 @@ describe("#25/確定#4: HMAC タイムスタンプ検証 (x-trancall-timestamp)"
 });
 
 describe("POST /internal/translation/heartbeat", () => {
-  it("正常な heartbeat を受け付けて 200 を返す", async () => {
+  it("正常な heartbeat を受け付けて 200 を返す (M-9: shouldContinue/remainingMinutes を含む)", async () => {
     const key = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const payload = {
       agentJobId: "11111111-1111-4111-8111-111111111111",
+      roomId: "22222222-2222-4222-8222-222222222222",
       sessionId: "55555555-5555-4555-8555-555555555555",
       alive: true,
       occurredAt: new Date().toISOString(),
@@ -585,14 +587,21 @@ describe("POST /internal/translation/heartbeat", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const respBody = JSON.parse(response.body) as { ok: boolean };
+    const respBody = JSON.parse(response.body) as {
+      ok: boolean;
+      shouldContinue: boolean;
+      remainingMinutes: number;
+    };
     expect(respBody.ok).toBe(true);
+    expect(typeof respBody.shouldContinue).toBe("boolean");
+    expect(typeof respBody.remainingMinutes).toBe("number");
   });
 
   it("metrics なしの heartbeat も受け付ける", async () => {
     const key = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
     const payload = {
       agentJobId: "11111111-1111-4111-8111-111111111111",
+      roomId: "22222222-2222-4222-8222-222222222222",
       sessionId: "55555555-5555-4555-8555-555555555555",
       alive: true,
       occurredAt: new Date().toISOString(),
@@ -616,6 +625,33 @@ describe("POST /internal/translation/heartbeat", () => {
     expect(response.statusCode).toBe(200);
   });
 
+  it("roomId 欠如 (旧ペイロード形式) は 400 を返す (M-9: roomId 必須化)", async () => {
+    const key = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const payload = {
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "55555555-5555-4555-8555-555555555555",
+      alive: true,
+      occurredAt: new Date().toISOString(),
+    };
+    const body = JSON.stringify(payload);
+    const timestamp = freshTimestamp();
+    const sig = makeSignature(body, key, timestamp);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/translation/heartbeat",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-signature": sig,
+        "x-trancall-idempotency-key": key,
+        "x-trancall-timestamp": timestamp,
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
   it("HMAC シグネチャなしで 401 を返す", async () => {
     const response = await app.inject({
       method: "POST",
@@ -627,6 +663,7 @@ describe("POST /internal/translation/heartbeat", () => {
       },
       payload: {
         agentJobId: "11111111-1111-4111-8111-111111111111",
+        roomId: "22222222-2222-4222-8222-222222222222",
         sessionId: "55555555-5555-4555-8555-555555555555",
         alive: true,
         occurredAt: new Date().toISOString(),
@@ -640,6 +677,7 @@ describe("POST /internal/translation/heartbeat", () => {
     const key = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
     const payload = {
       agentJobId: "11111111-1111-4111-8111-111111111111",
+      roomId: "22222222-2222-4222-8222-222222222222",
       sessionId: "55555555-5555-4555-8555-555555555555",
       alive: false,
       occurredAt: new Date().toISOString(),
@@ -661,5 +699,157 @@ describe("POST /internal/translation/heartbeat", () => {
     });
 
     expect(response.statusCode).toBe(400);
+  });
+});
+
+// =============================================================================
+// M-9: heartbeat の shouldContinue/remainingMinutes を billing facade 経由で算出する
+// =============================================================================
+describe("POST /internal/translation/heartbeat — M-9 shouldContinue/remainingMinutes", () => {
+  it("roomId が room_reservation_sessions に対応付けされている場合、billing 残量に基づき応答する", async () => {
+    const key = "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0";
+    const roomId = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
+    // 事前に roomId → (userId, sessionId) の対応付けを保存する (usage-metering-subscriber と同じ手段)
+    await container.roomReservationSessionRepo.save({
+      roomId,
+      userId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "22222222-2222-4222-8222-222222222222",
+    });
+
+    const payload = {
+      agentJobId: "33333333-3333-4333-8333-333333333333",
+      roomId,
+      sessionId: "44444444-4444-4444-8444-444444444444",
+      alive: true,
+      occurredAt: new Date().toISOString(),
+    };
+    const body = JSON.stringify(payload);
+    const timestamp = freshTimestamp();
+    const sig = makeSignature(body, key, timestamp);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/translation/heartbeat",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-signature": sig,
+        "x-trancall-idempotency-key": key,
+        "x-trancall-timestamp": timestamp,
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const respBody = JSON.parse(response.body) as {
+      ok: boolean;
+      shouldContinue: boolean;
+      remainingMinutes: number;
+    };
+    // mock-container.ts のデフォルト billing.getSubscription は remainingMinutes: 5 を返す
+    expect(respBody.remainingMinutes).toBe(5);
+    // mock-container.ts のデフォルト billing.canStartCall は ok(true) を返す
+    expect(respBody.shouldContinue).toBe(true);
+  });
+
+  it("billing.canStartCall が残高不足エラーを返す場合 shouldContinue=false を返す", async () => {
+    const key = "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1";
+    const roomId = "a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2";
+    await container.roomReservationSessionRepo.save({
+      roomId,
+      userId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "22222222-2222-4222-8222-222222222222",
+    });
+
+    vi.mocked(container.billing.canStartCall).mockResolvedValueOnce(
+      err({
+        code: "BILLING_INSUFFICIENT_BALANCE",
+        message: "翻訳分数が不足しています",
+        retryable: false,
+        httpStatus: 402,
+      }),
+    );
+    const mockUserIdResult = brandUserId("11111111-1111-4111-8111-111111111111");
+    if (!mockUserIdResult.success) throw new Error("test setup: brandUserId failed");
+    vi.mocked(container.billing.getSubscription).mockResolvedValueOnce(
+      ok({
+        userId: mockUserIdResult.data,
+        plan: { tier: "free", includedMinutes: 5, overageRateYen: 0, monthlyPriceYen: 0, transcriptRetentionDays: 7 },
+        currentPeriodStart: new Date().toISOString(),
+        currentPeriodEnd: new Date().toISOString(),
+        usedMinutes: 5,
+        remainingMinutes: 0,
+        cancelAtPeriodEnd: false,
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        iapOriginalTransactionId: null,
+        iapPlatform: null,
+      }),
+    );
+
+    const payload = {
+      agentJobId: "33333333-3333-4333-8333-333333333333",
+      roomId,
+      sessionId: "44444444-4444-4444-8444-444444444444",
+      alive: true,
+      occurredAt: new Date().toISOString(),
+    };
+    const body = JSON.stringify(payload);
+    const timestamp = freshTimestamp();
+    const sig = makeSignature(body, key, timestamp);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/translation/heartbeat",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-signature": sig,
+        "x-trancall-idempotency-key": key,
+        "x-trancall-timestamp": timestamp,
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const respBody = JSON.parse(response.body) as {
+      ok: boolean;
+      shouldContinue: boolean;
+      remainingMinutes: number;
+    };
+    expect(respBody.shouldContinue).toBe(false);
+    expect(respBody.remainingMinutes).toBe(0);
+  });
+
+  it("roomId の対応付けが見つからない場合は fail-open (shouldContinue=true) で応答する", async () => {
+    const key = "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2";
+    // 事前保存なし = room_reservation_sessions に対応付けが存在しない roomId
+    const unmappedRoomId = "b3b3b3b3-b3b3-4b3b-8b3b-b3b3b3b3b3b3";
+
+    const payload = {
+      agentJobId: "33333333-3333-4333-8333-333333333333",
+      roomId: unmappedRoomId,
+      sessionId: "44444444-4444-4444-8444-444444444444",
+      alive: true,
+      occurredAt: new Date().toISOString(),
+    };
+    const body = JSON.stringify(payload);
+    const timestamp = freshTimestamp();
+    const sig = makeSignature(body, key, timestamp);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/translation/heartbeat",
+      headers: {
+        "content-type": "application/json",
+        "x-trancall-signature": sig,
+        "x-trancall-idempotency-key": key,
+        "x-trancall-timestamp": timestamp,
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const respBody = JSON.parse(response.body) as { ok: boolean; shouldContinue: boolean };
+    // fail-open: billing 文脈が解決できない内部エラーで進行中の通話を誤って止めない
+    expect(respBody.shouldContinue).toBe(true);
   });
 });

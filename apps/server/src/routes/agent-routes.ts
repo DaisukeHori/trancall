@@ -35,13 +35,17 @@ import { getHttpStatus } from "../middleware/error-handler.js";
 import { logger } from "../logger.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createNonceRepository } from "../adapters/repositories/agent/nonce-repository.supabase.js";
+import type { RoomReservationSessionRepository } from "../adapters/repositories/billing/room-reservation-session-repository.supabase.js";
 
 // ---------------------------------------------------------------------------
 // Heartbeat body schema
+// M-9: roomId を追加 (billing の残量算出のため roomId → (userId, sessionId) の
+// 対応付け (RoomReservationSessionRepository) を引く必要がある)。
 // ---------------------------------------------------------------------------
 
 const HeartbeatBodySchema = z.object({
   agentJobId: z.uuid(),
+  roomId: z.uuid(),
   sessionId: z.uuid(),
   alive: z.literal(true),
   occurredAt: z.iso.datetime(),
@@ -55,6 +59,70 @@ const HeartbeatBodySchema = z.object({
 });
 
 type HeartbeatBody = z.infer<typeof HeartbeatBodySchema>;
+
+// ---------------------------------------------------------------------------
+// M-9: heartbeat の shouldContinue / remainingMinutes を billing facade 経由で算出する
+// ---------------------------------------------------------------------------
+
+/**
+ * M-9: heartbeat の `{ shouldContinue, remainingMinutes }` を billing facade 経由で算出する。
+ * docs/billing-detail.md「通話中: heartbeat (30秒ごと)」step 2, 5 準拠。
+ *
+ * roomId → billing 予約の userId 解決は usage-metering-subscriber.ts (#46) と同じ
+ * `RoomReservationSessionRepository` (roomId ↔ (userId, sessionId) 対応表) を再利用する。
+ * 解決に失敗した場合 (対応付け未保存・一時的 DB エラー・翻訳無効の room 等) は
+ * best-effort で fail-open (shouldContinue: true) とし、内部エラーで進行中の通話の
+ * 翻訳を誤って止めないようにする。
+ *
+ * shouldContinue の判定は `billing.canStartCall` (残り1分以上 OR 支払い方法ありの
+ * 超過課金プラン) をそのまま再利用する
+ * (packages/billing/src/services/subscription-service.ts の既存ロジックと重複させない)。
+ */
+async function resolveHeartbeatBillingStatus(
+  roomId: string,
+  deps: { billing: BillingFacade; roomReservationSessionRepo: RoomReservationSessionRepository },
+): Promise<{ shouldContinue: boolean; remainingMinutes: number }> {
+  const { billing, roomReservationSessionRepo } = deps;
+
+  const mappingResult = await roomReservationSessionRepo.findByRoomId(roomId);
+  if (!mappingResult.ok) {
+    logger.warn("heartbeat billing check skipped: room_reservation_sessions lookup failed", {
+      roomId,
+      errorCode: mappingResult.error.code,
+    });
+    return { shouldContinue: true, remainingMinutes: 0 };
+  }
+  if (mappingResult.data === null) {
+    logger.warn("heartbeat billing check skipped: no room_reservation_sessions mapping found", {
+      roomId,
+    });
+    return { shouldContinue: true, remainingMinutes: 0 };
+  }
+
+  const userIdResult = brandUserId(mappingResult.data.userId);
+  if (!userIdResult.success) {
+    logger.warn("heartbeat billing check skipped: invalid userId in room_reservation_sessions", {
+      roomId,
+    });
+    return { shouldContinue: true, remainingMinutes: 0 };
+  }
+
+  const subscriptionResult = await billing.getSubscription(userIdResult.data);
+  if (!subscriptionResult.ok) {
+    logger.warn("heartbeat billing check skipped: billing.getSubscription failed", {
+      roomId,
+      errorCode: subscriptionResult.error.code,
+    });
+    return { shouldContinue: true, remainingMinutes: 0 };
+  }
+
+  const canContinueResult = await billing.canStartCall(userIdResult.data);
+
+  return {
+    shouldContinue: canContinueResult.ok,
+    remainingMinutes: subscriptionResult.data.remainingMinutes,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // #48: transcript.delta (isFinal=true) → transcript.appendFinalSegment
@@ -265,9 +333,21 @@ export function registerAgentRoutes(
     config: Config;
     eventBus: EventBus;
     supabase: SupabaseClient;
+    /** M-9: heartbeat の shouldContinue/remainingMinutes 算出で roomId → userId 解決に使う */
+    roomReservationSessionRepo: RoomReservationSessionRepository;
   },
 ): void {
-  const { translation, transcript, auth, room, billing, config, eventBus, supabase } = deps;
+  const {
+    translation,
+    transcript,
+    auth,
+    room,
+    billing,
+    config,
+    eventBus,
+    supabase,
+    roomReservationSessionRepo,
+  } = deps;
   // #63: idempotencyKey 単位のリクエスト重複排除 (nonce store)。
   const nonceRepo = createNonceRepository(supabase);
   const hmacPreHandler = createHmacPreHandler(config, nonceRepo);
@@ -470,6 +550,13 @@ export function registerAgentRoutes(
         occurredAt: body.occurredAt,
       });
 
+      // M-9: shouldContinue / remainingMinutes を billing facade 経由で算出する
+      // (docs/billing-detail.md「通話中: heartbeat」step 2, 5)。
+      const { shouldContinue, remainingMinutes } = await resolveHeartbeatBillingStatus(
+        body.roomId,
+        { billing, roomReservationSessionRepo },
+      );
+
       // #63: 正常完了をマークし、以後の同一 idempotencyKey リクエスト
       // (リトライ/リプレイ) が副作用を再実行しないようにする。
       const markResult = await nonceRepo.markProcessed(idempotencyKey);
@@ -480,7 +567,7 @@ export function registerAgentRoutes(
         });
       }
 
-      return reply.send({ ok: true });
+      return reply.send({ ok: true, shouldContinue, remainingMinutes });
     },
   );
 }

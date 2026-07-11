@@ -98,6 +98,13 @@ export interface TranslationSessionEvents {
   ended: (reason: string) => void;
   degraded: (reason: string) => void;
   recovered: () => void;
+  /**
+   * M-9: heartbeat 応答を受信するたびに emit する (shouldContinue の真偽に関わらず)。
+   * agent.ts がこれを購読して LiveKit Data Channel topic `billing.status`
+   * (`{ shouldContinue, remainingMinutes }`) へ publish し、mobile クライアントの
+   * 通話中残量ライブ表示 (M-10) に配信する。
+   */
+  "billing-status": (status: { shouldContinue: boolean; remainingMinutes: number }) => void;
 }
 
 // --- レイテンシ計測用バッファ ---
@@ -449,7 +456,8 @@ export class TranslationSession extends EventEmitter {
       | "agent_shutdown"
       | "openai_fatal_error"
       | "client_requested"
-      | "agent_publish_failed" = "participant_left",
+      | "agent_publish_failed"
+      | "insufficient_balance" = "participant_left",
   ): Promise<void> {
     if (this.isEnding) return;
     this.isEnding = true;
@@ -819,12 +827,17 @@ export class TranslationSession extends EventEmitter {
     }
   }
 
-  // --- Issue #69 (4): ハートビート ---
+  // --- Issue #69 (4) / M-9: ハートビート ---
 
   /**
    * ハートビートを Server (`POST /internal/translation/heartbeat`) に送信する。
-   * 失敗は warn ログのみ (best-effort、セッション継続、agent.metrics/transcript.delta
+   * 送信失敗は warn ログのみ (best-effort、セッション継続、agent.metrics/transcript.delta
    * と同じ方針)。
+   *
+   * M-9: Server は billing facade 経由で算出した `{ shouldContinue, remainingMinutes }` を
+   * 返す。`shouldContinue=false` (残高不足) の場合は `end("insufficient_balance")` で
+   * 翻訳セッションを停止する (通話自体は継続、翻訳のみ停止。docs/billing-detail.md
+   * 「通話中断時のフロー」)。
    */
   private sendHeartbeat(): void {
     const sessionId = this.config.sessionId ?? this.agentJobId;
@@ -837,6 +850,7 @@ export class TranslationSession extends EventEmitter {
 
     const event = buildHeartbeatEvent({
       agentJobId: this.agentJobId,
+      roomId: this.config.roomId,
       sessionId,
       occurredAt: new Date(),
       metrics,
@@ -847,6 +861,23 @@ export class TranslationSession extends EventEmitter {
         this.config.logger.warn("TranslationSession: heartbeat 送信失敗", {
           error: result.error.message,
         });
+        return;
+      }
+
+      // M-9: mobile クライアントの通話中残量ライブ表示 (M-10) 向けに、shouldContinue の
+      // 真偽に関わらず毎回 emit する。agent.ts が購読して LiveKit Data Channel topic
+      // `billing.status` へ publish する。
+      this.emit("billing-status", {
+        shouldContinue: result.data.shouldContinue,
+        remainingMinutes: result.data.remainingMinutes,
+      });
+
+      if (!result.data.shouldContinue) {
+        this.config.logger.warn(
+          "TranslationSession: heartbeat shouldContinue=false (残高不足) のため翻訳セッションを停止",
+          { remainingMinutes: result.data.remainingMinutes },
+        );
+        void this.end("insufficient_balance");
       }
     });
   }
