@@ -7,6 +7,10 @@
  *
  * Sprint 3 T-10 追加:
  * GET    /api/transcripts/:roomId/export  — format クエリパラメータでエクスポート (docs/api-spec.md)
+ *
+ * M-3 追加: 両エンドポイントとも `part` (0-based、省略時 0) で分割エクスポートのパートを
+ * 指定できる。レスポンスの `data.hasMore` が true の間、`part` をインクリメントしながら
+ * 追加リクエストすることで全パートを取得できる (docs/transcript-export-spec.md §2.1)。
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
@@ -17,10 +21,14 @@ import { getHttpStatus } from "../middleware/error-handler.js";
 
 const ExportBodySchema = z.object({
   format: z.enum(["pdf", "txt"]).default("txt"),
+  // M-3: 0-based パート番号。省略時は facade 側で 0 扱い
+  part: z.number().int().nonnegative().optional(),
 });
 
 const ExportQuerySchema = z.object({
   format: z.enum(["pdf", "txt"]).default("txt"),
+  // M-3: クエリ文字列は z.coerce で数値化する
+  part: z.coerce.number().int().nonnegative().optional(),
 });
 
 const TranscriptParamsSchema = z.object({ roomId: z.string() });
@@ -93,8 +101,14 @@ export function registerTranscriptRoutes(
 
     const parsedQuery = ExportQuerySchema.safeParse(request.query);
     const format = parsedQuery.success ? parsedQuery.data.format : "txt";
+    const partIndex = parsedQuery.success ? parsedQuery.data.part : undefined;
 
-    const result = await transcript.exportTranscript(roomIdResult.data, request.userId, format);
+    const result = await transcript.exportTranscript(
+      roomIdResult.data,
+      request.userId,
+      format,
+      partIndex,
+    );
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }
@@ -118,8 +132,14 @@ export function registerTranscriptRoutes(
 
     const parsed = ExportBodySchema.safeParse(request.body ?? {});
     const format = parsed.success ? parsed.data.format : "txt";
+    const partIndex = parsed.success ? parsed.data.part : undefined;
 
-    const result = await transcript.exportTranscript(roomIdResult.data, request.userId, format);
+    const result = await transcript.exportTranscript(
+      roomIdResult.data,
+      request.userId,
+      format,
+      partIndex,
+    );
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }

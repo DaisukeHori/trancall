@@ -44,23 +44,45 @@
 
 ### 2.1 facade signature
 
+> **M-3 (分割エクスポート) 実装済み**: 1000 segments 超の長時間通話は `TRANSCRIPT_EXPORT_TOO_LARGE`
+> ハードエラーではなく、`MAX_SEGMENTS_PER_EXPORT_PART=1000` 件ごとの複数パートに分割して
+> エクスポートするようになった。`partIndex` (0-based、省略時 0) 未指定・かつ segments が
+> 1000 件以下の場合は `totalParts=1` / `hasMore=false` となり、**既存の単発エクスポートと
+> 完全に後方互換** (呼び出し側の変更は任意)。
+
 ```ts
 exportTranscript(
   roomId: RoomId,
   userId: UserId,
   format: "pdf" | "txt",
-): Promise<Result<{ contentBase64: string; mime: string; filename: string }, AppError>>;
+  partIndex?: number,
+): Promise<Result<{
+  contentBase64: string;
+  mime: string;
+  filename: string;
+  /** 0-based。今回返したパートの番号 */
+  partIndex: number;
+  /** 総パート数 (1 = 分割不要) */
+  totalParts: number;
+  /** true の場合、partIndex+1 で追加のパートが取得できる */
+  hasMore: boolean;
+  /** room 全体のセグメント総数 (パート分割前) */
+  totalSegments: number;
+}, AppError>>;
 ```
 
 戻り値:
 - `contentBase64`: 出力ファイルを base64 エンコードした文字列 (mobile が `expo-file-system` で復号して保存)
 - `mime`: `application/pdf` または `text/plain; charset=utf-8`
-- `filename`: §6 の命名規則
+- `filename`: §6 の命名規則 (`totalParts > 1` の場合は `-part{N}of{M}` サフィックスが付く、§6.1 参照)
+- `partIndex` / `totalParts` / `hasMore` / `totalSegments`: M-3 で追加。呼び出し側 (apps/server の
+  `GET /api/transcripts/:roomId/export?part=N`) は `hasMore=true` の間 `part` をインクリメントしながら
+  追加リクエストすることで全パートを取得する
 
 エラー:
 - `TRANSCRIPT_EXPORT_FORBIDDEN`: `transcript_access.can_view=false` または `deleted_at IS NOT NULL`
 - `TRANSCRIPT_EXPORT_EMPTY`: segments が 0 件 (該当 room の参加者だが録音されていない)
-- `TRANSCRIPT_EXPORT_TOO_LARGE`: 1000 segments 超 (Phase 1a 上限、Phase 1c で除去検討)
+- `TRANSCRIPT_EXPORT_INVALID_PART`: `partIndex` が `0〜totalParts-1` の範囲外、または非整数 (M-3 で追加。旧 `TRANSCRIPT_EXPORT_TOO_LARGE` はこの分割エクスポート実装により facade からは返されなくなった — §8 参照)
 - `INTERNAL_ERROR`: PDF 生成失敗等
 
 ### 2.2 入力データソース
@@ -249,6 +271,18 @@ trancall-transcript-<YYYYMMDD>-<HHmm>-<roomId-8chars>.<ext>
 
 mobile 側で `expo-file-system` に保存後、ユーザーが共有シートで AirDrop / メール添付等で外部出力。
 
+### 6.1 分割エクスポート時のファイル名 (M-3)
+
+`totalParts > 1` の場合、拡張子の直前に `-part{N}of{M}` (1-based) を挿入する:
+
+```
+trancall-transcript-<YYYYMMDD>-<HHmm>-<roomId-8chars>-part{N}of{M}.<ext>
+```
+
+例: `trancall-transcript-20260512-1000-550e8400-part1of2.pdf` / `...-part2of2.pdf`
+
+`totalParts === 1` (1000 segments 以下) の場合は §6 の従来通りのファイル名のまま (サフィックスなし)。
+
 ---
 
 ## 7. 含めるデータ / 含めないデータ (PII 配慮)
@@ -282,7 +316,8 @@ PDF / TXT 末尾に「本トランスクリプトは利用規約 v{X.Y.Z} およ
 | `transcript_access.can_view = false` | `TRANSCRIPT_EXPORT_FORBIDDEN` | 「閲覧権限がありません」toast、Home に戻る |
 | `transcript_access.deleted_at IS NOT NULL` | `TRANSCRIPT_EXPORT_FORBIDDEN` | 同上 |
 | segments 0 件 | `TRANSCRIPT_EXPORT_EMPTY` | 「録音された会話がありません」toast |
-| segments > 1000 件 | `TRANSCRIPT_EXPORT_TOO_LARGE` | 「会話が長すぎます (1000 セグメント超)、分割エクスポートを Sprint 3 で実装予定」 toast |
+| segments > 1000 件 (M-3 以前の旧挙動) | ~~`TRANSCRIPT_EXPORT_TOO_LARGE`~~ | **廃止 (M-3)**: 1000 件超は自動的に複数パートへ分割エクスポートされるようになったため、facade からは返されなくなった (§2.1 参照)。`apps/server/src/middleware/error-handler.ts` のマッピングは既存クライアント互換のため残置 |
+| `partIndex` が範囲外/非整数 (M-3) | `TRANSCRIPT_EXPORT_INVALID_PART` (400) | 「指定されたページが見つかりません」toast (通常は mobile 側のページング UI バグ以外では発生しない) |
 | PDF 生成失敗 (フォント読込エラー等) | `INTERNAL_ERROR` | 「エクスポートに失敗しました、後でやり直してください」 |
 | 多言語フォント不在 (Devanagari 等) | `INTERNAL_ERROR` | 同上 + Sentry に詳細ログ |
 
@@ -317,3 +352,4 @@ Sprint 3 末で 13 出力言語 + 主要入力言語 (en / ja / zh / ko / ru / a
 | Version | Date | Changes |
 |---------|------|---------|
 | v1.0 | 2026-05-12 | Sprint 2 R1 補追として新規作成 (A-8 TODO 対応)。`TranscriptFacade.exportTranscript()` (現状 501 stub) を Sprint 3 で実装するための PDF / TXT 出力 spec を canonical 化。pdfkit + Source Han Sans + Noto Sans 多言語フォント採用、A4 縦レイアウト、ファイル名規則、PII 配慮、エラー処理 3 種、テスト戦略を確定。 |
+| v1.1 | 2026-07-11 | **M-3 (分割エクスポート) 実装完了**。§2.1: `exportTranscript` に `partIndex?: number` (0-based) 引数を追加し、戻り値に `partIndex`/`totalParts`/`hasMore`/`totalSegments` を追加 (既存呼び出し元との後方互換を維持)。§6.1 (新設): 分割時のファイル名 `-part{N}of{M}` サフィックス規則。§8: 旧 `TRANSCRIPT_EXPORT_TOO_LARGE` (1000 segments 超のハードエラー) を廃止し、新規 `TRANSCRIPT_EXPORT_INVALID_PART` (400、partIndex 範囲外) に置き換え。実装: `packages/transcript/src/facade.ts` (`MAX_SEGMENTS_PER_EXPORT_PART=1000`)、`apps/server/src/routes/transcript-routes.ts` (`part` query/body パラメータ追加)、`apps/server/src/middleware/error-handler.ts` (`TRANSCRIPT_EXPORT_INVALID_PART: 400` 追加)。単体テスト: `packages/transcript/__tests__/facade-export-pagination.test.ts` (14 tests)。 |
