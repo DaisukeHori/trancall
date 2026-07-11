@@ -12,7 +12,7 @@ vi.mock("../src/api/config.js", () => ({
 }));
 
 import * as clientModule from "../src/api/client.js";
-import { createCall, joinCall, endCall, getRoomState } from "../src/api/room-api.js";
+import { createCall, joinCall, endCall, getRoomState, getCallToken } from "../src/api/room-api.js";
 
 const mockApiFetch = vi.mocked(clientModule.apiFetch);
 
@@ -159,5 +159,45 @@ describe("room-api — getRoomState", () => {
 
     const [, , options] = mockApiFetch.mock.calls[0] as [string, unknown, { accessToken: string }];
     expect(options.accessToken).toBe("my-token");
+  });
+});
+
+describe("room-api — getCallToken (M-2: caller 用 LiveKit token 発行)", () => {
+  const fakeTokenResult = {
+    token: "caller-livekit-token-xyz",
+    livekitUrl: "wss://livekit.example.com",
+  };
+
+  it("calls POST /api/rooms/:id/token", async () => {
+    mockApiFetch.mockResolvedValue({ ok: true, data: fakeTokenResult });
+
+    const result = await getCallToken("room-uuid-123", ACCESS_TOKEN);
+
+    const [path, , options] = mockApiFetch.mock.calls[0] as [string, unknown, { method: string; accessToken: string }];
+    expect(path).toBe("/api/rooms/room-uuid-123/token");
+    expect(options.method).toBe("POST");
+    expect(options.accessToken).toBe(ACCESS_TOKEN);
+    expect(result).toEqual({ ok: true, data: fakeTokenResult });
+  });
+
+  it("URL-encodes roomId", async () => {
+    mockApiFetch.mockResolvedValue({ ok: true, data: fakeTokenResult });
+    await getCallToken("room/with spaces", ACCESS_TOKEN);
+    const [path] = mockApiFetch.mock.calls[0] as unknown as [string, unknown, unknown];
+    expect(path).toBe("/api/rooms/room%2Fwith%20spaces/token");
+  });
+
+  it("returns error when caller is not a room participant (FORBIDDEN)", async () => {
+    mockApiFetch.mockResolvedValue({
+      ok: false,
+      error: { code: "FORBIDDEN", message: "この通話の参加者ではありません", retryable: false },
+    });
+
+    const result = await getCallToken("room-uuid-123", ACCESS_TOKEN);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("FORBIDDEN");
+    }
   });
 });

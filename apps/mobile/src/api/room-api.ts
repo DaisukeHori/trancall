@@ -131,6 +131,39 @@ export async function getRoomState(
 }
 
 // =============================================================================
+// POST /api/rooms/:id/token — caller 用 LiveKit token 発行 (M-2)
+// docs/call-lifecycle.md §1 (発信フロー) の caller 側 room.connect に必要な token を取得する。
+// callee 応答 (room.status: waiting → active) を calling-screen.tsx がポーリング検知した後に呼ぶ。
+// =============================================================================
+
+const TokenResponseSchema = z.object({
+  ok: z.literal(true),
+  data: z.object({
+    token: z.string(),
+    livekitUrl: z.string().optional(),
+  }),
+});
+
+export interface CallTokenResult {
+  token: string;
+  livekitUrl?: string;
+}
+
+/**
+ * POST /api/rooms/:id/token
+ */
+export async function getCallToken(
+  roomId: string,
+  accessToken: string,
+): Promise<Result<CallTokenResult>> {
+  return apiFetch(
+    `/api/rooms/${encodeURIComponent(roomId)}/token`,
+    TokenResponseSchema.transform((r) => r.data),
+    { method: "POST", accessToken },
+  );
+}
+
+// =============================================================================
 // GET /api/rooms/history — cursor-paginated call history (T-20)
 // docs/api-spec.md §GET /api/rooms/history
 // =============================================================================
