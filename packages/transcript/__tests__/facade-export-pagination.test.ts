@@ -139,18 +139,26 @@ describe("TranscriptFacade.exportTranscript — 1000 セグメント超 (M-3 分
     expect(text).not.toContain("segment 1000\n");
   });
 
-  it("PDF 形式でも分割エクスポートが成功する", async () => {
-    const { facade, segmentRepo } = makeFacade();
-    await seedSegments(segmentRepo, 1200);
+  it(
+    "PDF 形式でも分割エクスポートが成功する",
+    async () => {
+      const { facade, segmentRepo } = makeFacade();
+      await seedSegments(segmentRepo, 1200);
 
-    const result = await facade.exportTranscript(ROOM_ID, USER_A, "pdf", 1);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    const buf = Buffer.from(result.data.contentBase64, "base64");
-    expect(buf.slice(0, 4).toString("ascii")).toBe("%PDF");
-    expect(result.data.totalParts).toBe(2);
-    expect(result.data.partIndex).toBe(1);
-  });
+      const result = await facade.exportTranscript(ROOM_ID, USER_A, "pdf", 1);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const buf = Buffer.from(result.data.contentBase64, "base64");
+      expect(buf.slice(0, 4).toString("ascii")).toBe("%PDF");
+      expect(result.data.totalParts).toBe(2);
+      expect(result.data.partIndex).toBe(1);
+    },
+    // 200 segments 分の PDF フォント埋め込み処理は CI ランナー (低速環境) では
+    // vitest デフォルトの 5000ms を超える (実測 ~5.8s)。ローカルでは収まるが CI
+    // 固有の実行速度差のため、この重い1テストのみ明示的にタイムアウトを延長する
+    // (vitest 自身のエラーメッセージが推奨する対処)。
+    15000,
+  );
 
   it("負の partIndex は TRANSCRIPT_EXPORT_INVALID_PART (400) を返す", async () => {
     const { facade, segmentRepo } = makeFacade();
