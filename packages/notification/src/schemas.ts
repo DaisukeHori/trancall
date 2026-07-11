@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 
-import { RoomIdSchema, UserIdSchema } from "@trancall/shared-kernel";
+import { RoomIdSchema, UserIdSchema, CallRoomTypeSchema } from "@trancall/shared-kernel";
 
 // ---------------------------------------------------------------------------
 // デバイストークン登録
@@ -40,7 +40,10 @@ export const IncomingCallNotificationSchema = z.object({
   callerName: z.string().min(1),
   callerAvatarUrl: z.url().nullable(),
   callerTrancallId: z.string().min(1),
-  roomType: z.enum(["audio", "video"]),
+  // L-9: roomType の値ドメインは packages/shared-kernel (native-call.ts) の
+  // CallRoomTypeSchema を canonical 単一ソースとして参照する
+  // (apps/mobile/modules/call-bridge の IncomingCallPushPayloadSchema と共有)。
+  roomType: CallRoomTypeSchema,
   translationEnabled: z.boolean(),
   languagePair: z.string().min(1),
   callerLanguage: z.string().min(1),
@@ -94,7 +97,7 @@ export const ApnsVoipPayloadSchema = z.object({
     callerName: z.string(),
     callerAvatarUrl: z.string().nullable(),
     callerTrancallId: z.string(),
-    roomType: z.enum(["audio", "video"]),
+    roomType: CallRoomTypeSchema, // L-9: shared-kernel canonical
     translationEnabled: z.boolean(),
     languagePair: z.string(),
     callerLanguage: z.string(),
@@ -123,7 +126,7 @@ export const FcmDataPayloadSchema = z.object({
   callerName: z.string(),
   callerAvatarUrl: z.string().nullable(),
   callerTrancallId: z.string().optional(),
-  roomType: z.enum(["audio", "video"]).optional(),
+  roomType: CallRoomTypeSchema.optional(), // L-9: shared-kernel canonical
   translationEnabled: z.string().optional(), // FCM data は文字列のみ
   languagePair: z.string().optional(),
   callerLanguage: z.string().optional(),
