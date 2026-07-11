@@ -1,4 +1,4 @@
-scenario_id: TC-S3-ja-en
+scenario_id: TC-S3-en-ja
 scenario: S3
 name: 旅行・地名 / Travel & Place Names
 source_lang: en
