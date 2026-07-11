@@ -78,25 +78,27 @@ T-23 mobile UI は実装済 (commit `9c75b63`) だが、`POST /api/account/delet
 - 30 日後の物理削除バッチ (T-60 retention に組み込み済 or 別バッチ)
 - 30 日内の復元 endpoint
 
-### 2.13 Android Manifest plugin — FCM サービスクラス名不一致 (Sprint 3 後半 D Round 2 で発見)
+### 2.13 Android Manifest plugin — FCM サービスクラス名不一致 (対処済み)
 
 `apps/mobile/plugins/with-android-manifest.ts` は `.TranCallFirebaseMessagingService` を AndroidManifest に宣言するが、実装済みの Kotlin クラスは `tech.hori.trancall.FcmService` (class 名 `FcmService`)。Expo prebuild 後の AndroidManifest.xml には存在しないクラス名が登録されるため、FCM data message が `onMessageReceived` に到達せず着信通話が動作しない。
 
-**対処**: plugin の FCM service 宣言名を `.FcmService` に修正するか、`FcmService.kt` のクラス名を `TranCallFirebaseMessagingService` に改名する。ConnectionService.kt 実装時（Sprint 3 Phase 1a）に合わせて解決する。
+**対処**: `apps/mobile/plugins/with-android-native.js` で FCM service 宣言名を `.FcmService` に修正済み (実装済み Kotlin クラス名 `FcmService.kt` に合わせた)。本項目はクローズ。
 
 ### 2.14 Android Manifest plugin — ConnectionService クラス名の設計書との差異
 
 設計書 (`native-call-bridge.md §5.1`) は `.CallConnectionService` と宣言しているが、plugin は `.TranCallConnectionService` を宣言。ConnectionService.kt は未実装（Sprint 3 Phase 1a 予定）のため現時点では機能影響なし。実装時にどちらのクラス名を採用するか確定し、plugin または設計書を合わせる必要がある。
 
-### 2.15 app.json に `android.permission.FOREGROUND_SERVICE` が未宣言
+### 2.15 app.json に `android.permission.FOREGROUND_SERVICE` が未宣言 (対処済み)
 
 `CallForegroundService.startForeground()` を呼ぶには Android 9 (API 28) 以上で `android.permission.FOREGROUND_SERVICE` の `<uses-permission>` 宣言が必要（normal permission、manifest 宣言のみで付与）。現在 app.json の `android.permissions` に含まれておらず、`CallForegroundService.kt` 実装後に `SecurityException` で異常終了する。
 
-**対処**: Sprint 3 Phase 1a で `CallForegroundService.kt` を実装する際に `app.json` の `android.permissions` に `"android.permission.FOREGROUND_SERVICE"` を追加する。
+**対処**: `apps/mobile/app.json` の `android.permissions` (line 35 付近) に `"android.permission.FOREGROUND_SERVICE"` を追加済み。本項目はクローズ。
 
-### 2.16 `com.google.android.c2dm.permission.RECEIVE` の要否
+### 2.16 `com.google.android.c2dm.permission.RECEIVE` の要否 (対処済み)
 
-設計書 §5.1 に記載されているが、現代の Firebase Messaging SDK (v21+) はこの permission を SDK 内部で自動宣言するため、アプリ側の明示宣言は不要。`app.json` への追加は不要。Sprint 4 での設計書更新時に §5.1 の記述を削除推奨。
+設計書 §5.1 に記載されているが、現代の Firebase Messaging SDK (v21+) はこの permission を SDK 内部で自動宣言するため、アプリ側の明示宣言は不要。`app.json` への追加は不要。
+
+**対処**: `native-call-bridge.md` §5.1 の `<uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />` 記述を削除し、SDK が自動宣言する旨の注記に置き換え済み。本項目はクローズ。
 
 ### 2.17 iOS Simulator build — pnpm + CocoaPods autolinking 課題
 

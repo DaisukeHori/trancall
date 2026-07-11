@@ -1,4 +1,4 @@
-scenario_id: TC-S3-ja-zh
+scenario_id: TC-S3-zh-ja
 scenario: S3
 name: 旅行・地名 / Travel & Place Names (中文 → 日本語)
 source_lang: zh

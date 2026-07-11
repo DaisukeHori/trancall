@@ -1,4 +1,4 @@
-scenario_id: TC-S2-ja-zh
+scenario_id: TC-S2-zh-ja
 scenario: S2
 name: ビジネス会議 / Business Meeting (中文 → 日本語)
 source_lang: zh

@@ -1,4 +1,4 @@
-scenario_id: TC-S5-ja-zh
+scenario_id: TC-S5-zh-ja
 scenario: S5
 name: 中国語混在 (英語固有名詞含む) / Code-Switching & Ambient Passthrough (中文 → 日本語)
 source_lang: zh

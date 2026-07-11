@@ -54,4 +54,17 @@ describe("deriveAnonymizedUserId", () => {
     const result = deriveAnonymizedUserId(USER_ID_A, SALT);
     expect(result).not.toBe(USER_ID_A);
   });
+
+  // ⚠️ ゴールデンベクタ (parity テスト):
+  // supabase/functions/retention-cleanup/anonymize.test.ts の同名テストと
+  // 同じ入力・同じ期待値を検証する。どちらかの実装がドリフトした場合、
+  // 該当ランタイム側のテストが先に失敗して検知できる。
+  it("ゴールデンベクタ: 既知の入力から既知の UUID を生成する (retention-cleanup 版との parity 用)", () => {
+    expect(deriveAnonymizedUserId(USER_ID_A, SALT)).toBe(
+      "373a5bfc-ff2b-48de-949d-9bdcb9b1717b",
+    );
+    expect(deriveAnonymizedUserId(USER_ID_B, SALT)).toBe(
+      "c53b5907-347e-45a3-a8d5-fe91f70c37a1",
+    );
+  });
 });
