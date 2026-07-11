@@ -7,6 +7,7 @@
  *   pnpm --filter @trancall/cron quality-qa --scenario S1 --source ja --target en
  *   pnpm --filter @trancall/cron quality-qa --all
  *   QA_MOCK=true pnpm --filter @trancall/cron quality-qa --all
+ *   pnpm --filter @trancall/cron quality-qa --generate-matrix docs/audit-reports/qa-evaluator-sheet-YYYY-MM-DD.csv
  *
  * オプション:
  *   --scenario <S1|S2|S3|S4|S5>   実行するシナリオ (省略時: 全シナリオ)
@@ -14,8 +15,12 @@
  *   --target   <en|es|...>         翻訳先言語 (省略時: 全言語)
  *   --all                          全 65 ケースを実行
  *   --output   <dir>               結果出力ディレクトリ (デフォルト: docs/audit-reports/)
+ *   --generate-matrix <csvPath>   M-12: 採点済み evaluator-sheet CSV から
+ *                                  合否判定マトリクス (docs/translation-quality-qa.md §9)
+ *                                  を自動生成する (QA 実走は行わない、単独動作)
  */
 
+import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +28,7 @@ import {
   generateEvaluatorSheet,
   loadGoogleSheetsConfig,
 } from "./evaluator-sheet.js";
+import { generateMatrixReport } from "./matrix.js";
 import {
   loadAllFixtures,
   loadRunnerConfig,
@@ -42,6 +48,7 @@ interface CliArgs {
   target: string | null;
   all: boolean;
   outputDir: string;
+  generateMatrixCsvPath: string | null;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -51,6 +58,7 @@ function parseArgs(argv: string[]): CliArgs {
     target: null,
     all: false,
     outputDir: join(__dirname, "../../../docs/audit-reports"),
+    generateMatrixCsvPath: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -65,6 +73,8 @@ function parseArgs(argv: string[]): CliArgs {
       args.all = true;
     } else if (arg === "--output") {
       args.outputDir = argv[++i] ?? args.outputDir;
+    } else if (arg === "--generate-matrix") {
+      args.generateMatrixCsvPath = argv[++i] ?? null;
     }
   }
 
@@ -89,6 +99,19 @@ function filterFixtures(
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+
+  // M-12: 合否判定マトリクス生成モード (QA 実走は行わず、採点済み CSV から集計のみ)
+  if (args.generateMatrixCsvPath) {
+    const content = readFileSync(args.generateMatrixCsvPath, "utf-8");
+    const runDate = new Date().toISOString().slice(0, 10);
+    generateMatrixReport(content, {
+      evaluatorCsvPath: args.generateMatrixCsvPath,
+      outputDir: args.outputDir,
+      runDate,
+    });
+    return;
+  }
+
   const config = loadRunnerConfig();
 
   const scenariosDir = join(__dirname, "scenarios");
