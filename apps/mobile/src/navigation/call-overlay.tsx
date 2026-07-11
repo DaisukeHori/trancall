@@ -49,8 +49,6 @@ export type CallStackParamList = {
     translationEnabled: boolean;
     callUuid?: string;
   };
-  // Placeholder — Layer 4-D で実装
-  Home: undefined;
 };
 
 const Stack = createNativeStackNavigator<CallStackParamList>();

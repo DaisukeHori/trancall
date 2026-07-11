@@ -2,6 +2,7 @@
 import { buildApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { buildContainer } from "../src/container.js";
+import { setLoggerEnvironment } from "../src/logger.js";
 import type { FastifyInstance } from "fastify";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
@@ -14,6 +15,8 @@ let cachedApp: FastifyInstance | null = null;
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (!cachedApp) {
     const config = loadConfig();
+    // L-15: 以降の全ログ行に environment (ENVIRONMENT 環境変数) を付与する
+    setLoggerEnvironment(config.ENVIRONMENT);
     const container = buildContainer(config);
     cachedApp = await buildApp(container, config);
     await cachedApp.ready();

@@ -8,7 +8,10 @@ import type { ContactEntry } from "../api/contacts-api";
 export type RecentStackParamList = {
   HomeMain: undefined;
   ContactProfile: { contact: ContactEntry };
-  AddContact: undefined;
+  // L-1: mode/contactId は contact-profile-screen.tsx の編集ボタンから
+  // 「編集モード」で遷移する際に渡す (add-contact-screen.tsx は RecentStack/ContactsStack
+  // 間で共有されているファイル内コメント参照)。
+  AddContact: { mode?: "add" | "edit"; contactId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RecentStackParamList>();

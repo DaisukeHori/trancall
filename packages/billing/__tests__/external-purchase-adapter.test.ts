@@ -277,3 +277,94 @@ describe("ExternalPurchaseAdapter.validateAndConsumeRedirectToken", () => {
     expect(result.error.code).toBe("BILLING_PAYMENT_FAILED");
   });
 });
+
+// =============================================================================
+// P-2: reportMonthlyTransaction — Apple StoreKit External Purchase 月次レポート受付
+// =============================================================================
+describe("ExternalPurchaseAdapter.reportMonthlyTransaction (P-2)", () => {
+  let tokenRepo: ExternalPurchaseTokenRepository;
+  const owner = makeUserId("00000000-0000-4000-8000-000000000001");
+  const attacker = makeUserId("00000000-0000-4000-8000-000000000002");
+
+  beforeEach(() => {
+    tokenRepo = createInMemoryExternalPurchaseTokenRepository();
+  });
+
+  it("正常系: 所有者本人の取引を報告すると queuedForAppleReport=true を返す", async () => {
+    const adapter = createExternalPurchaseAdapter(tokenRepo, {
+      redirectTokenTtlMinutes: 5,
+      externalSuccessUrl: "trancall://billing/external-success",
+    });
+    const token = "1".repeat(64);
+    await tokenRepo.createToken(owner, "standard", "cs_report_001", token, 5);
+
+    const result = await adapter.reportMonthlyTransaction(owner, {
+      externalPurchaseToken: token,
+      stripeSessionId: "cs_report_001",
+      amountYen: 2980,
+      occurredAt: new Date().toISOString(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.queuedForAppleReport).toBe(true);
+  });
+
+  it("異常系: 所有者と異なる callerUserId (なりすまし) は BILLING_PAYMENT_FAILED で拒否される", async () => {
+    const adapter = createExternalPurchaseAdapter(tokenRepo, {
+      redirectTokenTtlMinutes: 5,
+      externalSuccessUrl: "trancall://billing/external-success",
+    });
+    const token = "2".repeat(64);
+    await tokenRepo.createToken(owner, "standard", "cs_report_002", token, 5);
+
+    const result = await adapter.reportMonthlyTransaction(attacker, {
+      externalPurchaseToken: token,
+      stripeSessionId: "cs_report_002",
+      amountYen: 2980,
+      occurredAt: new Date().toISOString(),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("BILLING_PAYMENT_FAILED");
+  });
+
+  it("異常系: stripeSessionId が externalPurchaseToken と一致しない場合 VALIDATION_ERROR を返す", async () => {
+    const adapter = createExternalPurchaseAdapter(tokenRepo, {
+      redirectTokenTtlMinutes: 5,
+      externalSuccessUrl: "trancall://billing/external-success",
+    });
+    const token = "3".repeat(64);
+    await tokenRepo.createToken(owner, "standard", "cs_report_003", token, 5);
+
+    const result = await adapter.reportMonthlyTransaction(owner, {
+      externalPurchaseToken: token,
+      stripeSessionId: "cs_report_mismatched",
+      amountYen: 2980,
+      occurredAt: new Date().toISOString(),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("異常系: 存在しない externalPurchaseToken は BILLING_PAYMENT_FAILED を返す", async () => {
+    const adapter = createExternalPurchaseAdapter(tokenRepo, {
+      redirectTokenTtlMinutes: 5,
+      externalSuccessUrl: "trancall://billing/external-success",
+    });
+
+    const result = await adapter.reportMonthlyTransaction(owner, {
+      externalPurchaseToken: "nonexistent".padEnd(64, "0"),
+      stripeSessionId: "cs_report_004",
+      amountYen: 2980,
+      occurredAt: new Date().toISOString(),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("BILLING_PAYMENT_FAILED");
+  });
+});

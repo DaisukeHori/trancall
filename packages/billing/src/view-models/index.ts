@@ -211,3 +211,30 @@ export const PreCallCostEstimateSchema = z.object({
   recommendedAction: z.enum(["proceed", "upgrade", "warn_overage"]),
 });
 export type PreCallCostEstimate = z.infer<typeof PreCallCostEstimateSchema>;
+
+// =============================================================================
+// 4.10 [P-2] StoreKitExternalReport — Apple StoreKit External Purchase 月次レポート受付
+// docs/api-spec.md 「POST /api/billing/storekit-external/report」canonical 準拠。
+// =============================================================================
+
+export const StoreKitExternalReportCommandSchema = z.object({
+  /**
+   * ExternalPurchaseAdapter が発行した redirectToken
+   * (`generateRedirectToken()` / `ExternalPurchaseTokenRow.token`)。
+   * Apple External Purchase Server API 向けの取引識別子として再利用する。
+   */
+  externalPurchaseToken: z.string().min(1),
+  stripeSessionId: z.string().min(1),
+  amountYen: z.number().int().nonnegative(),
+  occurredAt: z.iso.datetime(),
+});
+export type StoreKitExternalReportCommand = z.infer<
+  typeof StoreKitExternalReportCommandSchema
+>;
+
+export const StoreKitExternalReportResultSchema = z.object({
+  queuedForAppleReport: z.literal(true),
+});
+export type StoreKitExternalReportResult = z.infer<
+  typeof StoreKitExternalReportResultSchema
+>;

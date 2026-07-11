@@ -11,6 +11,19 @@
  *
  * productId マッピング: iap-adapter.ts の APPLE_IAP_PRODUCT_ID_MAP (canonical) を参照。
  * docs/billing-ui-flow.md §7.2
+ *
+ * M-8: 本 adapter (`apple-iap-adapter.ts`) と `iap-adapter.ts` は「二重実装」ではなく、
+ * 互いに異なる責務を持つ 2 つの独立した adapter である:
+ * - `apple-iap-adapter.ts` (本ファイル): Apple → Server の Server-to-Server Webhook 通知
+ *   (App Store Server Notifications V2) を解析する。JWS 署名検証は行わない (apps/server が担う)。
+ * - `iap-adapter.ts`: Client (StoreKit 2) → Server の Transaction 検証を行う。
+ *   x5c 証明書チェーンによる JWS 署名検証を含む (`verifyJwsSignature`)。
+ * 旧課題 (sprint3-known-issues.md §2.2) の実体は「productId マッピングが旧形式
+ * (`trancall_light_monthly`) と canonical 形式 (`com.trancall.subscription.light.monthly`) の
+ * 2 箇所に別々に定義されていたこと」であり、既に解消済み (本ファイルは iap-adapter.ts の
+ * `APPLE_IAP_PRODUCT_ID_MAP` を canonical として re-export ではなく直接 import して使う)。
+ * 未使用だった重複ヘルパー (`mapProductIdToTier` / `APPLE_PRODUCT_ID_MAP` 再エクスポート) は
+ * `iap-adapter.ts` の `resolveTier` / `APPLE_IAP_PRODUCT_ID_MAP` に一本化し削除した。
  */
 
 import { z } from "zod";
@@ -49,15 +62,6 @@ const AppleTransactionInfoSchema = z.object({
   type: z.string().optional(), // "Auto-Renewable Subscription"
   environment: z.string().optional(),
 });
-
-/**
- * Apple 製品 ID → PlanTier マッピング (後方互換 re-export)。
- * canonical 定義は iap-adapter.ts の APPLE_IAP_PRODUCT_ID_MAP。
- * Webhook 処理 (本 adapter) と Transaction 検証 (iap-adapter.ts) の両方で
- * 同一の canonical productId 形式 `com.trancall.subscription.{light,standard,business}.monthly` を使用する。
- * docs/billing-ui-flow.md §7.2
- */
-export const APPLE_PRODUCT_ID_MAP: Record<string, PlanTier> = APPLE_IAP_PRODUCT_ID_MAP;
 
 export interface AppleIapWebhookResult {
   /** 冪等性キー（notificationUUID）。#22: signedTransactionInfo は VARCHAR(200) 超過のため不使用 */
@@ -150,23 +154,6 @@ export function createAppleIapAdapter() {
      */
     isActive(notificationType: string): boolean {
       return notificationType === "SUBSCRIBED" || notificationType === "DID_RENEW";
-    },
-
-    /**
-     * productId を PlanTier にマッピングする。
-     * 未知の productId は BILLING_IAP_RECEIPT_INVALID を返す。
-     */
-    mapProductIdToTier(productId: string): Result<PlanTier> {
-      const tier = APPLE_IAP_PRODUCT_ID_MAP[productId];
-      if (!tier) {
-        return err({
-          code: "BILLING_IAP_RECEIPT_INVALID",
-          message: `未知の Apple 製品 ID: ${productId}`,
-          retryable: false,
-          provider: "apple_iap",
-        });
-      }
-      return ok(tier);
     },
   };
 }

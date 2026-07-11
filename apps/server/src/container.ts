@@ -82,6 +82,8 @@ import { createTranslationEventOutboxRepository } from "./adapters/repositories/
 // Repositories — room
 import { createRoomRepository } from "./adapters/repositories/room/room-repository.supabase.js";
 import { createParticipantRepository } from "./adapters/repositories/room/participant-repository.supabase.js";
+// L-13: room が要求する RoomHistoryEnrichmentRepository (auth/billing/transcript への read-only view)
+import { createRoomHistoryEnrichmentRepository } from "./adapters/repositories/room/room-history-enrichment-repository.supabase.js";
 // Issue #69 (1): room が要求する BlockListRepository (contact の block_list への read-only view)
 import { createRoomBlockListRepository } from "./adapters/repositories/room/block-list-repository.adapter.js";
 
@@ -313,7 +315,11 @@ export function buildContainer(config: Config): AppContainer {
   // translation
   const translation = createTranslationFacade({ sessionRepo, metricsRepo });
 
-  // room (billing + media + notification + eventBus + blockListRepo に依存)
+  // L-13: room が要求する RoomHistoryEnrichmentRepository。transcript の accessRepo
+  // (既存インスタンス) をそのまま再利用し、新規のテーブル直読みは auth/billing 分のみ追加する。
+  const roomHistoryEnrichmentRepo = createRoomHistoryEnrichmentRepository(supabase, accessRepo);
+
+  // room (billing + media + notification + eventBus + blockListRepo + historyEnrichmentRepo に依存)
   const room = createRoomFacade({
     roomRepo,
     participantRepo,
@@ -322,6 +328,7 @@ export function buildContainer(config: Config): AppContainer {
     notification,
     eventBus,
     blockListRepo: roomBlockListRepo,
+    historyEnrichmentRepo: roomHistoryEnrichmentRepo,
   });
 
   // Issue #69 (2): room.participant_joined を購読して transcript_access を自動付与する。

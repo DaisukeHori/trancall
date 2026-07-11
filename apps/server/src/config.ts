@@ -12,6 +12,10 @@ const ConfigSchema = z.object({
   // Server
   PORT: z.string().default("3000").transform(Number),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  // L-15: 論理環境識別用 (NODE_ENV は Render/Vercel では常に "production" 固定になるため
+  // staging/production を区別できない、docs/deployment-render-dryrun.md §13 #10)。
+  // ログの `environment` フィールドに使う (§11.4 横断調査)。
+  ENVIRONMENT: z.enum(["development", "staging", "production"]).default("development"),
 
   // Supabase
   SUPABASE_URL: z.url(),
@@ -40,7 +44,11 @@ const ConfigSchema = z.object({
 
   // FCM
   FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
-  FCM_PROJECT_ID: z.string().optional(),
+  // L-10: 既定値 "trancall" を config.ts 側の Zod default に一元化する
+  // (旧実装は apps/server/src/adapters/notification-adapters.ts に "trancall" を
+  // ハードコードしたフォールバックとして持っていた)。運用で Firebase project id が
+  // 異なる場合は環境変数 FCM_PROJECT_ID で上書きする。
+  FCM_PROJECT_ID: z.string().min(1).default("trancall"),
 
   // HMAC secret for Agent ↔ Server
   TRANCALL_AGENT_HMAC_SECRET: z.string().min(32),

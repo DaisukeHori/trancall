@@ -221,6 +221,8 @@ export function createMockContainer(): AppContainer {
       currentPeriodEnd: new Date().toISOString(),
       cancelAtPeriodEnd: false,
     })),
+    // P-2: POST /api/billing/storekit-external/report
+    reportExternalPurchaseTransaction: vi.fn().mockResolvedValue(ok({ queuedForAppleReport: true })),
   };
 
   // Contact facade mock
@@ -283,10 +285,15 @@ export function createMockContainer(): AppContainer {
     searchSegments: vi.fn().mockResolvedValue(ok([])),
     deleteAccess: vi.fn().mockResolvedValue(ok(true)),
     // T-9 Round 2 指摘: 501 stub を ok() に更新 (TranscriptFacade.exportTranscript 実装済み)
+    // M-3: partIndex/totalParts/hasMore/totalSegments が返り値に追加された (分割エクスポート)
     exportTranscript: vi.fn().mockResolvedValue(ok({
       contentBase64: "dGVzdA==",
       mime: "text/plain; charset=utf-8",
       filename: "transcript-test.txt",
+      partIndex: 0,
+      totalParts: 1,
+      hasMore: false,
+      totalSegments: 1,
     })),
     validateLiveDelta: vi.fn().mockReturnValue(ok({})),
   };

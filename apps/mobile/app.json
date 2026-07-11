@@ -146,7 +146,8 @@
       "expo-secure-store",
       "./plugins/with-android-native",
       "./plugins/with-ios-callbridge",
-      "expo-audio"
+      "expo-audio",
+      "@livekit/react-native-expo-plugin"
     ],
     "extra": {
       "eas": {

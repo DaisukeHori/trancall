@@ -7,6 +7,11 @@ import "./src/i18n/index";
 import { RootNavigator } from "./src/navigation/root-navigator";
 import { useIncomingCallPushListener } from "./src/hooks/use-incoming-call-push";
 import { useNotificationPermissionRequest } from "./src/hooks/use-notification-permission";
+// M-11: E2E (Maestro) 専用の DataChannel 直注入フック登録。isE2eTestMode() ガードにより
+// production ビルドでは何も登録されない (docs/e2e-test-design.md §11)。
+import { registerE2ESubtitleInjection } from "./src/lib/e2e/subtitle-injection";
+
+registerE2ESubtitleInjection();
 
 const queryClient = new QueryClient({
   defaultOptions: {

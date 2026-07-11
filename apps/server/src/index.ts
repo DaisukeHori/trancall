@@ -5,10 +5,12 @@
 import { loadConfig } from "./config.js";
 import { buildContainer } from "./container.js";
 import { buildApp } from "./app.js";
-import { logger } from "./logger.js";
+import { logger, setLoggerEnvironment } from "./logger.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  // L-15: 以降の全ログ行に environment (ENVIRONMENT 環境変数) を付与する
+  setLoggerEnvironment(config.ENVIRONMENT);
   const container = buildContainer(config);
   const app = await buildApp(container, config);
 

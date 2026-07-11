@@ -8,7 +8,9 @@ import type { ContactEntry } from "../api/contacts-api";
 export type ContactsStackParamList = {
   ContactsMain: undefined;
   ContactProfile: { contact: ContactEntry };
-  AddContact: undefined;
+  // L-1: RecentStackParamList["AddContact"] と同じ形にする
+  // (add-contact-screen.tsx が両スタックで共有されているため)。
+  AddContact: { mode?: "add" | "edit"; contactId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<ContactsStackParamList>();

@@ -132,8 +132,11 @@ import {
   injectDependencies,
   resolveParticipantId,
   publishStatusChannelData,
+  publishBillingStatusChannelData,
   TRANSLATION_STATUS_CHANNEL_TOPIC,
+  BILLING_STATUS_CHANNEL_TOPIC,
   type SubtitleDeltaChannelPayload,
+  type BillingStatusChannelPayload,
 } from "../src/agent.js";
 import { type InternalApiClient } from "../src/internal-api-client.js";
 import { type Logger } from "../src/logger.js";
@@ -368,6 +371,87 @@ describe("agent.ts #51: translation.status Data Channel", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       "Agent: translation.status Data Channel publish 失敗",
       expect.objectContaining({ key: "test-key", payloadType: "subtitle.delta" }),
+    );
+  });
+});
+
+// =============================================================================
+// M-9: billing.status Data Channel (通話中残量ライブ表示、mobile 側 M-10 と対をなす契約)
+// =============================================================================
+
+describe("agent.ts M-9: billing.status Data Channel", () => {
+  it("BILLING_STATUS_CHANNEL_TOPIC は mobile 側 M-10 の契約 topic と一致する", () => {
+    expect(BILLING_STATUS_CHANNEL_TOPIC).toBe("billing.status");
+  });
+
+  it("publishBillingStatusChannelData は topic: billing.status + reliable: true で publishData を呼ぶ", () => {
+    const publishData = vi.fn().mockResolvedValue(undefined);
+    const localParticipant = { publishData } as unknown as import("@livekit/rtc-node").LocalParticipant;
+    const logger = makeLogger();
+
+    const payload: BillingStatusChannelPayload = {
+      shouldContinue: true,
+      remainingMinutes: 12,
+    };
+
+    publishBillingStatusChannelData(localParticipant, payload, logger, { key: "test-key" });
+
+    expect(publishData).toHaveBeenCalledTimes(1);
+    const [dataArg, optionsArg] = publishData.mock.calls[0] as [Uint8Array, { reliable: boolean; topic: string }];
+    expect(optionsArg).toEqual({ reliable: true, topic: "billing.status" });
+
+    // 契約通り payload は { shouldContinue, remainingMinutes } のみを含む
+    const decoded: unknown = JSON.parse(Buffer.from(dataArg).toString("utf-8"));
+    expect(decoded).toEqual({ shouldContinue: true, remainingMinutes: 12 });
+  });
+
+  it("shouldContinue=false (残高不足) の payload も送信できる", () => {
+    const publishData = vi.fn().mockResolvedValue(undefined);
+    const localParticipant = { publishData } as unknown as import("@livekit/rtc-node").LocalParticipant;
+    const logger = makeLogger();
+
+    publishBillingStatusChannelData(
+      localParticipant,
+      { shouldContinue: false, remainingMinutes: 0 },
+      logger,
+      { key: "test-key" },
+    );
+
+    const [dataArg] = publishData.mock.calls[0] as [Uint8Array];
+    const decoded: unknown = JSON.parse(Buffer.from(dataArg).toString("utf-8"));
+    expect(decoded).toEqual({ shouldContinue: false, remainingMinutes: 0 });
+  });
+
+  it("localParticipant が undefined の場合は publishData を呼ばない (エラーにもならない)", () => {
+    const logger = makeLogger();
+    expect(() => {
+      publishBillingStatusChannelData(
+        undefined,
+        { shouldContinue: true, remainingMinutes: 5 },
+        logger,
+        { key: "test-key" },
+      );
+    }).not.toThrow();
+  });
+
+  it("publishData が失敗しても warn ログのみで例外は投げない (best-effort)", async () => {
+    const publishData = vi.fn().mockRejectedValue(new Error("network error"));
+    const localParticipant = { publishData } as unknown as import("@livekit/rtc-node").LocalParticipant;
+    const logger = makeLogger();
+
+    expect(() => {
+      publishBillingStatusChannelData(
+        localParticipant,
+        { shouldContinue: true, remainingMinutes: 5 },
+        logger,
+        { key: "test-key" },
+      );
+    }).not.toThrow();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Agent: billing.status Data Channel publish 失敗",
+      expect.objectContaining({ key: "test-key" }),
     );
   });
 });

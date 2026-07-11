@@ -50,3 +50,19 @@ export {
 export type {
   PermissionErrorCode,
 } from "./schemas/permission-error-codes.ts";
+
+// L-9 (G-10 解消): Native Call Bridge canonical schema
+// (apps/mobile/modules/call-bridge と packages/notification の単一ソース)
+export {
+  CallStateSchema,
+  CallRoomTypeSchema,
+  CallEventSchema,
+  IncomingCallPushPayloadSchema,
+} from "./schemas/native-call.ts";
+
+export type {
+  CallState,
+  CallRoomType,
+  CallEvent,
+  IncomingCallPushPayload,
+} from "./schemas/native-call.ts";

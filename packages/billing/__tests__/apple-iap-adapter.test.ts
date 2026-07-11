@@ -3,10 +3,13 @@
  *
  * - parseWebhookPayload: JWS ペイロードデコード
  * - shouldProcessNotification / isActive 判定
+ * - M-8: apple-iap-adapter.ts / iap-adapter.ts の productId マッピングが
+ *   canonical (APPLE_IAP_PRODUCT_ID_MAP) に一本化されていることの回帰テスト
  */
 
 import { describe, expect, it } from "vitest";
 import { createAppleIapAdapter } from "../src/adapters/apple-iap-adapter.js";
+import { createIapAdapter, APPLE_IAP_PRODUCT_ID_MAP } from "../src/adapters/iap-adapter.js";
 
 // --- JWS テスト用ヘルパー ---
 
@@ -130,5 +133,35 @@ describe("AppleIapAdapter.isActive", () => {
   it("EXPIRED は非アクティブ", () => {
     const adapter = createAppleIapAdapter();
     expect(adapter.isActive("EXPIRED")).toBe(false);
+  });
+});
+
+// =============================================================================
+// M-8: apple-iap-adapter.ts (Webhook 解析) と iap-adapter.ts (Client Transaction 検証) の
+// productId → PlanTier マッピングが単一の canonical ソース (APPLE_IAP_PRODUCT_ID_MAP) に
+// 一本化されていることを検証する (旧 sprint3-known-issues.md §2.2 の「二重実装」課題の回帰テスト)。
+// =============================================================================
+describe("AppleIapAdapter / IapAdapter — productId マッピングの canonical 一本化 (M-8)", () => {
+  it("APPLE_IAP_PRODUCT_ID_MAP の全 productId で Webhook 解析 (apple-iap-adapter) の tier 解決が一致する", () => {
+    const adapter = createAppleIapAdapter();
+
+    for (const [productId, expectedTier] of Object.entries(APPLE_IAP_PRODUCT_ID_MAP)) {
+      const payload = buildNotificationPayload("SUBSCRIBED", {
+        ...validTransaction,
+        productId,
+      });
+      const result = adapter.parseWebhookPayload(payload);
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      expect(result.data.tier).toBe(expectedTier);
+    }
+  });
+
+  it("APPLE_IAP_PRODUCT_ID_MAP の全 productId で Client Transaction 検証 (iap-adapter) の resolveTier と一致する", () => {
+    const iapAdapter = createIapAdapter();
+
+    for (const [productId, expectedTier] of Object.entries(APPLE_IAP_PRODUCT_ID_MAP)) {
+      expect(iapAdapter.resolveTier(productId)).toBe(expectedTier);
+    }
   });
 });

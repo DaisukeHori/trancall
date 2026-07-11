@@ -116,10 +116,14 @@ function makeApiClient(
         };
   });
 
-  // Issue #69 (4): heartbeat 専用モック (postEvent とは別カウント・別レスポンス系列)
+  // Issue #69 (4) / M-9: heartbeat 専用モック (postEvent とは別カウント・別レスポンス系列)。
+  // デフォルトは shouldContinue=true (残量あり) を返す。
   const postHeartbeat = vi.fn(async (payload: PostHeartbeatArgs) => {
     heartbeatCalls.push(payload);
-    return { ok: true as const, data: undefined };
+    return {
+      ok: true as const,
+      data: { ok: true as const, shouldContinue: true, remainingMinutes: 10 },
+    };
   });
 
   return {
@@ -1167,6 +1171,124 @@ describe("TranslationSession: Issue #69 (4) ハートビート定期送信", () 
       vi.advanceTimersByTime(1000);
       await waitNextTick(2);
     }).not.toThrow();
+
+    await session.end("participant_left");
+  });
+
+  // =============================================================================
+  // M-9: heartbeat 応答 shouldContinue=false による翻訳セッション停止
+  // =============================================================================
+
+  it("M-9: heartbeat 応答 shouldContinue=false (残高不足) を受けると insufficient_balance で end() する", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    apiClient.postHeartbeat.mockResolvedValueOnce({
+      ok: true,
+      data: { ok: true, shouldContinue: false, remainingMinutes: 0 },
+    });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(8);
+
+    const endedCall = apiClient.calls.find((c) => c.type === "translation.session_ended");
+    expect(endedCall).toBeDefined();
+    if (!endedCall || endedCall.type !== "translation.session_ended") return;
+    expect(endedCall.reason).toBe("insufficient_balance");
+  });
+
+  it("M-9: heartbeat 応答 shouldContinue=true (残量あり) の場合はセッションを継続する", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    apiClient.postHeartbeat.mockResolvedValueOnce({
+      ok: true,
+      data: { ok: true, shouldContinue: true, remainingMinutes: 5 },
+    });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(2);
+
+    const endedCall = apiClient.calls.find((c) => c.type === "translation.session_ended");
+    expect(endedCall).toBeUndefined();
+
+    await session.end("participant_left");
+  });
+
+  it("M-9: heartbeat payload に roomId が含まれる", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(2);
+
+    expect(apiClient.heartbeatCalls[0]?.roomId).toBe(config.roomId);
+
+    await session.end("participant_left");
+  });
+
+  // M-9: mobile 側 M-10 (billing.status Data Channel) 契約向けの "billing-status" emit
+  it("M-9: heartbeat 応答を受けると billing-status イベントを {shouldContinue, remainingMinutes} で emit する", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    apiClient.postHeartbeat.mockResolvedValueOnce({
+      ok: true,
+      data: { ok: true, shouldContinue: true, remainingMinutes: 7 },
+    });
+    const session = new TranslationSession(config);
+    const billingStatusSpy = vi.fn();
+    session.on("billing-status", billingStatusSpy);
+
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(3);
+
+    expect(billingStatusSpy).toHaveBeenCalledWith({ shouldContinue: true, remainingMinutes: 7 });
+
+    await session.end("participant_left");
+  });
+
+  it("M-9: shouldContinue=false でも billing-status イベントを emit してから end() する", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    apiClient.postHeartbeat.mockResolvedValueOnce({
+      ok: true,
+      data: { ok: true, shouldContinue: false, remainingMinutes: 0 },
+    });
+    const session = new TranslationSession(config);
+    const billingStatusSpy = vi.fn();
+    session.on("billing-status", billingStatusSpy);
+
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(8);
+
+    expect(billingStatusSpy).toHaveBeenCalledWith({ shouldContinue: false, remainingMinutes: 0 });
+  });
+
+  it("M-9: postHeartbeat が失敗した場合は billing-status イベントを emit しない", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    apiClient.postHeartbeat.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "network", message: "heartbeat failed" },
+    });
+    const session = new TranslationSession(config);
+    const billingStatusSpy = vi.fn();
+    session.on("billing-status", billingStatusSpy);
+
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(2);
+
+    expect(billingStatusSpy).not.toHaveBeenCalled();
 
     await session.end("participant_left");
   });

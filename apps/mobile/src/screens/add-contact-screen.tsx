@@ -16,6 +16,10 @@ import { useTranslation } from "../i18n/index";
 import { useContactsStore } from "../stores/contacts-store";
 import { searchUsers, createInviteLink } from "../api/contacts-api";
 import type { PublicProfile } from "../api/contacts-api";
+import {
+  requestAndImportDeviceContacts,
+  matchDeviceContactsToTrancallUsers,
+} from "../lib/contacts/device-contacts";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RecentStackParamList } from "../navigation/recent-stack";
 
@@ -25,14 +29,28 @@ type Props = NativeStackScreenProps<RecentStackParamList, "AddContact">;
 
 type TabId = "search" | "qr" | "invite" | "import";
 
-export function AddContactScreen({ navigation }: Props) {
+/** L-2: 端末連絡先インポートフローの状態 */
+type ImportPhase = "idle" | "importing" | "matched" | "no-matches" | "denied";
+
+export function AddContactScreen({ navigation, route }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const c = theme.colors;
   const s = theme.spacing;
 
+  // L-1: contact-profile-screen.tsx の編集ボタンから { mode: "edit", contactId } で
+  // 遷移してくる場合がある。現状 AddContactScreen 側に編集可能なフィールドは
+  // 存在しない (ContactEntry に nickname 等の編集可能フィールドがなく、
+  // サーバー側にも更新 API が無い) ため、画面タイトルの出し分けのみ行う。
+  const isEditMode = route.params?.mode === "edit";
+
   const [activeTab, setActiveTab] = useState<TabId>("search");
   const add = useContactsStore((state) => state.add);
+
+  // --- Import tab (L-2) state ---
+  const [importPhase, setImportPhase] = useState<ImportPhase>("idle");
+  const [matchedProfiles, setMatchedProfiles] = useState<PublicProfile[]>([]);
+  const [isAddingAll, setIsAddingAll] = useState(false);
 
   // --- ID Search state ---
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,6 +102,37 @@ export function AddContactScreen({ navigation }: Props) {
   const handleShareInviteLink = async () => {
     if (inviteUrl == null) return;
     await Share.share({ url: inviteUrl, message: inviteUrl });
+  };
+
+  // =========================================================================
+  // L-2: 端末連絡先インポート — 許可リクエスト → 取得 → TranCall ユーザーとマッチング
+  // =========================================================================
+  const handleAllowImport = async () => {
+    setImportPhase("importing");
+    setMatchedProfiles([]);
+
+    const result = await requestAndImportDeviceContacts();
+    if (result.status !== "granted") {
+      setImportPhase("denied");
+      Alert.alert(t("addContact.import.permissionRequired"));
+      return;
+    }
+
+    const matches = await matchDeviceContactsToTrancallUsers(result.contacts, searchUsers);
+    if (matches.length === 0) {
+      setImportPhase("no-matches");
+      return;
+    }
+    setMatchedProfiles(matches);
+    setImportPhase("matched");
+  };
+
+  const handleAddAllMatches = async () => {
+    setIsAddingAll(true);
+    await Promise.all(matchedProfiles.map((profile) => add(profile.userId)));
+    setIsAddingAll(false);
+    Alert.alert(t("addContact.successMessage"));
+    navigation.goBack();
   };
 
   const renderSearchTab = () => (
@@ -210,28 +259,104 @@ export function AddContactScreen({ navigation }: Props) {
     </View>
   );
 
-  const renderImportTab = () => (
-    <View style={[styles.tabContent, styles.centeredContent, { paddingHorizontal: s[16] }]}>
-      <Text style={[styles.importTitle, { color: c.textPrimary }]}>
-        {t("addContact.import.title")}
-      </Text>
-      <Text style={[styles.importSubtitle, { color: c.textSecondary, marginTop: s[8] }]}>
-        {t("addContact.import.permissionRequired")}
-      </Text>
-      <View style={[styles.buttonStack, { marginTop: s[16] }]}>
-        <Button
-          variant="primary"
-          size="lg"
-          onPress={() => {
-            // TODO Phase 2: expo-contacts permission + import flow
-          }}
-          accessibilityLabel={t("addContact.import.allow")}
-        >
-          {t("addContact.import.allow")}
-        </Button>
+  const renderImportTab = () => {
+    if (importPhase === "importing") {
+      return (
+        <View style={[styles.tabContent, styles.centeredContent, { paddingHorizontal: s[16] }]}>
+          <ActivityIndicator
+            color={c.primary}
+            accessibilityLabel={t("addContact.import.importing")}
+          />
+          <Text style={[styles.importSubtitle, { color: c.textSecondary, marginTop: s[8] }]}>
+            {t("addContact.import.importing")}
+          </Text>
+        </View>
+      );
+    }
+
+    if (importPhase === "matched") {
+      return (
+        <View style={[styles.tabContent, { paddingHorizontal: s[16] }]}>
+          <FlatList
+            data={matchedProfiles}
+            keyExtractor={(item) => item.userId}
+            renderItem={({ item }) => (
+              <View style={[styles.resultRow, { borderBottomColor: c.border }]}>
+                <Avatar
+                  size="md"
+                  {...(item.avatarUrl != null ? { uri: item.avatarUrl } : {})}
+                  fallbackInitials={item.displayName.slice(0, 2)}
+                  accessibilityLabel={item.displayName}
+                />
+                <View style={styles.resultInfo}>
+                  <Text style={[styles.resultName, { color: c.textPrimary }]}>
+                    {item.displayName}
+                  </Text>
+                  <Text style={[styles.resultId, { color: c.textSecondary }]}>
+                    {item.trancallId}
+                  </Text>
+                </View>
+              </View>
+            )}
+            showsVerticalScrollIndicator={false}
+          />
+          <View style={[styles.buttonStack, { marginTop: s[16] }]}>
+            <Button
+              variant="primary"
+              size="lg"
+              onPress={() => { void handleAddAllMatches(); }}
+              loading={isAddingAll}
+              accessibilityLabel={t("addContact.import.addAll")}
+            >
+              {t("addContact.import.addAll")}
+            </Button>
+          </View>
+        </View>
+      );
+    }
+
+    if (importPhase === "no-matches") {
+      return (
+        <View style={[styles.tabContent, styles.centeredContent, { paddingHorizontal: s[16] }]}>
+          <Text style={[styles.importSubtitle, { color: c.textSecondary }]}>
+            {t("addContact.import.noMatches")}
+          </Text>
+          <View style={[styles.buttonStack, { marginTop: s[16] }]}>
+            <Button
+              variant="secondary"
+              size="lg"
+              onPress={() => { void handleAllowImport(); }}
+              accessibilityLabel={t("addContact.import.allow")}
+            >
+              {t("addContact.import.allow")}
+            </Button>
+          </View>
+        </View>
+      );
+    }
+
+    // idle / denied
+    return (
+      <View style={[styles.tabContent, styles.centeredContent, { paddingHorizontal: s[16] }]}>
+        <Text style={[styles.importTitle, { color: c.textPrimary }]}>
+          {t("addContact.import.title")}
+        </Text>
+        <Text style={[styles.importSubtitle, { color: c.textSecondary, marginTop: s[8] }]}>
+          {t("addContact.import.permissionRequired")}
+        </Text>
+        <View style={[styles.buttonStack, { marginTop: s[16] }]}>
+          <Button
+            variant="primary"
+            size="lg"
+            onPress={() => { void handleAllowImport(); }}
+            accessibilityLabel={t("addContact.import.allow")}
+          >
+            {t("addContact.import.allow")}
+          </Button>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: c.bgPrimary }]}>
@@ -249,7 +374,7 @@ export function AddContactScreen({ navigation }: Props) {
           accessibilityRole="header"
           style={[styles.navTitle, { color: c.textPrimary }]}
         >
-          {t("addContact.title")}
+          {isEditMode ? t("contactProfile.edit") : t("addContact.title")}
         </Text>
         <View style={styles.backButton} />
       </View>

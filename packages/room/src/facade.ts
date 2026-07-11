@@ -10,56 +10,33 @@ import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade } from "@trancall/notification";
 
-import type { RoomState } from "./schemas.ts";
+import type { RoomState, RoomHistoryResponse, GetRoomHistoryQuery } from "./schemas.ts";
 import type { RoomRepository } from "./repositories/room-repository.ts";
 import type { ParticipantRepository } from "./repositories/participant-repository.ts";
 import type { BlockListRepository } from "./repositories/block-list-repository.ts";
+import type { RoomHistoryEnrichmentRepository } from "./repositories/room-history-enrichment-repository.ts";
 import type { EventBus } from "./event-bus.ts";
 import { createCallLifecycleService, type CreateCallOptions } from "./services/call-lifecycle-service.ts";
 import { createJoinService } from "./services/join-service.ts";
 import { buildRoomState } from "./services/state-builder.ts";
+import { createHistoryService } from "./services/history-service.ts";
 
 export type { CreateCallOptions } from "./services/call-lifecycle-service.ts";
 
 // =============================================================================
+// L-13: 通話履歴型 (docs/api-spec.md GET /api/rooms/history) — schemas.ts が正
+// =============================================================================
+
+export type {
+  RoomHistoryParticipant,
+  RoomHistoryEntry,
+  RoomHistoryResponse,
+  GetRoomHistoryQuery,
+} from "./schemas.ts";
+
+// =============================================================================
 // インターフェース
 // =============================================================================
-
-// =============================================================================
-// Sprint 3 拡張: 通話履歴型 (docs/api-spec.md GET /api/rooms/history)
-// =============================================================================
-
-export interface RoomHistoryParticipant {
-  userId: string;
-  displayName: string;
-  trancallId: string;
-  avatarUrl: string | null;
-  isHost: boolean;
-}
-
-export interface RoomHistoryEntry {
-  roomId: string;
-  status: "ended";
-  roomType: "audio" | "video";
-  translationEnabled: boolean;
-  startedAt: string;
-  endedAt: string;
-  durationSeconds: number;
-  participants: RoomHistoryParticipant[];
-  myRole: "host" | "member";
-  costYen: number;
-  hasTranscript: boolean;
-}
-
-export interface RoomHistoryResponse {
-  rooms: RoomHistoryEntry[];
-  nextCursor: string | null;
-}
-
-export interface GetRoomHistoryQuery {
-  limit: number;
-  before?: string;
-}
 
 export interface RoomFacade {
   createCall(
@@ -75,8 +52,7 @@ export interface RoomFacade {
   getState(roomId: RoomId): Promise<Result<RoomState>>;
 
   /**
-   * 通話履歴を取得する (docs/api-spec.md §GET /api/rooms/history)
-   * Phase 1a P1 (Sprint 3) 実装対象
+   * 通話履歴を取得する (docs/api-spec.md §GET /api/rooms/history、L-13 で実装完了)
    */
   getRoomHistory(userId: UserId, query: GetRoomHistoryQuery): Promise<Result<RoomHistoryResponse>>;
 }
@@ -97,6 +73,11 @@ export interface RoomFacadeDeps {
    * @trancall/contact 所有の block_list への実体は apps/server が注入する。
    */
   blockListRepo: BlockListRepository;
+  /**
+   * L-13: getRoomHistory の参加者プロフィール/課金額/文字起こし有無の補足情報。
+   * 未注入時はフォールバック値を使う (packages/room/src/services/history-service.ts 参照)。
+   */
+  historyEnrichmentRepo?: RoomHistoryEnrichmentRepository;
 }
 
 // =============================================================================
@@ -104,7 +85,16 @@ export interface RoomFacadeDeps {
 // =============================================================================
 
 export function createRoomFacade(deps: RoomFacadeDeps): RoomFacade {
-  const { roomRepo, participantRepo, billing, media, notification, eventBus, blockListRepo } = deps;
+  const {
+    roomRepo,
+    participantRepo,
+    billing,
+    media,
+    notification,
+    eventBus,
+    blockListRepo,
+    historyEnrichmentRepo,
+  } = deps;
 
   const lifecycleService = createCallLifecycleService({
     roomRepo,
@@ -121,6 +111,14 @@ export function createRoomFacade(deps: RoomFacadeDeps): RoomFacade {
     participantRepo,
     eventBus,
     blockListRepo,
+  });
+
+  const historyService = createHistoryService({
+    roomRepo,
+    participantRepo,
+    billing,
+    // exactOptionalPropertyTypes: true のため、undefined を明示的に渡さず条件付きで spread する
+    ...(historyEnrichmentRepo ? { historyEnrichmentRepo } : {}),
   });
 
   return {
@@ -163,15 +161,14 @@ export function createRoomFacade(deps: RoomFacadeDeps): RoomFacade {
     },
 
     // =========================================================================
-    // getRoomHistory — Sprint 3 スタブ
+    // getRoomHistory — L-13
     // docs/api-spec.md GET /api/rooms/history
     // =========================================================================
     async getRoomHistory(
-      _userId: UserId,
-      _query: GetRoomHistoryQuery,
+      userId: UserId,
+      query: GetRoomHistoryQuery,
     ): Promise<Result<RoomHistoryResponse>> {
-      // Sprint 3 後半で RoomRepository.findEndedByParticipantId を追加して実装
-      return { ok: true, data: { rooms: [], nextCursor: null } };
+      return historyService.getRoomHistory(userId, query);
     },
   };
 }

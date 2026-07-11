@@ -112,6 +112,48 @@ export function publishStatusChannelData(
     });
 }
 
+// =============================================================================
+// M-9: billing.status Data Channel (通話中残量ライブ表示、M-10 と対をなす契約)
+//
+// mobile 側 (M-10) が topic `billing.status` / payload `{ shouldContinue, remainingMinutes }`
+// を購読して in-call 画面の残量表示をライブ更新する。TranslationSession が heartbeat 応答
+// (`shouldContinue`/`remainingMinutes`、apps/server/src/routes/agent-routes.ts) を受信する
+// たびに emit する "billing-status" イベントをここで Data Channel へ publish する。
+// translation.status とは別 topic のため、独立した payload 型・publish ヘルパーを用意する。
+// =============================================================================
+
+export const BILLING_STATUS_CHANNEL_TOPIC = "billing.status";
+
+export interface BillingStatusChannelPayload {
+  shouldContinue: boolean;
+  remainingMinutes: number;
+}
+
+/**
+ * M-9: billing.status Data Channel へ payload を publish する。
+ * publishStatusChannelData (translation.status) と同じ RELIABLE + best-effort 方針。
+ */
+export function publishBillingStatusChannelData(
+  localParticipant: LocalParticipant | undefined,
+  payload: BillingStatusChannelPayload,
+  logger: Logger,
+  logContext: Record<string, unknown>,
+): void {
+  if (!localParticipant) return;
+  const data = Buffer.from(JSON.stringify(payload));
+  void localParticipant
+    .publishData(new Uint8Array(data), {
+      reliable: true,
+      topic: BILLING_STATUS_CHANNEL_TOPIC,
+    })
+    .catch((e: unknown) => {
+      logger.warn("Agent: billing.status Data Channel publish 失敗", {
+        ...logContext,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    });
+}
+
 import { type Config } from "./config.js";
 import {
   InternalApiClient,
@@ -332,6 +374,15 @@ export default defineAgent({
         publishStatusChannelData(ctx.room.localParticipant, payload, logger, { key });
         logger.info("Agent: recovered Data Channel publish", { key });
       });
+
+      // M-9: billing-status イベント購読 → billing.status Data Channel publish
+      // (通話中残量ライブ表示、mobile 側 M-10 が同 topic/payload を購読する契約)
+      session.on(
+        "billing-status",
+        (status: { shouldContinue: boolean; remainingMinutes: number }) => {
+          publishBillingStatusChannelData(ctx.room.localParticipant, status, logger, { key });
+        },
+      );
 
       // #51: transcript イベント購読 → subtitle.delta Data Channel publish
       // module-contracts.md §3.4 の subtitle.delta として translation.status topic に送信する
