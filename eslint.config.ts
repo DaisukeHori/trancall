@@ -57,6 +57,8 @@ export default tseslint.config(
       "**/lib/callkit/voip-push.ts",
       "**/lib/billing/iap-storekit.ts",
       "**/lib/billing/external-purchase.ts",
+      // mobile: expo-contacts 境界ラッパー (L-2)
+      "**/lib/contacts/device-contacts.ts",
     ],
     rules: {
       "@typescript-eslint/consistent-type-assertions": [

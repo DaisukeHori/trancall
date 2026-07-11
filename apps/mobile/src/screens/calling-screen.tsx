@@ -17,11 +17,28 @@ import { Avatar, Badge, useTheme, callTokens } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index";
 import { useCallStore } from "../stores/call-store";
 import { useAuthStore } from "../stores/auth-store";
-import { endCall as apiEndCall } from "../api/room-api";
+import { endCall as apiEndCall, getRoomState, getCallToken } from "../api/room-api";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { CallStackParamList } from "../navigation/call-overlay";
 
 type Props = NativeStackScreenProps<CallStackParamList, "Calling">;
+
+/** room.status ポーリング間隔 (ms) — Phase 2 で WebSocket/push ベースの signaling に置き換え予定 */
+const ANSWER_POLL_INTERVAL_MS = 2000;
+
+export type CallingScreenPollAction = "wait" | "navigate_to_in_call" | "call_ended";
+
+/**
+ * room.status から発信中画面が取るべきアクションを決める純粋関数 (テスト用に export)。
+ * - "active" (callee が /join した) → InCall へ遷移
+ * - "ended" (callee 拒否 / タイムアウト等) → 呼び出し元へ戻る
+ * - それ以外 ("waiting" 等) → ポーリング継続
+ */
+export function decideCallingScreenPollAction(status: string): CallingScreenPollAction {
+  if (status === "active") return "navigate_to_in_call";
+  if (status === "ended") return "call_ended";
+  return "wait";
+}
 
 export function CallingScreen({ route, navigation }: Props) {
   const { roomId, calleeName, calleeLanguage, calleeAvatarUri, translationEnabled } = route.params;
@@ -34,16 +51,86 @@ export function CallingScreen({ route, navigation }: Props) {
   const profile = useAuthStore((state) => state.profile);
   const endCallAction = useCallStore((state) => state.endCall);
   const resetToIdle = useCallStore((state) => state.resetToIdle);
+  const setCallError = useCallStore((state) => state.setError);
 
   const myLanguage = profile?.native_language ?? "ja";
   const langPair = `${myLanguage.toUpperCase()} → ${calleeLanguage.toUpperCase()}`;
 
-  // Poll for answer — real implementation uses WebSocket / push event
-  // Phase 2 で Signaling module との結合予定
+  // callee 応答シグナリングの購読。
+  //
+  // room/signaling facade は LiveKit Data Channel/WebSocket ベースの push ではなく、
+  // room.status (waiting → active) を REST (GET /api/rooms/:id) で確認する構成のため、
+  // ここでは既存の room-api.ts (getRoomState/getCallToken、incoming-call-screen.tsx や
+  // in-call-screen.tsx と同じ REST クライアント) を使ったポーリングで応答を検知する。
+  // Phase 2 で WebSocket/push ベースの即時通知に置き換え予定 (旧 TODO コメント参照)。
+  //
+  // - room.status === "active" (callee が /join した) → caller 用 token を取得して InCall へ遷移
+  // - room.status === "ended" (callee 拒否 / タイムアウト等) → 発信中画面を終了して呼び出し元に戻る
   useEffect(() => {
-    // TODO Phase 2: subscribe to signaling event for callee answer
-    return () => undefined;
-  }, [roomId]);
+    if (session == null || roomId == null) return;
+
+    let cancelled = false;
+
+    const intervalId = setInterval(() => {
+      void (async () => {
+        if (cancelled) return;
+        const stateResult = await getRoomState(roomId, session.accessToken);
+        if (cancelled || !stateResult.ok) {
+          // 一時的なネットワークエラーはポーリングを継続する
+          return;
+        }
+
+        const action = decideCallingScreenPollAction(stateResult.data.status);
+
+        if (action === "navigate_to_in_call") {
+          cancelled = true;
+          clearInterval(intervalId);
+
+          const tokenResult = await getCallToken(roomId, session.accessToken);
+          if (cancelled) return;
+          if (!tokenResult.ok) {
+            setCallError(tokenResult.error.message);
+            return;
+          }
+
+          navigation.replace("InCall", {
+            roomId,
+            callerName: calleeName,
+            callerLanguage: calleeLanguage,
+            ...(calleeAvatarUri != null ? { callerAvatarUri: calleeAvatarUri } : {}),
+            livekitToken: tokenResult.data.token,
+            ...(tokenResult.data.livekitUrl != null
+              ? { livekitUrl: tokenResult.data.livekitUrl }
+              : {}),
+            translationEnabled,
+          });
+        } else if (action === "call_ended") {
+          // callee が応答せず拒否 (endCall) した、またはタイムアウト等で通話が終了した
+          cancelled = true;
+          clearInterval(intervalId);
+          endCallAction();
+          resetToIdle();
+          navigation.goBack();
+        }
+      })();
+    }, ANSWER_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [
+    session,
+    roomId,
+    calleeName,
+    calleeLanguage,
+    calleeAvatarUri,
+    translationEnabled,
+    navigation,
+    endCallAction,
+    resetToIdle,
+    setCallError,
+  ]);
 
   const handleCancel = async () => {
     if (session != null && roomId != null) {

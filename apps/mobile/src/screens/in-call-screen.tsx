@@ -33,6 +33,7 @@ import { endCall as apiEndCall } from "../api/room-api";
 import { getCallKeep } from "../lib/callkit/index";
 import { connectToRoom, MicrophonePermissionDeniedError, type RoomHandle } from "../lib/livekit/connect";
 import { subscribeTranslationDataChannel } from "../lib/livekit/data-channel-subscription";
+import { makeBillingHeartbeatDataChannelHandler } from "../lib/livekit/billing-heartbeat";
 import { usePermissionStore } from "../stores/permission-store";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { CallStackParamList } from "../navigation/call-overlay";
@@ -97,6 +98,8 @@ export function InCallScreen({ route, navigation }: Props) {
   const roomHandleRef = useRef<RoomHandle | null>(null);
   // translation.status Data Channel の購読解除関数 (cleanup でリーク防止)
   const dataChannelUnsubscribeRef = useRef<(() => void) | null>(null);
+  // billing.status (heartbeat) Data Channel の購読解除関数 (M-10、cleanup でリーク防止)
+  const billingChannelUnsubscribeRef = useRef<(() => void) | null>(null);
   // Room 接続完了フラグ — data channel 購読用 effect のトリガー (finding6 対応、下記参照)
   const [isRoomReady, setIsRoomReady] = useState(false);
 
@@ -106,6 +109,7 @@ export function InCallScreen({ route, navigation }: Props) {
   // 課金残量・プラン (billing-store 経由、docs/billing-ui-flow.md §10.2 準拠)
   const subscriptionState = useBillingStore((state) => state.subscriptionState);
   const refreshSubscription = useBillingStore((state) => state.refreshSubscription);
+  const updateRemainingMinutes = useBillingStore((state) => state.updateRemainingMinutes);
   const remainingMinutes = subscriptionState?.remainingMinutes ?? null;
   const planTier = subscriptionState?.plan.tier ?? "free";
   const plan = t(`billing.plans.${planTier}.label` as const);
@@ -207,6 +211,27 @@ export function InCallScreen({ route, navigation }: Props) {
       dataChannelUnsubscribeRef.current = null;
     };
   }, [isRoomReady, myLanguage, setDegraded, setRecovered, receivePartialDelta]);
+
+  // M-10: billing.status (heartbeat) Data Channel 購読。
+  // 通話中の残量表示 (status strip の remainingMinutes) をスナップショット固定ではなく、
+  // heartbeat 応答 ({shouldContinue, remainingMinutes}、docs/billing-detail.md 準拠) に
+  // ライブ連動させる。translation.status 購読 effect と同じ isRoomReady トリガーパターン。
+  //
+  // サーバー/Agent 側の実配信経路 (M-9、別 workstream) 確定前でもクライアント契約として
+  // 先行配線する (lib/livekit/billing-heartbeat.ts 参照)。
+  useEffect(() => {
+    const room = roomHandleRef.current;
+    if (!isRoomReady || room == null) return;
+
+    billingChannelUnsubscribeRef.current = room.subscribeToDataChannel(
+      makeBillingHeartbeatDataChannelHandler({ updateRemainingMinutes }),
+    );
+
+    return () => {
+      billingChannelUnsubscribeRef.current?.();
+      billingChannelUnsubscribeRef.current = null;
+    };
+  }, [isRoomReady, updateRemainingMinutes]);
 
   // Duration ticker
   useEffect(() => {

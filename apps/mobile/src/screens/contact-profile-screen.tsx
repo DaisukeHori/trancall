@@ -175,8 +175,11 @@ export function ContactProfileScreen({ navigation, route }: Props) {
             variant="secondary"
             size="lg"
             onPress={() => {
-              // TODO Phase 2: navigate to AddContact with edit mode
-              // navigation.navigate("AddContact", { contactId: liveContact.id, mode: "edit" })
+              // L-1: AddContact 画面の編集モードへ遷移する。
+              navigation.navigate("AddContact", {
+                contactId: liveContact.id,
+                mode: "edit",
+              });
             }}
             accessibilityLabel={t("contactProfile.edit")}
           >
