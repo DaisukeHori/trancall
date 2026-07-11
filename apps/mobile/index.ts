@@ -12,5 +12,10 @@
 import { registerRootComponent } from "expo";
 
 import App from "./App";
+import { registerLiveKitGlobals } from "./src/lib/livekit/register-globals";
+
+// H-3 (b): LiveKit の registerGlobals() はアプリ起動時、他の LiveKit API を使う前に
+// 一度だけ呼ぶ (詳細は register-globals.ts のコメント参照)。
+registerLiveKitGlobals();
 
 registerRootComponent(App);
