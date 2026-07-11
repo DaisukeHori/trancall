@@ -5,7 +5,7 @@
 | ドキュメント ID | CONTRACT-001 |
 | バージョン | 1.6.0 |
 | 作成日 | 2026-05-12 |
-| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、Issue #69 でリアルタイム品質トラッキング残課題 4 項目を実装済に同期、Issue #67/#72 で auth/contact facade 拡張・新規 HTTP ルートを実装済に同期、M-1/M-9/P-2 実装完了に同期) |
+| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、Issue #69 でリアルタイム品質トラッキング残課題 4 項目を実装済に同期、Issue #67/#72 で auth/contact facade 拡張・新規 HTTP ルートを実装済に同期、M-1/M-9/P-2 実装完了に同期、P-1 (2026-07) で §9 Phase1→2 契約変更 5 件の設計メモ追記・iap チャネル実装済への訂正) |
 | 対象 | Sprint 0 + Layer 1 完了モジュール + Sprint 2 D5/D7/D8 設計フェーズで拡張する billing / auth / shared-kernel 契約 |
 | 将来追加対象 | Sprint 3 で `packages/billing/src/facade.ts` (拡張 7 メソッド) / `packages/auth/src/facade.ts` (拡張 4 メソッド) / `packages/shared-kernel/src/schemas/native-call.ts` (新規) を実装、実装完了状態に同期 |
 
@@ -880,15 +880,175 @@ Agent 側 (`apps/translation-agent/src/internal-api-client.ts`) の Zod schema �
 
 ## 9. Phase 1 → 2 で変更予定の契約
 
-| 契約 | Phase 1 | Phase 2 | 影響 |
-|---|---|---|---|
-| `CreateRoomCommand.inviteeIds` の `max(49)` | 1 人のみ前提 (`min(1).max(49)` だが 1 名のみテスト) | 真にグループ通話 49 名対応 | room facade |
-| `BillingFacade.createCheckoutSession` の `channel` | `stripe_web` / `storekit_external` | + 海外向け `iap_apple` / `iap_google` の追加 | billing facade |
-| `TranslationFacade` への WebRTC pipeline 切替 | WebSocket 一本 | WebRTC option 並走 | translation, agent |
-| `ContactFacade` グループ連絡先 | 個別連絡先のみ | group_contact_lists 追加 | contact facade、新規 schema |
-| Transport Adapter 追加 (TRTC / SIP) | LiveKit のみ | TRTC / SIP adapter 抽象化 | media adapters/ |
+| 契約 | Phase 1 | Phase 2 | 影響 | 状態 (P-1 監査 2026-07) |
+|---|---|---|---|---|
+| `CreateRoomCommand.inviteeIds` の `max(49)` | 1 人のみ前提 (`min(1).max(49)` だが 1 名のみテスト) | 真にグループ通話 49 名対応 | room facade | 未着手 (大規模、§9.1a) |
+| `BillingFacade.createCheckoutSession` の `channel` | `stripe_web` / `storekit_external` | + 海外向け `iap_apple` / `iap_google` の追加 | billing facade | **済 (訂正、§9.1b)** |
+| `TranslationFacade` への WebRTC pipeline 切替 | WebSocket 一本 | WebRTC option 並走 | translation, agent | 未着手 (大規模、§9.1c) |
+| `ContactFacade` グループ連絡先 | 個別連絡先のみ | group_contact_lists 追加 | contact facade、新規 schema | 未着手 (中〜大規模、§9.1d) |
+| Transport Adapter 追加 (TRTC / SIP) | LiveKit のみ | TRTC / SIP adapter 抽象化 | media adapters/ | 未着手 (大規模、§9.1e) |
 
 詳細は `docs/requirements.md` 2. Phase 定義 参照。
+
+### 9.1 各契約変更の実装着手点 (P-1 設計メモ、2026-07 追記)
+
+> **方針**: 上記 5 件は相互依存が強く実装規模も大きいため、本追記では「実装できる非破壊的な
+> ものは実装し、大規模なものは契約を明文化して着手点・影響範囲を整理するに留める」方針を採る
+> (半端な実装は既存の安定した Phase 1 実装を壊すリスクの方が大きいため)。実装したのは
+> **9.1b (billing iap チャネル) のみ**で、これは監査の結果「Phase 1 で既に実装済み」と判明した
+> ため §9 表を訂正した (新規コード実装ではなくドキュメント訂正)。他 4 件は設計メモに留める。
+
+#### 9.1a `CreateRoomCommand.inviteeIds` グループ通話 49 名対応 — 【大規模、未着手】
+
+- **現状**: `packages/room/src/facade.ts` の `createCall(creatorId, inviteeIds: UserId[], opts)` は
+  型上は複数 `inviteeIds` を受け付け、`apps/server/src/routes/room-routes.ts` の
+  `CreateRoomSchema.inviteeIds` も `.min(1).max(49)` (`packages/room/src/constants.ts` の
+  `ROOM_MAX_PARTICIPANTS=50` と整合)。しかし Sprint 2 時点のテスト・実装検証は **1 対 1 (1 名招待)**
+  のみ。N>1 招待時の以下が未検証・未実装:
+  - `notification` への招待 fanout (`NotificationFacade` は 1 対 1 push 前提の可能性、N 名同時送信の
+    リトライ/部分失敗ハンドリング未設計)
+  - `billing` の複数参加者同時課金 (heartbeat が 1 セッション=1 translation pair 前提、grup call では
+    N×(N-1) の翻訳セッションが同時発生し得る、または SFU 側で mixdown する設計判断が必要)
+  - `translation` (Agent) の N 者間翻訳ペアリング (現行 `TranslationSession` は 1 発話者 → 1 出力言語
+    の 1:1 前提、group call では発話者ごとに複数ターゲット言語への同時翻訳が必要)
+  - mobile UI (`apps/mobile/src/screens/in-call-screen.tsx` 等) の N 名グリッド表示・字幕多重表示
+- **Phase 2 案**: `RoomFacade.createCall` の `inviteeIds` を実際に 2-49 名で動作させる。
+- **影響範囲**: room, billing (heartbeat/reserveMinutes の N 者拡張), translation/agent (N×M
+  翻訳セッション管理), notification (fanout), transcript (N 話者分の segment 記録), mobile UI 全面。
+- **契約スケルトン (着手点の型シグネチャ、未実装)**:
+  ```ts
+  // packages/room/src/schemas.ts (案、未実装)
+  export interface RoomParticipantState {
+    userId: UserId;
+    nativeLanguage: OutputLanguage;
+    joinedAt: string;
+  }
+  // RoomFacade.getState() の戻り値を単一 peer 前提から participants: RoomParticipantState[] へ拡張
+  ```
+- **実装着手点**: (1) `docs/requirements.md` に group call の N 上限・翻訳ペアリング方式 (mixdown か
+  N×M セッションか) を確定する設計書セクションを追加 → (2) billing の heartbeat 課金単位を
+  「room 単位」か「participant-pair 単位」か確定 → (3) その後 room → translation → billing →
+  notification → mobile の順に段階実装。
+- **リスクにより見送り**: 課金ロジック (billing) と翻訳セッション管理 (translation/agent) の根幹前提
+  (1:1) を変更するため、半端に `inviteeIds` だけ拡張すると「型は複数対応だが実際には課金が壊れる」
+  事故になる。設計書確定を優先すべき。
+
+#### 9.1b `BillingFacade.createCheckoutSession` の `iap_apple`/`iap_google` — 【監査の結果、実装済と判明・表を訂正】
+
+- **監査結果**: `packages/billing/src/schemas.ts` の `PurchaseChannel` enum は当初から
+  `["free", "iap_apple", "iap_google", "storekit_external", "stripe_web"]` の 5 値を持ち、
+  `iap_apple` / `iap_google` は Phase 1 で既に稼働中 (未実装ではない)。実装済みの経路:
+  - `BillingFacade.recordIapTransaction()` — StoreKit 2 Transaction をサーバー検証し `purchase_channel: "iap_apple"` でサブスク更新 (`facade.ts:783,807`)
+  - `BillingFacade.handleAppleIapWebhook()` / `handleGoogleIapWebhook()` — Apple/Google の webhook を受信・処理 (`facade.ts:566,615`)
+  - `packages/billing/src/adapters/apple-iap-adapter.ts` / `iap-adapter.ts` (StoreKit2 canonical) / `google-play-adapter.ts` — 各ストア API アダプタ実装済み
+  - `cancelSubscription()` / `reactivateSubscription()` は `channel === "iap_apple" || "iap_google"` の分岐を持ち、Store 側に解約 API が無い制約 (ユーザーは設定アプリ経由でのみ解約) を正しく扱う (`facade.ts:937`)
+- **なぜ `createCheckoutSession` だけ `"stripe_web" | "storekit_external"` のままなのか (意図的、Phase 2 でも変更しない)**:
+  `createCheckoutSession` は Stripe Checkout Session の **URL を生成する** メソッド
+  (`stripeAdapter.createCheckoutSession()` を直接呼ぶ、`facade.ts:368-379`)。ネイティブ IAP
+  (`iap_apple`/`iap_google`) は Apple/Google 側のネイティブ購入 UI から開始するもので、
+  「Checkout Session URL」という概念が存在しない。したがって `channel` に `iap_apple`/`iap_google`
+  を追加することは **設計として誤り** であり、当初の §9 の記載自体が実装と設計意図を正しく
+  反映していなかった (ドキュメント側の不備)。本追記でこの認識を訂正する。
+- **結論**: コード変更は不要 (既存実装が正)。本表 (§9) の記載を「済」に訂正し、実装着手点が
+  必要な項目としては扱わない。関連する残課題 (2 実装 `apple-iap-adapter.ts`/`iap-adapter.ts` の
+  統合) は別途 issue 化済 (`sprint3-known-issues.md` §2.2、本 workstream の M-8 に対応、P-1 スコープ外)。
+
+#### 9.1c `TranslationFacade` WebRTC pipeline 切替 — 【大規模、未着手】
+
+- **現状**: `apps/translation-agent` は OpenAI GPT-Realtime-Translate への接続を
+  **WebSocket のみ** (`openai-ws-client.ts`) で実装。`packages/translation/src/facade.ts` に
+  WebRTC 関連の型・分岐は存在しない (`grep WebRTC` 0 件)。`apps/translation-agent/CLAUDE.md` に
+  「Sprint 2 で WebRTC 経路を比較計測し、レイテンシ改善が出れば Phase 1b で切替」という条件付き
+  計画のみ記載。
+- **Phase 2 案**: OpenAI Realtime API の WebRTC 経路 (`/v1/realtime/translations/client_secrets`
+  で短命トークン発行 → クライアント/Agent が直接 WebRTC 接続) を WebSocket と並走させ、
+  レイテンシ計測に基づき切替可能にする。
+- **影響範囲**: `packages/translation` (facade の接続方式抽象化)、`apps/translation-agent`
+  (`openai-ws-client.ts` と並ぶ `openai-webrtc-client.ts` 新設想定)、レイテンシ計測 5 点
+  (T3-T6, `translation-session.ts`) の WebRTC 版再定義。
+- **契約スケルトン (着手点の型シグネチャ、未実装)**:
+  ```ts
+  // packages/translation/src/schemas.ts (案、未実装)
+  export const TranslationTransport = z.enum(["websocket", "webrtc"]);
+  export type TranslationTransport = z.infer<typeof TranslationTransport>;
+  // TranslationSessionConfig (apps/translation-agent) に transport?: TranslationTransport を追加、
+  // 省略時は "websocket" (既存動作を破壊しない default)
+  ```
+- **実装着手点**: (1) Sprint 2 計測タスク (`apps/translation-agent/CLAUDE.md` 記載の比較計測) を
+  先に実施しレイテンシ改善が実証されてから着手すべき (計測なしの実装は無意味)。(2) 計測後、
+  `openai-webrtc-client.ts` を `openai-ws-client.ts` と同一インターフェース
+  (`connect`/`sendAudioFrame`/イベント `audio.delta`/`transcript.delta`) で新設し、
+  `TranslationSession` からアダプタ選択可能にする。
+- **リスクにより見送り**: 翻訳パイプラインの根幹 (音声送出経路) を変更するため、計測データなしに
+  実装すると既存の安定した WebSocket 経路を壊すリスクが高い。計測タスクが前提条件。
+
+#### 9.1d `ContactFacade` グループ連絡先 (`group_contact_lists`) — 【中〜大規模、未着手】
+
+- **現状**: `packages/contact/src` に `group_contact_lists` / `GroupContact` 等のグループ関連の
+  型・テーブルは存在しない (`grep` 0 件)。`ContactFacade` は個別連絡先 (1 対 1) のみを扱う。
+- **Phase 2 案**: 連絡先をグループ化し、グループ単位で一括招待・一括ブロック等ができるようにする。
+- **影響範囲**: contact facade (新規メソッド群)、新規 DB スキーマ (`trancall_contact.group_contact_lists`
+  / `group_contact_members` 等、要 migration)、room facade (グループ一括招待との連携、9.1a の
+  49 名対応と直接依存)、notification (グループ一括通知)。
+- **契約スケルトン (着手点の型シグネチャ、未実装)**:
+  ```ts
+  // packages/contact/src/schemas.ts (案、未実装)
+  export const GroupContactListId = z.uuid().brand<"GroupContactListId">();
+  export type GroupContactListId = z.infer<typeof GroupContactListId>;
+
+  export const GroupContactList = z.object({
+    id: GroupContactListId,
+    ownerId: UserIdSchema,
+    name: z.string().min(1).max(100),
+    memberContactIds: z.array(ContactIdSchema).max(49), // 9.1a のグループ通話上限と整合させる
+    createdAt: z.iso.datetime(),
+  });
+  export type GroupContactList = z.infer<typeof GroupContactList>;
+
+  // ContactFacade 追加メソッド案 (未実装、シグネチャのみ)
+  // createGroupContactList(ownerId, name, memberContactIds) => Promise<Result<GroupContactList>>
+  // addGroupMember(listId, contactId) => Promise<Result<GroupContactList>>
+  // removeGroupMember(listId, contactId) => Promise<Result<GroupContactList>>
+  // listGroupContactLists(ownerId) => Promise<Result<GroupContactList[]>>
+  // deleteGroupContactList(listId) => Promise<Result<true>>
+  ```
+- **実装着手点**: (1) migration でテーブル 2 つ (`group_contact_lists`, `group_contact_members`)
+  を追加 → (2) `packages/contact/src/repositories/group-contact-repository.ts` 新設 → (3) 上記
+  facade メソッド実装 + `__tests__` → (4) `apps/server/src/routes/contact-routes.ts` に
+  `POST/GET/DELETE /api/contacts/groups` 系ルート追加 → (5) 9.1a のグループ通話と連携する場合は
+  room facade 側の `createCall` に `groupContactListId` オプション引数を追加。
+- **中〜大規模と判断し見送った理由**: 新規 DB migration + 新規 repository + 新規 facade メソッド
+  群 + 新規 HTTP ルートを要し、「既存 schema への非破壊的追加」の範囲を超える。9.1a (グループ
+  通話 49 名) と機能的に強く連動するため、9.1a の設計確定 (N 名時の課金/翻訳/通知方式) を先に
+  終えてから着手する方が手戻りが少ない。
+
+#### 9.1e Transport Adapter 追加 (TRTC / SIP) — 【大規模、未着手】
+
+- **現状**: `packages/media/src/adapters/` は `livekit.ts` の 1 実装のみ。`packages/media/src/facade.ts`
+  冒頭コメントに「Phase 2 で TRTC を併用する際は…」という将来コメントが 1 箇所あるのみで、
+  TRTC/SIP 向けの抽象化・型は未着手 (`grep TRTC/SIP` で他に 0 件)。
+- **Phase 2 案**: LiveKit 以外の SFU (Tencent TRTC、中国国内向け) や SIP トランク (固定電話/PSTN
+  連携) を Transport Adapter として追加し、`MediaFacade` から抽象化された形で選択可能にする。
+- **影響範囲**: `packages/media` (Transport Adapter インターフェース抽出)、`apps/translation-agent`
+  (LiveKit 前提の `@livekit/rtc-node` 直接依存を抽象化経由に変更)、room (地域/規制による
+  transport 自動選択ロジック)。
+- **契約スケルトン (着手点の型シグネチャ、未実装)**:
+  ```ts
+  // packages/media/src/adapters/transport-adapter.ts (案、未実装)
+  export interface TransportAdapter {
+    readonly transportKind: "livekit" | "trtc" | "sip";
+    createRoom(roomId: RoomId, opts: CreateRoomOptions): Promise<Result<TransportRoomHandle>>;
+    generateAccessToken(roomId: RoomId, userId: UserId): Promise<Result<string>>;
+    // ... 既存 livekit.ts の公開関数群を interface 化したもの
+  }
+  ```
+- **実装着手点**: (1) 現行 `packages/media/src/adapters/livekit.ts` の公開関数を
+  `TransportAdapter` interface として抽出 (LiveKit 実装はそのまま `LiveKitTransportAdapter` として
+  interface に適合させる、振る舞い変更なし) → (2) `MediaFacade` の DI を具象 `livekit.ts` 直接依存
+  から `TransportAdapter` 経由に変更 → (3) TRTC/SIP は個別の adapter 実装として (2) の後に追加。
+- **リスクにより見送り**: 中国向け TRTC・PSTN 向け SIP は現行ユーザー要件 (`docs/requirements.md`)
+  で優先度が確定していない上、`@livekit/rtc-node` への直接依存を抽象化する変更は
+  `apps/translation-agent` の音声パイプライン全体に触れるため、要件確定前の着手はリスクが高い。
 
 ---
 
@@ -896,6 +1056,7 @@ Agent 側 (`apps/translation-agent/src/internal-api-client.ts`) の Zod schema �
 
 | 日付 | 版 | 内容 |
 |---|---|---|
+| 2026-07-11 | 1.6.0 | **P-1 (§9 Phase1→2 契約変更 5 件の監査・設計メモ追記)**。§9.1 に各契約変更の実装着手点セクションを新設し、5 件それぞれについて現状監査・Phase2 案・影響範囲・契約スケルトン (未実装の型シグネチャ例)・実装着手点・見送り理由を明文化した。うち **`BillingFacade.createCheckoutSession` の `iap_apple`/`iap_google`** は監査の結果 **Phase 1 で既に実装済み** (`PurchaseChannel` enum・`recordIapTransaction`・`handleAppleIapWebhook`/`handleGoogleIapWebhook`・`apple-iap-adapter.ts`/`google-play-adapter.ts` が稼働中) と判明したため §9 表の状態列を「済」に訂正した (`createCheckoutSession` 自体が `iap_apple`/`iap_google` を受け付けない設計は意図的、Checkout Session URL という概念がネイティブ IAP に存在しないため)。他 4 件 (グループ通話 49 名対応・WebRTC pipeline 切替・`group_contact_lists`・TRTC/SIP Transport Adapter) は相互依存が強く実装規模が大きい (課金/翻訳パイプラインの根幹前提変更、新規 DB migration、既存音声パイプラインへの抽象化導入を伴う) ため、半端な実装による既存 Phase 1 実装破壊リスクを避け、契約定義・影響範囲整理のみに留めた (コード変更なし、ドキュメントのみ)。|
 | 2026-05-12 | 1.0.0 | 初版作成 (Layer 1 完了時点の canonical 抽出) |
 | 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、§3.1 表の当該行を 2 系統並列 (EventBus + LiveKit Data Channel) に更新、§7.4.2 session_ended の `reason` enum に `agent_publish_failed` を **契約上追加** (実装側 Zod 同期は T8 で実施)、§7.4.4 `openAIFirstDelta` のコメントを公式仕様 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正、ヘッダーのバージョン 1.0.0 → 1.1.0、`AgentJobId` を `z.uuid()` で当面運用 (Sprint 2 で brand 化予定)、EventBus / Data Channel 両系統で `timestamp` キー名を統一。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。`architecture.md` §5.3 の旧 Track 名 `mic-a` 表記は本 PR スコープ外、Sprint 2 別 PR で `raw-{participantId}` 形式に統一予定。|
 | 2026-05-12 | 1.3.0 | Sprint 2 D5/D7/D8 設計フェーズ統合: **§2.1 AuthFacade 拡張** (`recordConsent` / `hasConsent` / `revokeConsent` / `getRequiredConsents` 4 メソッド追加、`ConsentRepository` / `LegalDocumentVersionRepository` を要求、`docs/legal-and-consent.md` v1.1 §3 §4 が canonical)。**§2.3 BillingFacade 拡張** (`getPlanComparison` / `previewUpgrade` / `recordIapTransaction` / `startExternalPurchase` / `completeExternalPurchase` / `cancelSubscription` / `restorePurchases` 7 メソッド追加、`ExternalPurchaseTokenRepository` を要求、`docs/billing-ui-flow.md` v1.2 §5 が canonical)。**§3.1 DomainEvent 追加** (`billing.subscription_upgraded` / `billing.subscription_canceled` / `auth.consent_recorded` / `auth.consent_revoked` 4 種)。**§5 Error Code 追加** (`AUTH_CONSENT_REVOKED` / `AUTH_LEGAL_DOC_UNAVAILABLE` / `AUTH_CONSENT_VERSION_MISMATCH` / `AUTH_CONSENT_IRREVOCABLE` / `BILLING_IAP_RECEIPT_INVALID` / `BILLING_UPGRADE_PREVIEW_FAILED` / `BILLING_RESTORE_NO_PURCHASE` / `BILLING_INVALID_PLAN_CHANGE` 8 種)。新規 DB schema 所有 (billing が `trancall_billing.external_purchase_tokens`、auth が `trancall_auth.user_consents` を追加所有、Sprint 3 migration 00007/00008 で実装)。すべて設計書としての契約定義であり、実装側 (`packages/auth/src/facade.ts` / `packages/billing/src/facade.ts` / migrations) は Sprint 3 で順次実装、v1.4.0 で実装完了状態に同期する。v1.2.0 は欠番 (D5 単独 PR 時に未発行、D5+D7+D8 を本 v1.3.0 で統合)。|

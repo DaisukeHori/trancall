@@ -1,4 +1,4 @@
-scenario_id: TC-S5-ja-en
+scenario_id: TC-S5-en-ja
 scenario: S5
 name: 同一言語発話混入 / Code-Switching & Ambient Passthrough
 source_lang: en

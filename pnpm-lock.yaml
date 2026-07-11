@@ -26,6 +26,9 @@ importers:
 
   apps/cron:
     dependencies:
+      '@livekit/rtc-node':
+        specifier: ^0.13.5
+        version: 0.13.27
       '@supabase/supabase-js':
         specifier: ^2.43.4
         version: 2.105.4
