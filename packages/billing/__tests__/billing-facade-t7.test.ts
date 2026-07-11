@@ -205,6 +205,7 @@ function makeMockExternalPurchaseTokenRepo(
 
 function makeMockStripeAdapter(overrides: {
   cancelSubscription?: unknown;
+  reactivateSubscription?: unknown;
 } = {}): StripeAdapter {
   return {
     createCheckoutSession: vi.fn().mockResolvedValue({ ok: true, data: { url: "https://checkout.stripe.com/test", sessionId: "cs_001" } }),
@@ -216,6 +217,9 @@ function makeMockStripeAdapter(overrides: {
     // [#41] cancelSubscription を Stripe に伝播する
     cancelSubscription:
       overrides.cancelSubscription ?? vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+    // [#65] reactivateSubscription (cancelSubscription の対称操作)
+    reactivateSubscription:
+      overrides.reactivateSubscription ?? vi.fn().mockResolvedValue({ ok: true, data: undefined }),
   } as unknown as StripeAdapter;
 }
 
@@ -296,11 +300,15 @@ function makeMockIapAdapter(overrides: {
 }
 
 function makeMockExternalPurchaseAdapter(overrides: {
-  startExternalPurchase?: unknown;
+  generateRedirectToken?: unknown;
+  persistRedirectToken?: unknown;
   validateAndConsumeRedirectToken?: unknown;
 } = {}): ExternalPurchaseAdapter {
   return {
-    startExternalPurchase: overrides.startExternalPurchase ?? vi.fn().mockResolvedValue({
+    // [#44] Stripe Checkout Session 作成前に呼ばれる同期メソッド
+    generateRedirectToken: overrides.generateRedirectToken ?? vi.fn().mockReturnValue("a".repeat(64)),
+    // [#44] Stripe Checkout Session 作成後 (sessionId 確定後) に呼ばれる
+    persistRedirectToken: overrides.persistRedirectToken ?? vi.fn().mockResolvedValue({
       ok: true,
       data: {
         redirectUrl: "https://checkout.stripe.com/test_ext",
@@ -703,6 +711,65 @@ describe("BillingFacade.startExternalPurchase", () => {
     expect(result.data.redirectUrl).toContain("checkout.stripe.com");
   });
 
+  it("#44 正常系: redirectToken が Stripe Checkout Session 作成前に生成され、success_url 埋め込み用に渡される", async () => {
+    const userId = makeUserId();
+    const generateRedirectTokenMock = vi.fn().mockReturnValue("f".repeat(64));
+    const createCheckoutSessionMock = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        checkoutUrl: "https://checkout.stripe.com/test_ext",
+        sessionId: "cs_ext_002",
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        targetTier: "standard",
+        returnUrl: "trancall://billing/external-success?session_id=cs_ext_002&redirect_token=" + "f".repeat(64),
+      },
+    });
+    const persistRedirectTokenMock = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { redirectUrl: "https://checkout.stripe.com/test_ext", redirectToken: "f".repeat(64) },
+    });
+    const deps = makeDeps({
+      externalPurchaseAdapter: makeMockExternalPurchaseAdapter({
+        generateRedirectToken: generateRedirectTokenMock,
+        persistRedirectToken: persistRedirectTokenMock,
+      }),
+      stripeWebCheckoutAdapter: makeMockStripeWebCheckoutAdapter({
+        createCheckoutSession: createCheckoutSessionMock,
+      }),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.startExternalPurchase(userId, "standard");
+
+    expect(result.ok).toBe(true);
+    // 生成 → Stripe Checkout Session 作成 (redirectToken を渡す) → 永続化、の順序で呼ばれること
+    // (vitest の mock.invocationCallOrder で呼び出し順序を検証する)
+    const genOrder = generateRedirectTokenMock.mock.invocationCallOrder[0];
+    const createOrder = createCheckoutSessionMock.mock.invocationCallOrder[0];
+    const persistOrder = persistRedirectTokenMock.mock.invocationCallOrder[0];
+    expect(genOrder).toBeDefined();
+    expect(createOrder).toBeDefined();
+    expect(persistOrder).toBeDefined();
+    expect(genOrder as number).toBeLessThan(createOrder as number);
+    expect(createOrder as number).toBeLessThan(persistOrder as number);
+
+    expect(createCheckoutSessionMock).toHaveBeenCalledWith(
+      userId,
+      "standard",
+      "storekit_external",
+      undefined,
+      "f".repeat(64),
+    );
+    // 作成後に確定した sessionId と、事前生成済みトークンが persistRedirectToken に渡されること
+    expect(persistRedirectTokenMock).toHaveBeenCalledWith(
+      userId,
+      "standard",
+      "https://checkout.stripe.com/test_ext",
+      "cs_ext_002",
+      "f".repeat(64),
+    );
+  });
+
   it("異常系: Stripe API 失敗で BILLING_PAYMENT_FAILED", async () => {
     const userId = makeUserId();
     const deps = makeDeps({
@@ -976,6 +1043,102 @@ describe("BillingFacade.cancelSubscription", () => {
     const facade = createBillingFacade(deps);
 
     const result = await facade.cancelSubscription(userId, true);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("INTERNAL_ERROR");
+  });
+});
+
+// =============================================================================
+// テスト: reactivateSubscription (#65)
+// =============================================================================
+
+describe("BillingFacade.reactivateSubscription (#65)", () => {
+  it("正常系: stripe_web チャネルで stripeAdapter.reactivateSubscription(id) が呼ばれ cancelAtPeriodEnd=false になる", async () => {
+    const userId = makeUserId();
+    const cancelledRow: SubscriptionRow = { ...baseRow, cancel_at_period_end: true }; // stripe_web
+    const deps = makeDeps({
+      subscriptionRepo: makeMockSubscriptionRepo(cancelledRow),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.reactivateSubscription(userId);
+
+    expect(result.ok).toBe(true);
+    expect(deps.stripeAdapter.reactivateSubscription).toHaveBeenCalledWith("sub_test");
+    const updateCall = (deps.subscriptionRepo.updatePlan as Mock).mock.calls[0];
+    expect(updateCall[1].cancelAtPeriodEnd).toBe(false);
+  });
+
+  it("正常系: 既に cancelAtPeriodEnd=false の場合は冪等 OK で何もしない (Stripe/updatePlan 未呼び出し)", async () => {
+    const userId = makeUserId();
+    const activeRow: SubscriptionRow = { ...baseRow, cancel_at_period_end: false };
+    const deps = makeDeps({
+      subscriptionRepo: makeMockSubscriptionRepo(activeRow),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.reactivateSubscription(userId);
+
+    expect(result.ok).toBe(true);
+    expect(deps.stripeAdapter.reactivateSubscription).not.toHaveBeenCalled();
+    expect(deps.subscriptionRepo.updatePlan).not.toHaveBeenCalled();
+  });
+
+  it("正常系: IAP チャネルでは stripeAdapter.reactivateSubscription は呼ばれずローカルフラグのみ復元される", async () => {
+    const userId = makeUserId();
+    const cancelledIapRow: SubscriptionRow = { ...iapRow, cancel_at_period_end: true };
+    const deps = makeDeps({
+      subscriptionRepo: makeMockSubscriptionRepo(cancelledIapRow),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.reactivateSubscription(userId);
+
+    expect(result.ok).toBe(true);
+    expect(deps.stripeAdapter.reactivateSubscription).not.toHaveBeenCalled();
+    const updateCall = (deps.subscriptionRepo.updatePlan as Mock).mock.calls[0];
+    expect(updateCall[1].cancelAtPeriodEnd).toBe(false);
+    expect(updateCall[1].purchaseChannel).toBe("iap_apple");
+  });
+
+  it("異常系: stripeAdapter.reactivateSubscription が失敗した場合エラーを伝播し updatePlan は呼ばれない", async () => {
+    const userId = makeUserId();
+    const cancelledRow: SubscriptionRow = { ...baseRow, cancel_at_period_end: true };
+    const deps = makeDeps({
+      subscriptionRepo: makeMockSubscriptionRepo(cancelledRow),
+      stripeAdapter: makeMockStripeAdapter({
+        reactivateSubscription: vi.fn().mockResolvedValue({
+          ok: false,
+          error: { code: "BILLING_PAYMENT_FAILED", message: "Stripe API エラー", retryable: true },
+        }),
+      }),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.reactivateSubscription(userId);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("BILLING_PAYMENT_FAILED");
+    expect(deps.subscriptionRepo.updatePlan).not.toHaveBeenCalled();
+  });
+
+  it("異常系: updatePlan が失敗した場合エラーを伝播する (握り潰さない)", async () => {
+    const userId = makeUserId();
+    const cancelledRow: SubscriptionRow = { ...baseRow, cancel_at_period_end: true };
+    const deps = makeDeps({
+      subscriptionRepo: makeMockSubscriptionRepo(cancelledRow, {
+        updatePlan: vi.fn().mockResolvedValue({
+          ok: false,
+          error: { code: "INTERNAL_ERROR", message: "DB down", retryable: true },
+        }),
+      }),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.reactivateSubscription(userId);
 
     expect(result.ok).toBe(false);
     if (result.ok) return;

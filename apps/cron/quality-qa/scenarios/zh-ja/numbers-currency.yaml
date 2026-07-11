@@ -1,4 +1,4 @@
-scenario_id: TC-S4-ja-zh
+scenario_id: TC-S4-zh-ja
 scenario: S4
 name: 数値・通貨 / Numbers & Currency (中文 → 日本語)
 source_lang: zh

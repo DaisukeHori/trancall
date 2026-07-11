@@ -17,6 +17,28 @@ import { signAppleJws, tamperJwsSignature } from "./helpers/apple-jws-fixture.js
 
 const AUTH_HEADER = { authorization: "Bearer mock-valid-token" };
 
+// #61: POST /api/billing/webhook/google の OIDC 検証 (google-auth-library の
+// OAuth2Client.verifyIdToken()) は実際には Google の公開鍵をネットワーク越しに取得するため、
+// テストではモックして「署名検証は成功する」経路をデフォルトにする。個別の異常系テストでは
+// mockVerifyIdToken の実装を上書きする。
+interface MockVerifyIdTokenResult {
+  getPayload: () => { email?: string } | undefined;
+}
+const mockVerifyIdToken = vi
+  .fn<(params: { idToken: string; audience: string }) => Promise<MockVerifyIdTokenResult>>()
+  .mockResolvedValue({
+    getPayload: () => ({ email: "pubsub-push@test.iam.gserviceaccount.com" }),
+  });
+vi.mock("google-auth-library", () => {
+  return {
+    OAuth2Client: vi.fn().mockImplementation(() => ({
+      verifyIdToken: (params: { idToken: string; audience: string }) => mockVerifyIdToken(params),
+    })),
+  };
+});
+
+const GOOGLE_OIDC_HEADER = { authorization: "Bearer mock-google-oidc-token" };
+
 let app: FastifyInstance;
 let container: AppContainer;
 
@@ -207,7 +229,32 @@ describe("POST /api/billing/webhook/apple", () => {
 });
 
 describe("POST /api/billing/webhook/google", () => {
-  it("Google Play webhook を処理できる", async () => {
+  // #61: Google Cloud Pub/Sub push サブスクリプションの OIDC ID トークン検証。
+  // 未検証のまま billing facade に委譲していた TODO(#23) の修正。
+
+  it("有効な OIDC トークン (Authorization: Bearer) があれば処理できる", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      getPayload: () => ({ email: "pubsub-push@test.iam.gserviceaccount.com" }),
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/billing/webhook/google",
+      headers: {
+        "content-type": "application/json",
+        ...GOOGLE_OIDC_HEADER,
+      },
+      payload: { message: { data: "test" } },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockVerifyIdToken).toHaveBeenCalledWith({
+      idToken: "mock-google-oidc-token",
+      audience: "https://api.trancall.test/api/billing/webhook/google",
+    });
+  });
+
+  it("Authorization ヘッダーが無ければ 401 (UNAUTHORIZED) で拒否される", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/billing/webhook/google",
@@ -217,6 +264,31 @@ describe("POST /api/billing/webhook/google", () => {
       payload: { message: { data: "test" } },
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBe(401);
+    const body = JSON.parse(response.body) as { ok: boolean; error: { code: string } };
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("UNAUTHORIZED");
+  });
+
+  it("OIDC トークンの検証が失敗すれば 401 で拒否される (billing facade には委譲されない)", async () => {
+    mockVerifyIdToken.mockRejectedValueOnce(new Error("invalid signature"));
+    const handleGoogleIapWebhookMock = vi.mocked(container.billing.handleGoogleIapWebhook);
+    handleGoogleIapWebhookMock.mockClear();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/billing/webhook/google",
+      headers: {
+        "content-type": "application/json",
+        ...GOOGLE_OIDC_HEADER,
+      },
+      payload: { message: { data: "test" } },
+    });
+
+    expect(response.statusCode).toBe(401);
+    const body = JSON.parse(response.body) as { ok: boolean; error: { code: string } };
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("UNAUTHORIZED");
+    expect(handleGoogleIapWebhookMock).not.toHaveBeenCalled();
   });
 });

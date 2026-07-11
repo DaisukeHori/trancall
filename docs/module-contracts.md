@@ -3,11 +3,11 @@
 | 項目 | 内容 |
 |---|---|
 | ドキュメント ID | CONTRACT-001 |
-| バージョン | 1.3.0 |
+| バージョン | 1.5.0 |
 | 作成日 | 2026-05-12 |
-| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、実装は Sprint 3 で追従予定) |
+| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、Issue #69 でリアルタイム品質トラッキング残課題 4 項目を実装済に同期、Issue #67/#72 で auth/contact facade 拡張・新規 HTTP ルートを実装済に同期) |
 | 対象 | Sprint 0 + Layer 1 完了モジュール + Sprint 2 D5/D7/D8 設計フェーズで拡張する billing / auth / shared-kernel 契約 |
-| 将来追加対象 | Sprint 3 で `packages/billing/src/facade.ts` (拡張 7 メソッド) / `packages/auth/src/facade.ts` (拡張 4 メソッド) / `packages/shared-kernel/src/schemas/native-call.ts` (新規) を実装、`module-contracts.md` v1.4.0 で実装完了状態に同期 |
+| 将来追加対象 | Sprint 3 で `packages/billing/src/facade.ts` (拡張 7 メソッド) / `packages/auth/src/facade.ts` (拡張 4 メソッド) / `packages/shared-kernel/src/schemas/native-call.ts` (新規) を実装、実装完了状態に同期 |
 
 ---
 
@@ -84,6 +84,33 @@ export interface AuthFacade {
   // Sprint 1 既存
   getProfile: (userId: UserId) => Promise<Result<Profile, AppError>>;
 
+  // [Issue #67] ユーザー登録完了通知 — `auth.user_registered` DomainEvent を発行 (副作用のみ)
+  publishUserRegistered(
+    userId: UserId,
+    email: string,
+    nativeLanguage: string,
+  ): Promise<Result<true, AppError>>;
+
+  // [Issue #72.1] facade バイパス是正: 書き込み系メソッド (省略可依存が未注入なら *_NOT_CONFIGURED)
+  updateProfile(
+    userId: UserId,
+    updates: ProfileUpdateFields,
+  ): Promise<Result<Profile, AppError>>;
+
+  recordLegacyConsentVersion(
+    userId: UserId,
+    consentVersion: string,
+  ): Promise<Result<true, AppError>>;
+
+  getProfileDeletionStatus(
+    userId: UserId,
+  ): Promise<Result<ProfileDeletionStatus | null, AppError>>;
+
+  setProfileDeletedAt(
+    userId: UserId,
+    deletedAt: string | null,
+  ): Promise<Result<true, AppError>>;
+
   // [Sprint 2 D7 拡張] 同意管理 — `docs/legal-and-consent.md` v1.1 §4 が canonical 詳細
   recordConsent(
     userId: UserId,
@@ -127,6 +154,35 @@ export interface LegalDocumentVersionRepository {
   findLatest(scope: ConsentScope): Promise<Result<LegalDocumentVersion, AppError>>;
   findAllLatest(): Promise<Result<LegalDocumentVersion[], AppError>>;  // 全 scope 一括取得
 }
+
+// [Issue #72.1 追加] facade バイパス是正で新設した「省略可能な追加依存」。
+// いずれも CreateAuthFacadeOptions で optional 注入 (未注入なら該当メソッドが *_NOT_CONFIGURED を返す)。
+export interface ProfileUpdateFields {
+  displayName?: string;
+  nativeLanguage?: string;
+  avatarUrl?: string;
+}
+
+export interface ProfileWriteRepository {
+  // 差分のみ更新 (undefined フィールドは更新しない)。更新後値の取得は facade が findByUserId で別途行う
+  update(userId: UserId, updates: ProfileUpdateFields): Promise<Result<void, AppError>>;
+}
+
+export interface LegacyConsentRepository {
+  // レガシー `POST /api/auth/consent` (単数形) 用。Sprint 2 D7 の user_consents とは別経路
+  recordConsentVersion(userId: UserId, consentVersion: string): Promise<Result<true, AppError>>;
+}
+
+export interface ProfileDeletionStatus {
+  deletedAt: string | null;
+}
+
+export interface ProfileDeletionRepository {
+  // 行が存在しない場合は ok(null) を返す (エラーにしない)
+  findStatus(userId: UserId): Promise<Result<ProfileDeletionStatus | null, AppError>>;
+  // null を渡すと退会状態を解除する (POST /api/account/restore・サブスク変更失敗時ロールバック)
+  setDeletedAt(userId: UserId, deletedAt: string | null): Promise<Result<true, AppError>>;
+}
 ```
 
 `Profile` schema: `packages/auth/src/schemas.ts` の `ProfileSchema` 参照。
@@ -137,6 +193,13 @@ export interface LegalDocumentVersionRepository {
 - `hasConsent` は `revokedAt IS NULL AND version == requiredVersion` を返す
 - `revokeConsent` は `legal_terms` / `privacy_policy` scope に対しては `AUTH_CONSENT_IRREVOCABLE` (422) を返す。`docs/account-deletion.md` のアカウント削除フロー経由が必須
 - `getRequiredConsents` はアプリ起動時 + 通話開始前にチェックして UI 表示
+
+**契約注釈** (Issue #67 / #72.1 由来):
+- `publishUserRegistered` は「登録が完了したこと」を受け取り `auth.user_registered` DomainEvent を発行する副作用のみを担う (サインアップ処理本体は `apps/server` の signup ハンドラ側)。eventBus 未設定時・発行失敗時・`nativeLanguage` が `OutputLanguage` として不正な場合はサイレントに無視し、常に `ok(true)` を返す (`recordConsent` と同方針、呼び出し側のサインアップを止めない)
+- `updateProfile` は `ProfileWriteRepository.update` (差分書き込み) 後に `ProfileRepository.findByUserId` で最新値を再取得して返す。`profileWriteRepo` 未注入時は `AUTH_PROFILE_WRITE_NOT_CONFIGURED`
+- `recordLegacyConsentVersion` は Sprint 1 由来のレガシー `POST /api/auth/consent` (単数形) の書き込み経路を facade 経由に移設したもの (D7 の scope 単位 `recordConsent` とは別物)。`legacyConsentRepo` 未注入時は `AUTH_CONSENT_NOT_CONFIGURED`
+- `getProfileDeletionStatus` / `setProfileDeletedAt` は退会 (soft delete) 状態の read/write。`getProfileDeletionStatus` は行が無くても `ok(null)` を返す (`ProfileRepository` の「行無し = エラー」セマンティクスと異なるため別 Repository)。`profileDeletionRepo` 未注入時は `AUTH_PROFILE_WRITE_NOT_CONFIGURED`
+- これら 5 メソッドはいずれも Issue #67 (`auth.user_registered` 発行) / Issue #72.1 (直接 supabase 呼び出しの facade 経由化) で追加。`AuthEventBus` の narrowed interface は `AuthUserRegisteredEvent | AuthConsentRecordedEvent | AuthConsentRevokedEvent` を publish 対象とする
 
 ### 2.2 MediaFacade
 `packages/media/src/facade.ts`
@@ -218,7 +281,7 @@ export interface BillingFacade {
 export interface ContactFacade {
   addContact(cmd: AddContactCommand): Promise<Result<ContactEntry, AppError>>;
   removeContact(userId: UserId, contactId: string): Promise<Result<true, AppError>>;
-  listContacts(userId: UserId): Promise<ContactEntry[]>;
+  listContacts(userId: UserId): Promise<Result<ContactEntry[], AppError>>;  // [Issue #72.2] 旧 `Promise<ContactEntry[]>` から変更
   searchUsers(query: string, callerId: UserId): Promise<PublicProfile[]>;
   blockUser(cmd: BlockUserCommand): Promise<Result<true, AppError>>;
   unblockUser(userId: UserId, blockedUserId: UserId): Promise<Result<true, AppError>>;
@@ -232,6 +295,8 @@ export interface ContactFacade {
 ```
 
 **契約注釈**:
+- **[Issue #72.2 追加]** `listContacts` は `Result<ContactEntry[], AppError>` を返す (旧 `Promise<ContactEntry[]>`)。旧実装は DB エラーを空配列と誤認して握りつぶしていたため、`Result.err` で伝播するよう変更。呼び出し元 (`apps/server/src/routes/contact-routes.ts` の `GET /api/contacts`) も `!result.ok` 時に `getHttpStatus(result.error.code)` で 500 等を返すよう合わせて対応済み
+- `consumeInviteLink` は招待トークンを受け取り新規ユーザーを連絡先に追加する。HTTP ルート `POST /api/contacts/invites/:token/consume` (Issue #72.4) から呼ばれる (`docs/api-spec.md` 参照)
 - `searchUsers` は呼び出し元 `callerId` を引数で受け取り、callerId がブロックしているユーザーを結果から除外
 - `PublicProfile` は `packages/contact/src/schemas.ts` 内で**自前定義**。`email` を含まない (情報露出最小化)
 - Rate limit (`searchUsers` 10 req/min/user、`createInviteLink` 10 req/hour/user) は **server middleware で実装** (facade 側では非実装、JSDoc で明示)
@@ -283,6 +348,12 @@ export interface TranscriptFacade {
     format: "pdf" | "txt",
   ): Promise<Result<{ contentBase64: string; mime: string; filename: string }, AppError>>;
   validateLiveDelta(rawDelta: unknown): Result<LiveSubtitleDelta, AppError>;
+  // [Issue #69 (2)] アクセス権の作成 (冪等)。既存行 (deleteAccess 済みを含む) は上書きしない。
+  grantAccess(
+    roomId: RoomId,
+    userId: UserId,
+    consentVersion: string,
+  ): Promise<Result<true, AppError>>;
 }
 ```
 
@@ -294,6 +365,7 @@ export interface TranscriptFacade {
 - `exportTranscript` は Sprint 3 T-9 で実装完了。戻り型に `filename` を追加 (canonical: `transcript-export-spec.md §2.1`、命名規則 `trancall-transcript-YYYYMMDD-HHmm-XXXXXXXX.{pdf|txt}`)。v1.3.0 では `{contentBase64, mime}` のみだったが v1.4.0 で `filename` 追加
 - `validateLiveDelta` は mobile 側の LiveKit Data Channel 受信時バリデーション用 (DB 書込みなし)
 - 旧 `docs/schemas.ts` 定義の `getLiveSubtitles(roomId): AsyncIterable<LiveSubtitleDelta>` は廃止 (LiveKit Data Channel 配信なので facade 側に AsyncIterable は不要)
+- **[Issue #69 (2) 追加]** `grantAccess` は insert-if-absent (`UNIQUE(room_id, user_id)` に既存行があれば何もしない、`deleteAccess` 済みの明示的な opt-out を自動 grant が復活させないため)。`apps/server/src/adapters/transcript-access-subscriber.ts` が `room.participant_joined` を購読し、通話成立時 (2人目以降の参加) に room の現在 join 済み参加者全員へ呼ぶ。詳細は §3.1 / §4.6 参照
 
 ### 2.7 TranslationFacade
 `packages/translation/src/facade.ts`
@@ -338,7 +410,8 @@ export interface RoomFacade {
 
 要求 Repository:
 - `RoomRepository`: `insert` / `findById` / `updateStatus`
-- `ParticipantRepository`: `upsert` / `findByRoomId` / `setLeftAtForAll`
+- `ParticipantRepository`: `upsert` / `findByRoomId` / `setLeftAtForAll` / `findOne` / `markJoined`
+- **[Issue #69 (1) 追加]** `BlockListRepository`: `isBlocked(userId, targetUserId): Promise<Result<boolean>>`。`@trancall/contact` が所有する `block_list` テーブルへの read-only view。room は contact を直接 import できない (§6 依存方向マトリクス、room → contact ❌) ため room 側で自己定義したインターフェースであり、`packages/contact` が要求する `ProfileSearchRepository` (§4.4、auth 所有 profiles への read-only view) と同型パターン。apps/server (`adapters/repositories/room/block-list-repository.adapter.ts`) が contact の `BlockRepository` 実装をそのまま包んで満たす
 
 要求: `EventBus` (publish インターフェース)
 
@@ -350,6 +423,8 @@ export interface RoomFacade {
 - `endCall` は冪等 (既に ended なら OK を返す)
 - `media.deleteRoom` は best-effort (失敗しても endCall は成功)
 - `billing.reserveMinutes` / `billing.reconcile` は Layer 3 server 側の責務 (room facade では呼ばない)
+- **[Issue #69 (1) 追加]** `createCall` は発信者 (creatorId) と各 invitee の間にブロック関係 (双方向) があれば `ROOM_USER_BLOCKED` (403) を返し、DB 書き込み前に中断する
+- **[Issue #69 (1) 追加]** `joinCall` は初回 join 時のみ、(a) 現在 join 済みの参加者数が `ROOM_MAX_PARTICIPANTS` (`packages/room/src/constants.ts`、`50`、host 1 + invitee 最大49 の技術的上限) に達していれば `ROOM_FULL` (409)、(b) join しようとしているユーザーと既に join 済みの誰かがブロック関係にあれば `ROOM_USER_BLOCKED` (403) を返す。既に join 済みのユーザーの再 join (冪等パス) はどちらのチェックも通らない
 - `notification.sendMissedCall` は Layer 3 server 側の責務 (inviteeIds を room が保持しないため)
 
 ---
@@ -362,7 +437,7 @@ export interface RoomFacade {
 |---|---|---|---|---|---|
 | `auth.user_registered` | auth | (将来) analytics | `UserRegisteredEvent` | 非同期 | EventBus (in-process pub/sub) |
 | `room.created` | room (Layer 2) | notification | `RoomCreatedEvent` | 非同期 | EventBus |
-| `room.participant_joined` | room (Layer 2) | translation | `ParticipantJoinedEvent` | 非同期 | EventBus |
+| `room.participant_joined` | room (Layer 2) | translation, **[Issue #69 (2)]** transcript (apps/server の `transcript-access-subscriber.ts` 経由、`transcript.grantAccess` を room の現在参加者全員に呼ぶ) | `ParticipantJoinedEvent` | 非同期 | EventBus |
 | `room.participant_left` | room (Layer 2) | translation | `ParticipantLeftEvent` | 非同期 | EventBus |
 | `translation.started` | translation | transcript | `TranslationStartedEvent` | 非同期 | EventBus |
 | `translation.ended` | translation | **billing**, transcript | `TranslationEndedEvent` | 非同期 | EventBus |
@@ -401,7 +476,7 @@ interface EventBus {
 
 各イベントの payload 構造は `docs/schemas.ts` および各モジュールの `schemas.ts` を参照:
 
-- `UserRegisteredEvent` → `packages/auth/src/schemas.ts` (Sprint 1 では未 export、Layer 3 で追加予定)
+- `UserRegisteredEvent` → **[Issue #67] 実装済**: `packages/auth/src/events.ts` の `AuthUserRegisteredEventSchema` (`DomainEventBase.extend`、`type: z.literal("auth.user_registered")`、`payload: { userId: UserIdSchema, email: z.email(), nativeLanguage: OutputLanguage }`)。`AuthFacade.publishUserRegistered` が発行し、`AuthDomainEvent` union (`AuthUserRegisteredEvent | AuthConsentRecordedEvent | AuthConsentRevokedEvent`) の一員として `AuthEventBus` から publish される
 - `Room*Event` → `docs/schemas.ts` の Room セクション (Layer 2 で実装)
 - `TranslationStartedEvent` / `TranslationEndedEvent` → `packages/translation/src/schemas.ts`
 - `TranslationDegradedEvent` / `TranslationRecoveredEvent` — v1.1.0 で追加、下記:
@@ -499,6 +574,10 @@ mobile 側 (`apps/mobile/src/lib/livekit/subtitles.ts`) は同 schema で **Zod 
 
 ### 4.1 auth が要求する Repository
 - `ProfileRepository.findByUserId(userId): Promise<Result<Profile, AppError>>`
+- **[Issue #72.1 追加, 省略可]** `ProfileWriteRepository.update(userId, updates)` — `updateProfile` 用の差分書き込み (読み取り専用の `ProfileRepository` とは別 interface に分離)
+- **[Issue #72.1 追加, 省略可]** `LegacyConsentRepository.recordConsentVersion(userId, consentVersion)` — レガシー `POST /api/auth/consent` (単数形) 用
+- **[Issue #72.1 追加, 省略可]** `ProfileDeletionRepository.findStatus(userId)` / `setDeletedAt(userId, deletedAt)` — 退会 (soft delete) 状態の read/write (行無し = `ok(null)` セマンティクス)
+- 上記 3 つはいずれも `CreateAuthFacadeOptions` の optional 依存。未注入時は該当メソッドが `AUTH_PROFILE_WRITE_NOT_CONFIGURED` / `AUTH_CONSENT_NOT_CONFIGURED` を返す (§2.1 契約注釈参照)。本番実装は `apps/server/src/adapters/repositories/auth/*.supabase.ts`
 
 ### 4.2 media が要求する依存
 - `LiveKitAdapter` (LiveKit Server SDK ラッパー、HTTP/WSS URL + API key/secret + AuthFacade)
@@ -540,7 +619,7 @@ mobile 側 (`apps/mobile/src/lib/livekit/subtitles.ts`) は同 schema で **Zod 
 実装メソッド名と完全一致 (`packages/transcript/src/repositories/*.ts`):
 
 - `SegmentRepository`: `upsert` (UNIQUE(room_id, participant_id, sequence_no) 制約で冪等) / `findByRoomId` / `getNextSequenceNo` / `searchByFts`
-- `AccessRepository`: `canView` / `softDelete` (自分の `transcript_access.deleted_at` をセット) / `findOne`
+- `AccessRepository`: `canView` / `softDelete` (自分の `transcript_access.deleted_at` をセット) / `findOne` / **[Issue #69 (2) 追加]** `grant` (insert-if-absent、`UNIQUE(room_id, user_id)` に既存行があれば何もしない)
 
 ### 4.7 translation が要求する Repository
 
@@ -814,6 +893,8 @@ Agent 側 (`apps/translation-agent/src/internal-api-client.ts`) の Zod schema �
 | 2026-05-12 | 1.0.0 | 初版作成 (Layer 1 完了時点の canonical 抽出) |
 | 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、§3.1 表の当該行を 2 系統並列 (EventBus + LiveKit Data Channel) に更新、§7.4.2 session_ended の `reason` enum に `agent_publish_failed` を **契約上追加** (実装側 Zod 同期は T8 で実施)、§7.4.4 `openAIFirstDelta` のコメントを公式仕様 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正、ヘッダーのバージョン 1.0.0 → 1.1.0、`AgentJobId` を `z.uuid()` で当面運用 (Sprint 2 で brand 化予定)、EventBus / Data Channel 両系統で `timestamp` キー名を統一。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。`architecture.md` §5.3 の旧 Track 名 `mic-a` 表記は本 PR スコープ外、Sprint 2 別 PR で `raw-{participantId}` 形式に統一予定。|
 | 2026-05-12 | 1.3.0 | Sprint 2 D5/D7/D8 設計フェーズ統合: **§2.1 AuthFacade 拡張** (`recordConsent` / `hasConsent` / `revokeConsent` / `getRequiredConsents` 4 メソッド追加、`ConsentRepository` / `LegalDocumentVersionRepository` を要求、`docs/legal-and-consent.md` v1.1 §3 §4 が canonical)。**§2.3 BillingFacade 拡張** (`getPlanComparison` / `previewUpgrade` / `recordIapTransaction` / `startExternalPurchase` / `completeExternalPurchase` / `cancelSubscription` / `restorePurchases` 7 メソッド追加、`ExternalPurchaseTokenRepository` を要求、`docs/billing-ui-flow.md` v1.2 §5 が canonical)。**§3.1 DomainEvent 追加** (`billing.subscription_upgraded` / `billing.subscription_canceled` / `auth.consent_recorded` / `auth.consent_revoked` 4 種)。**§5 Error Code 追加** (`AUTH_CONSENT_REVOKED` / `AUTH_LEGAL_DOC_UNAVAILABLE` / `AUTH_CONSENT_VERSION_MISMATCH` / `AUTH_CONSENT_IRREVOCABLE` / `BILLING_IAP_RECEIPT_INVALID` / `BILLING_UPGRADE_PREVIEW_FAILED` / `BILLING_RESTORE_NO_PURCHASE` / `BILLING_INVALID_PLAN_CHANGE` 8 種)。新規 DB schema 所有 (billing が `trancall_billing.external_purchase_tokens`、auth が `trancall_auth.user_consents` を追加所有、Sprint 3 migration 00007/00008 で実装)。すべて設計書としての契約定義であり、実装側 (`packages/auth/src/facade.ts` / `packages/billing/src/facade.ts` / migrations) は Sprint 3 で順次実装、v1.4.0 で実装完了状態に同期する。v1.2.0 は欠番 (D5 単独 PR 時に未発行、D5+D7+D8 を本 v1.3.0 で統合)。|
+| 2026-07-11 | 1.5.0 | **Issue #67 / #72 (auth/contact facade バイパス是正・エラー握りつぶし是正・新規 HTTP ルート) 実装完了に同期**。(1) **§2.1 AuthFacade**: 5 メソッド追加 — `publishUserRegistered` (Issue #67、`auth.user_registered` DomainEvent 発行の副作用のみ)、`updateProfile` / `recordLegacyConsentVersion` / `getProfileDeletionStatus` / `setProfileDeletedAt` (Issue #72.1、直接 supabase 呼び出しを facade 経由に是正)。要求 Repository に `ProfileWriteRepository` / `LegacyConsentRepository` / `ProfileDeletionRepository` (+ `ProfileUpdateFields` / `ProfileDeletionStatus` 型) を「省略可能な追加依存」として追加 (§4.1 にも反映、未注入時は `AUTH_PROFILE_WRITE_NOT_CONFIGURED` / `AUTH_CONSENT_NOT_CONFIGURED`)。(2) **§2.4 ContactFacade**: `listContacts` の戻り型を `Promise<ContactEntry[]>` → `Promise<Result<ContactEntry[], AppError>>` に変更 (Issue #72.2、旧実装が DB エラーを空配列と誤認して握りつぶしていた問題の是正。呼び出し元 `GET /api/contacts` も 500 伝播に対応済)。`consumeInviteLink` を呼ぶ新規 HTTP ルート `POST /api/contacts/invites/:token/consume` (Issue #72.4) を追加 (`docs/api-spec.md` にも記載)。(3) **§3.3**: `UserRegisteredEvent` の payload schema 参照を「Layer 3 で追加予定」から実装済 (`packages/auth/src/events.ts` の `AuthUserRegisteredEventSchema`、`AuthDomainEvent` union に `auth.user_registered` を含む) に更新 (Issue #67)。いずれもコード (`packages/auth/src/facade.ts` / `events.ts`、`packages/contact/src/facade.ts`、`apps/server/src/routes/contact-routes.ts`) が正で、本書はそれに同期。|
+| 2026-07-11 | 1.4.0 | **Issue #69 (リアルタイム品質トラッキング残課題 4 項目) 実装完了に同期**。(1) **§2.8 RoomFacade**: `createCall`/`joinCall` に `ROOM_USER_BLOCKED` (ブロック関係チェック) / `ROOM_FULL` (`ROOM_MAX_PARTICIPANTS=50` 定員チェック、`packages/room/src/constants.ts`) の実装を反映。新規 `BlockListRepository` (room 自己定義、`@trancall/contact` の `block_list` への read-only view、`ProfileSearchRepository` §4.4 と同型パターン) を要求 Repository に追加。(2) **§2.6 TranscriptFacade**: `grantAccess` メソッド新規追加 (insert-if-absent、冪等)。**§3.1**: `room.participant_joined` の購読モジュールに transcript を追加 (`apps/server/src/adapters/transcript-access-subscriber.ts` が room.getState + transcript.grantAccess を組み合わせるオーケストレーション、room→transcript 直接依存は追加しない)。**§4.6**: `AccessRepository` に `grant` メソッド追加。(3) `apps/translation-agent`: `TranslationSession.end()` が LiveKit `LocalAudioTrack.unpublishTrack` / `AudioSource.close` (`LocalAudioTrack.close(true)` 経由) を呼ぶよう修正 (`attachPublishedAudioResources()` で agent.ts から cleanup コールバックを注入)。旧実装はセッション終了時にこれらを一切呼んでおらずリソースリークしていた。(4) `apps/translation-agent`: `InternalApiClient.postHeartbeat` を新規追加し `TranslationSession` が `heartbeatIntervalMs` (デフォルト 30000ms、`docs/billing-detail.md` の heartbeat 30秒間隔に整合) ごとに `POST /internal/translation/heartbeat` (既存の server 側受信実装 `apps/server/src/routes/agent-routes.ts` の `HeartbeatBodySchema` に合わせた `agentJobId`/`sessionId`/`alive: true`/`occurredAt`/`metrics?` payload、既存の HMAC 署名方式を流用) を送信するよう実装。エージェント側ハートビート送信が従来存在しなかった。|
 
 ---
 

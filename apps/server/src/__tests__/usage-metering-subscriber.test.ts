@@ -109,6 +109,7 @@ function makeBillingMock(): BillingFacade {
     startExternalPurchase: vi.fn(),
     completeExternalPurchase: vi.fn(),
     cancelSubscription: vi.fn(),
+    reactivateSubscription: vi.fn(),
     restorePurchases: vi.fn(),
   };
 }

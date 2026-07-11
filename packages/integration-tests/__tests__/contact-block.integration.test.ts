@@ -104,11 +104,15 @@ describe("シナリオ 3: contact ブロック・招待リンク", () => {
     expect(consumeResult.ok).toBe(true);
 
     // A の contacts に B が追加されているか
-    const aContacts = await facades.contact.listContacts(userA);
-    expect(aContacts.some((c) => c.contactUserId === userB)).toBe(true);
+    const aContactsResult = await facades.contact.listContacts(userA);
+    expect(aContactsResult.ok).toBe(true);
+    if (!aContactsResult.ok) return;
+    expect(aContactsResult.data.some((c) => c.contactUserId === userB)).toBe(true);
 
     // B の contacts に A が追加されているか
-    const bContacts = await facades.contact.listContacts(userB);
-    expect(bContacts.some((c) => c.contactUserId === userA)).toBe(true);
+    const bContactsResult = await facades.contact.listContacts(userB);
+    expect(bContactsResult.ok).toBe(true);
+    if (!bContactsResult.ok) return;
+    expect(bContactsResult.data.some((c) => c.contactUserId === userA)).toBe(true);
   });
 });

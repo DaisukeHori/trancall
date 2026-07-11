@@ -1,6 +1,14 @@
 /**
  * anonymize.ts — per-user 決定論的匿名化 UUID 生成
  *
+ * ⚠️ supabase/functions/retention-cleanup/anonymize.ts の
+ *    deriveAnonymizedUserId と同一ロジックを維持すること。Deno edge function
+ *    ランタイムは monorepo の Node.js 側コード (このファイル) を直接 import
+ *    できないため、やむを得ず実装を分離しているが、アルゴリズムは完全に
+ *    一致させる必要がある。
+ *    (両実装のゴールデンベクタは __tests__/anonymize.test.ts と
+ *     supabase/functions/retention-cleanup/anonymize.test.ts で相互に検証している)
+ *
  * 案 1 (採用): SHA-256(originalUserId || salt) を UUID v4 形式に整形。
  * 同一ユーザーは常に同じ匿名 UUID にマッピングされるため、
  * user_consents の UNIQUE(user_id, scope, version) 制約に違反しない。

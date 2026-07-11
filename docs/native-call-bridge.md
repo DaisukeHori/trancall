@@ -493,8 +493,8 @@ await AudioSession.startAudioSession();
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
 <!-- Android 13 (API 33) 以上で push 通知に必要 -->
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-<!-- FCM 配信先 -->
-<uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+<!-- 注: com.google.android.c2dm.permission.RECEIVE は Firebase Messaging SDK
+     (v21+) が内部で自動宣言するため、アプリ側での明示宣言は不要 -->
 
 <service
     android:name=".CallConnectionService"

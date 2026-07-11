@@ -571,8 +571,8 @@ export function makeContactRepository(): ContactRepository {
       return ok(true);
     },
 
-    list: async (userId: UserId): Promise<ContactEntry[]> => {
-      return entries.filter((e) => e.userId === userId);
+    list: async (userId: UserId) => {
+      return ok(entries.filter((e) => e.userId === userId));
     },
 
     exists: async (userId: UserId, contactUserId: UserId): Promise<boolean> => {
@@ -896,6 +896,24 @@ export function makeAccessRepository(): InMemoryAccessRepo {
         return err({ code: "NOT_FOUND", message: "Access not found", retryable: false });
       }
       return ok(found);
+    },
+
+    // Issue #69 (2): insert-if-absent (既存行 — 削除済みを含む — があれば何もしない)
+    grant: async (roomId: RoomId, userId: UserId, consentVersion: string): Promise<Result<true>> => {
+      const exists = accesses.some((a) => a.roomId === roomId && a.userId === userId);
+      if (!exists) {
+        accesses.push({
+          id: crypto.randomUUID(),
+          roomId,
+          userId,
+          canView: true,
+          canExport: false,
+          deletedAt: null,
+          consentVersion,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      return ok(true);
     },
   };
 }

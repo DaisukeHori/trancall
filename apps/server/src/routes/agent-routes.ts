@@ -34,6 +34,7 @@ import type { EventBus } from "../adapters/event-bus.js";
 import { getHttpStatus } from "../middleware/error-handler.js";
 import { logger } from "../logger.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createNonceRepository } from "../adapters/repositories/agent/nonce-repository.supabase.js";
 
 // ---------------------------------------------------------------------------
 // Heartbeat body schema
@@ -267,7 +268,9 @@ export function registerAgentRoutes(
   },
 ): void {
   const { translation, transcript, auth, room, billing, config, eventBus, supabase } = deps;
-  const hmacPreHandler = createHmacPreHandler(config);
+  // #63: idempotencyKey 単位のリクエスト重複排除 (nonce store)。
+  const nonceRepo = createNonceRepository(supabase);
+  const hmacPreHandler = createHmacPreHandler(config, nonceRepo);
 
   // --------------------------------------------------------------------------
   // POST /internal/agent/events
@@ -386,6 +389,16 @@ export function registerAgentRoutes(
         idempotencyKey,
       });
 
+      // #63: 正常完了をマークし、以後の同一 idempotencyKey リクエスト
+      // (リトライ/リプレイ) が副作用を再実行しないようにする。
+      const markResult = await nonceRepo.markProcessed(idempotencyKey);
+      if (!markResult.ok) {
+        logger.warn("nonce markProcessed failed", {
+          idempotencyKey,
+          errorCode: markResult.error.code,
+        });
+      }
+
       return reply.send({ ok: true });
     },
   );
@@ -456,6 +469,16 @@ export function registerAgentRoutes(
         sessionId: body.sessionId,
         occurredAt: body.occurredAt,
       });
+
+      // #63: 正常完了をマークし、以後の同一 idempotencyKey リクエスト
+      // (リトライ/リプレイ) が副作用を再実行しないようにする。
+      const markResult = await nonceRepo.markProcessed(idempotencyKey);
+      if (!markResult.ok) {
+        logger.warn("nonce markProcessed failed", {
+          idempotencyKey,
+          errorCode: markResult.error.code,
+        });
+      }
 
       return reply.send({ ok: true });
     },

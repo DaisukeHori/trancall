@@ -85,7 +85,7 @@ function makeContactRepo(): ContactRepository {
     },
 
     list: async (userId) => {
-      return Array.from(contacts.values()).filter((e) => e.userId === userId);
+      return { ok: true, data: Array.from(contacts.values()).filter((e) => e.userId === userId) };
     },
 
     exists: async (userId, contactUserId) => {
@@ -347,6 +347,19 @@ describe("invite-service", () => {
     }
   });
 
+  it("Issue #72.3: baseUrl オプションを渡すと URL に反映される (ハードコード解消)", async () => {
+    const inviteRepo = makeInviteRepo();
+    const contactRepo = makeContactRepo();
+    const service = createInviteService(inviteRepo, contactRepo, {
+      baseUrl: "https://staging.trancall.app/invite",
+    });
+
+    const result = await service.createInviteLink(USER_A);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.url).toBe(`https://staging.trancall.app/invite/${result.data.token}`);
+  });
+
   it("consumeInviteLink: 双方向 INSERT が行われる", async () => {
     const inviteRepo = makeInviteRepo();
     const contactRepo = makeContactRepo();
@@ -365,10 +378,13 @@ describe("invite-service", () => {
     expect(consumeResult.ok).toBe(true);
 
     // 双方向連絡先が存在するか確認
-    const aContacts = await contactRepo.list(USER_A);
-    const bContacts = await contactRepo.list(USER_B);
-    expect(aContacts.some((c) => c.contactUserId === USER_B)).toBe(true);
-    expect(bContacts.some((c) => c.contactUserId === USER_A)).toBe(true);
+    const aContactsResult = await contactRepo.list(USER_A);
+    const bContactsResult = await contactRepo.list(USER_B);
+    expect(aContactsResult.ok).toBe(true);
+    expect(bContactsResult.ok).toBe(true);
+    if (!aContactsResult.ok || !bContactsResult.ok) return;
+    expect(aContactsResult.data.some((c) => c.contactUserId === USER_B)).toBe(true);
+    expect(bContactsResult.data.some((c) => c.contactUserId === USER_A)).toBe(true);
   });
 });
 

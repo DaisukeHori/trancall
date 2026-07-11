@@ -15,8 +15,10 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AuthFacade } from "@trancall/auth";
+import { brandUserId } from "@trancall/shared-kernel";
 import { getHttpStatus } from "../middleware/error-handler.js";
 import { createInMemoryRateLimitStore, createRateLimiter } from "../lib/rate-limit.js";
+import { logger } from "../logger.js";
 
 const SignupSchema = z.object({
   email: z.email(),
@@ -152,6 +154,23 @@ export function registerAuthRoutes(
 
     const { session, user } = authData;
 
+    // Issue #67: 登録完了を auth facade に通知し、auth.user_registered DomainEvent を
+    // 発行させる (プロフィール本体は migration 00016 の DB トリガーが作成済み)。
+    // best-effort: 失敗してもサインアップ自体は成功として返す
+    // (publishUserRegistered は常に ok(true) を返す設計だが、念のため防御的に扱う)。
+    const userIdResult = brandUserId(user.id);
+    if (userIdResult.success) {
+      const publishResult = await auth.publishUserRegistered(userIdResult.data, email, nativeLanguage);
+      if (!publishResult.ok) {
+        logger.warn("auth.user_registered publish failed", {
+          userId: user.id,
+          errorCode: publishResult.error.code,
+        });
+      }
+    } else {
+      logger.warn("auth.user_registered publish skipped: invalid userId", { userId: user.id });
+    }
+
     return reply.status(200).send({
       ok: true,
       data: {
@@ -263,25 +282,13 @@ export function registerAuthRoutes(
       });
     }
 
-    const updates: Record<string, string> = {};
-    if (parsed.data.displayName) updates["display_name"] = parsed.data.displayName;
-    if (parsed.data.nativeLanguage) updates["native_language"] = parsed.data.nativeLanguage;
-    if (parsed.data.avatarUrl) updates["avatar_url"] = parsed.data.avatarUrl;
-
-    const { error } = await supabase
-      .schema("trancall_auth")
-      .from("profiles")
-      .update(updates)
-      .eq("user_id", request.userId);
-
-    if (error) {
-      return reply.status(500).send({
-        ok: false,
-        error: { code: "INTERNAL_ERROR", message: error.message, retryable: true },
-      });
-    }
-
-    const result = await auth.getProfile(request.userId);
+    // Issue #72.1: facade バイパス是正 — 直接 supabase 呼び出しをやめ、
+    // AuthFacade.updateProfile 経由で書き込む (更新後の最新 Profile も一括取得)。
+    const result = await auth.updateProfile(request.userId, {
+      ...(parsed.data.displayName ? { displayName: parsed.data.displayName } : {}),
+      ...(parsed.data.nativeLanguage ? { nativeLanguage: parsed.data.nativeLanguage } : {}),
+      ...(parsed.data.avatarUrl ? { avatarUrl: parsed.data.avatarUrl } : {}),
+    });
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }
@@ -298,23 +305,11 @@ export function registerAuthRoutes(
       });
     }
 
-    const { error } = await supabase
-      .schema("trancall_auth")
-      .from("consent_versions")
-      .upsert(
-        {
-          user_id: request.userId,
-          consent_version: parsed.data.consentVersion,
-          consented_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      );
-
-    if (error) {
-      return reply.status(500).send({
-        ok: false,
-        error: { code: "INTERNAL_ERROR", message: error.message, retryable: true },
-      });
+    // Issue #72.1: facade バイパス是正 — 直接 supabase 呼び出しをやめ、
+    // AuthFacade.recordLegacyConsentVersion 経由で書き込む。
+    const result = await auth.recordLegacyConsentVersion(request.userId, parsed.data.consentVersion);
+    if (!result.ok) {
+      return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }
 
     return reply.send({ ok: true, data: true });

@@ -98,7 +98,7 @@ Android: sourceDir ".../modules/call-bridge/android", modules ["tech.hori.tranca
 | `setSpeakerphone()` | ✅ | ✅ `AVAudioSession.overrideOutputAudioPort` | ✅ `AudioManager.isSpeakerphoneOn` | |
 | `getCurrentCallState()` | ✅ | ✅ (`activeCalls` dictionary から) | ⚠️ **未実装** (`null` を返すのみ) — call state 追跡が `TranCallConnection` 側に閉じており、Module から横断参照する仕組みが無い | Sprint 4 で共有 state store 追加予定 |
 | `on(eventType, handler)` | ✅ Zod safeParse 込み | ✅ `Events`/`sendEvent` | ✅ `Events`/`sendEvent` | |
-| `validateCallPayload()` (#H-3、§7.1 外の追加関数) | ✅ | ✅ (app 側 `HmacValidator.swift` へ delegate) | ✅ (library 内に複製した `HmacValidator.kt`) | JS 側 defense-in-depth。権威ある検証は native push handler 側で実施済み |
+| `validateCallPayload()` (#H-3、§7.1 外の追加関数) | ✅ | ✅ (app 側 `HmacValidator.swift` へ delegate) | ✅ (library 内に複製した `HmacValidator.kt`) | JS 側 defense-in-depth。権威ある検証は native push handler 側で実施済み。**✅ #68/#70 このセッションで配線完了**: `src/lib/callkit/voip-push.ts` の legacy (react-native-voip-push-notification 経由) 着信パスから `verifyIncomingCallHmac()` (新規、`expo-secure-store` から secret 取得 → `validateCallPayload()` 呼び出し) を CallKit `displayIncomingCall` 直前に呼ぶよう配線。secret 未取得時・検証失敗時は fail-closed (CallKit に何も投入しない、`notification-detail.md` §3 canonical 準拠)。ただし `expo-secure-store` への secret 書き込み (アプリ起動時に EAS Secret 由来の値を保存する処理) 自体は未実装のままのため、実機では secret 常時 null → 常に fail-closed になる (下記 G-3 と対になる JS 側の残課題、新規 G-11 参照) |
 
 ### 5.3 CallEvent (Native → JS) 実装状況
 
@@ -129,7 +129,7 @@ Android: sourceDir ".../modules/call-bridge/android", modules ["tech.hori.tranca
 
 | # | ギャップ | 影響 | 対応方針 |
 |---|---|---|---|
-| G-1 | iOS: `CallBridgeProvider.shared.register()` を呼ぶ箇所が無い | JS から `callBridge.startOutgoingCall()` 等を呼んでも `CALL_BRIDGE_native_not_registered` 相当のエラーになる (`providerDelegate` が nil のまま) | `expo prebuild` が生成する `ios/TranCall/AppDelegate.swift` の `didFinishLaunchingWithOptions` に `CallBridgeProvider.shared.register()` を追加する配線が実機ビルド時に必要 |
+| G-1 | ✅ **解消 (#68/#70 このセッション)**。~~iOS: `CallBridgeProvider.shared.register()` を呼ぶ箇所が無い~~ | ~~JS から `callBridge.startOutgoingCall()` 等を呼んでも `CALL_BRIDGE_native_not_registered` 相当のエラーになる (`providerDelegate` が nil のまま)~~ | `plugins/with-ios-callbridge.js` の `withIosAppDelegateCallBridgeInit` (`withAppDelegate` + regex 冪等注入) が `expo prebuild` 生成後の `ios/TranCall/AppDelegate.swift` の `didFinishLaunchingWithOptions` 冒頭に `CallBridgeProvider.shared.register()` + `requestVoipPushRegistration()` を自動注入することを実測確認済み (`npx expo prebuild --clean` で生成された実ファイルで検証)。合わせて `CallBridgeProvider.requestVoipPushRegistration()` 内で `PKPushRegistry(queue: nil)` を生成・保持 (`private var pushRegistry: PKPushRegistry?`) し `delegate`/`desiredPushTypes` を設定するよう修正 (以前は `PKPushRegistry(` の生成コード自体がリポジトリ全体にゼロ件だった)。**引き続き Xcode コンパイル自体は device-verification-required** (この環境では検証不能)。 |
 | G-2 | iOS: `ios/CallBridge/*.swift` の Xcode プロジェクト (.pbxproj) への Compile Sources 登録が未自動化 | Config Plugin はファイルをコピーするのみ。Xcode が実際にコンパイル対象として認識するには pbxproj への追加が必要 | `@expo/config-plugins` の `IOSConfig.XcodeProjectFile.withBuildSourceFile` 系 API での自動化、または実機ビルド時に手動で "Add Files to..." | 
 | G-3 | iOS: HMAC secret 取得が placeholder (空文字) | `PushKitDelegate` の HMAC 検証が常に失敗する (空 secret で計算した signature は実際の signature と一致しない) → 着信が常に drop される | `expo-secure-store` からの実読み出しロジックを実装 (Keychain 経由) |
 | G-4 | Android: `google-services.json` 未配置 | FCM 自体が初期化できず `FcmService` が起動しない (Codex P1-1 hotfix によりビルド自体は壊れなくなったが、この機能ギャップ自体は未解消) | 実 Firebase プロジェクトの `google-services.json` を `apps/mobile/` 直下に配置する。配置すると `withConditionalGoogleServicesFile` が自動検知し次回 prebuild から有効化される (app.json 編集不要) |
@@ -137,19 +137,31 @@ Android: sourceDir ".../modules/call-bridge/android", modules ["tech.hori.tranca
 | G-6 | Android: `CallForegroundService` の通知アイコンが Android 標準アイコンの暫定流用 | 見た目がブランドと不一致 (機能上は問題なし) | 実アイコンリソースを library module に同梱するか、通知構築を app 側に移す設計変更 |
 | G-7 | Android: `getCurrentCallState()` が常に `null` | JS 側の state 再同期 (§7.4、5秒間隔ポーリング/前景復帰時) が機能しない | 共有 state store (Kotlin object) を追加し `TranCallConnection` と `CallBridgeModule` の両方から参照させる |
 | G-8 | Android: `answerCall()`/`endCall()` が Telecom API の制約で不完全 | JS からの明示的な応答/終話操作 (fallback 経路) が期待通り動かない可能性 | 実機で `TelecomManager` の挙動を確認し、必要なら `Connection` インスタンスを `CallBridgeModule` 内で追跡する設計に変更 |
-| G-9 | `src/lib/livekit/audio-session.ts` (設計書 §4.7 が参照するファイル) が未作成 | CallKit `didActivate` と LiveKit `AudioSession.startAudioSession()` の協調タイミングが JS 側に実装されていない | `@livekit/react-native` 依存追加の判断 (下記§8) と合わせて実装が必要 |
+| G-9 | `src/lib/livekit/audio-session.ts` (設計書 §4.7 が参照するファイル) が未作成 | CallKit `didActivate` と LiveKit `AudioSession.startAudioSession()` の協調タイミングが JS 側に実装されていない | `@livekit/react-native` 依存自体は #68/#70 で追加済み (下記§8)。本ファイルの実装は依然未着手 (Sprint 4 フォローアップ) |
 | G-10 | `packages/shared-kernel` へのスキーマ配置 (§7.5 canonical) を本タスクのスコープ制約により見送り | `CallStateSchema`/`CallEventSchema`/`IncomingCallPushPayloadSchema` が `apps/mobile/modules/call-bridge/src/CallBridge.types.ts` に留まり、`packages/notification` 側の Zod schema (Sprint 3 で `packages/notification/src/schemas.ts` に追加された `uuid`/`callerId`/`issuedAt`/`expiresAt`/`signature`) と型レベルでは独立している (wire format は互換だが単一ソースではない) | スコープ制約解除後に `packages/shared-kernel/src/schemas/native-call.ts` へ移設 |
+| G-11 (新規、#68/#70) | JS 側 (mobile) で `TRANCALL_PUSH_HMAC_SECRET` を `expo-secure-store` に書き込む起動時ロジックが未実装 | `voip-push.ts` の `verifyIncomingCallHmac()` は配線済みだが `SecureStore.getItemAsync("trancall:push-hmac-secret")` が常に `null` を返すため、legacy (react-native-voip-push-notification 経由) 着信パスは常に fail-closed で着信を破棄する (native-side の G-3 と対になる JS 側の同種ギャップ)。ただし legacy パス自体が `react-native-voip-push-notification` 未導入のため現状 no-op であり実害は無い (#68 の CallBridge Module 経由の着信は native 側で HMAC 検証済み、こちらとは独立) | EAS Secret 経由でビルド時注入された値をアプリ起動時に `SecureStore.setItemAsync("trancall:push-hmac-secret", ...)` へ書き込む初期化コードを実装 (G-3 の Keychain 読み出し実装と対で Sprint 4 以降に対応) |
 
 ---
 
 ## 8. 依存追加の是非判断: `@livekit/react-native`
 
-- **現状**: `apps/mobile/package.json` に `@livekit/react-native` は追加していない。`apps/mobile/src/lib/livekit/connect.ts` は `require("@livekit/react-native")` を動的に呼び、存在しない場合は明示的エラーを throw する設計 (Wave1 で既に実装済み、Stage 1/2 では変更していない)。
-- **今回の判断**: **追加しない**。理由:
-  1. 依存追加には native linking (pod install / gradle sync) が伴い、この環境では追加してもビルド検証が一切できず、「追加したが動作未確認」という状態を作るだけで実質的な進捗にならない。
-  2. 設計書 §3.3 の "自前 Expo Module" 方針と、LiveKit の音声トラック接続は別レイヤーの関心事であり (§3.4 layering: Native は OS API ラッパー、LiveKit 接続は JS の CallStore/connect.ts が担当)、CallBridge Module 自体の実装完成に `@livekit/react-native` は不要。
-  3. `connect.ts`/`in-call-screen.tsx` は既に「無ければ reject して安全に fallback」する設計になっており (今回のセッションで `MicrophonePermissionDeniedError` 等と合わせて確認・強化済み)、依存が無い状態でも TS 側は健全に動作する。
-- **推奨フォローアップ**: 実際に Xcode/Android Studio でビルドできる環境が用意された段階で、`npx expo install @livekit/react-native @livekit/react-native-webrtc` を実行し、`connect.ts` の `loadLiveKitModule()` と `src/lib/livekit/audio-session.ts` (未作成、G-9) を実装・実機で音声疎通を検証する。
+**Status: 2026-07 (#68/#70) 追加済みに判断変更。以下は判断変更前の旧記録。**
+
+- **旧状態 (#68/#70 着手前)**: `apps/mobile/package.json` に `@livekit/react-native` は追加していなかった。`apps/mobile/src/lib/livekit/connect.ts` は `require("@livekit/react-native")` を動的に呼び、存在しない場合は明示的エラーを throw する設計 (Wave1 で既に実装済み)。
+- **旧判断 (Stage 1/2 時点)**: 追加しない。理由は「この環境では native linking のビルド検証が一切できず『追加したが動作未確認』という状態を作るだけ」「connect.ts が無ければ reject する安全な fallback 設計になっている」等。
+- **#68/#70 での判断変更: 追加した。** 理由:
+  1. Issue #68/#70 で明示的に「`@livekit/react-native` を実際の依存として追加し `pnpm install` を実行すること」が要求された。
+  2. 公式インストール手順 (`livekit/client-sdk-react-native` README) は `@livekit/react-native` 単独ではなく `@livekit/react-native @livekit/react-native-webrtc livekit-client` の 3 点セットを要求している (`@livekit/react-native` の `peerDependencies` に `livekit-client: ^2.19.0` / `@livekit/react-native-webrtc: ^144.1.1` が必須指定されているため、片方だけ入れても実行時 import が解決しない)。3 点とも追加した:
+     - `@livekit/react-native@2.11.1` (peer: react/react-native は `*`、RN 0.81.5 と互換)
+     - `@livekit/react-native-webrtc@144.1.1` (peer: `react-native >=0.60.0`)
+     - `livekit-client@2.20.1` (`@livekit/react-native` の peer 要求 `^2.19.0` を満たす最新)
+  3. `pnpm install` は追加の peer dependency 警告なくクリーンに解決 (既存の `react-dom`/`react-test-renderer` peer 警告は本変更と無関係の pre-existing なもの)。
+  4. `npx expo-modules-autolinking search --platform ios/android` では `@livekit/react-native` 自体は検出されない (Expo Modules API ではなく classic React Native autolinking — `ios/Podfile` の `use_native_modules!` / Android `settings.gradle` の `native_modules.gradle` 経由で解決される想定。`ios/Podfile` に `use_native_modules!(config_command)` が Expo 標準テンプレートに含まれることを実測確認済み)。
+- **未実施 (このセッションのスコープ外、フォローアップ必要)**:
+  - LiveKit 公式ドキュメントが要求する追加初期化コード (`AppDelegate.swift` への `LivekitReactNative.setup()` 呼び出し、`MainApplication.kt` への `LiveKitReactNative.setup(...)` 呼び出し、JS 側の `registerGlobals()` 呼び出し) は未配線。`@livekit/react-native-expo-plugin` (公式 Expo Config Plugin) の導入検討も未着手。
+  - `connect.ts` の `loadLiveKitModule()` 自体は変更していない (require 経由の動的ロードのまま、型安全性重視の既存設計を維持)。
+  - `src/lib/livekit/audio-session.ts` (G-9、CallKit `didActivate` と `AudioSession.startAudioSession()` の協調) は依然未作成。
+  - **実機/シミュレータでの pod install・Gradle sync・実際の音声疎通検証は device-verification-required のまま** (この環境に Xcode/Android Studio が無いため)。
 
 ---
 
@@ -163,15 +175,71 @@ Android: sourceDir ".../modules/call-bridge/android", modules ["tech.hori.tranca
 
 ---
 
-## 10. テスト・検証コマンド (再現用)
+## 11. #56 (CNG と bare ファイル管理の矛盾) 対応 — このセッション
+
+`apps/mobile/android/` `apps/mobile/ios/` が bare files として git 追跡されたまま `.gitignore` に
+エントリが無く、`eas build` の CNG (Continuous Native Generation) 自動判定と矛盾していた問題
+(詳細は Issue #56 本文 / コメント参照) を解消した。
+
+- **安全確認 (untrack 前提)**: `git rm --cached` する前に、以下を実測で確認した。
+  - `git ls-files` で tracked だった 7 ファイル (`android/.../FcmService.kt` `HmacValidator.kt`、
+    `ios/CallBridge/{CallBridgeProvider,HmacValidator,PushKitDelegate}.swift`、
+    `ios/TranCall/{PrivacyInfo.xcprivacy,TranCall.entitlements}`) のうち、
+    Kotlin/Swift の 5 ファイルは `plugins/templates/` 配下の対応テンプレートと **`diff` でバイト単位一致**
+    (`expo prebuild --clean` を実際に実行し、新規生成された `android/`・`ios/` 配下のファイルと
+    テンプレートを再度 diff しても一致することを確認、静的比較だけでなく実行時の再現性も検証済み)。
+  - 残る 2 ファイル (`TranCall.entitlements` / `PrivacyInfo.xcprivacy`) は静的テンプレートではなく、
+    Expo 標準 mod (`withEntitlementsPlist` / `withPrivacyInfo`、`app.json` の `ios.entitlements` /
+    `ios.privacyManifests` が正本) が都度動的生成する設計であることを `native-call-bridge-impl-status.md`
+    §3 (旧記述) 通り確認。`expo prebuild --clean` で実際に再生成させたところ、XML の整形・コメント有無が
+    異なるのみで意味的な内容 (キー/値) は完全一致することを確認した (comments はプレーンな plist writer が
+    ラウンドトリップで保持しないため消える。これは "ドリフト" ではなく仕様通りの挙動)。
+  - 以上により、`plugins/templates/` (+ `app.json`) が唯一の正本であり、`git rm --cached` によって
+    失われるユニークな情報が無いことを確認した上で untrack を実施した。
+- **実施内容**:
+  - `git rm -r --cached apps/mobile/android apps/mobile/ios` (作業ツリーの実ファイルは削除していない)
+  - `apps/mobile/.gitignore` を新規作成し `android/` `ios/` を追加
+  - `.github/workflows/e2e.yml` は `expo prebuild --platform ios/android` を明示的に実行してから
+    `apps/mobile/ios`/`apps/mobile/android` を参照する構成のため、本変更による CI 影響は無いことを確認済み
+    (`grep -n "expo prebuild" .github/workflows/e2e.yml` で該当行を実測確認)。
+- **`.easignore` の要否**: 追加していない。EAS Build の git ベースのプロジェクトアーカイブは
+  `.gitignore` を尊重するため、本対応で `android/`/`ios/` は自動的にアーカイブ対象外になる想定
+  (EAS リモートビルドでの実挙動そのものはこの環境では検証不能、device-verification-required)。
+
+---
+
+## 12. #68/#70 追加配線 (このセッション)
+
+- **`@livekit/react-native` 依存追加**: §8 (更新済み) 参照。`pnpm install` 実行済み、追加の
+  peer dependency 警告なし。
+- **JS 側 HMAC 検証配線**: `apps/mobile/src/native/HmacValidator.ts` の `validateCallPayload()` を
+  `apps/mobile/src/lib/callkit/voip-push.ts` の legacy 着信パス (`createIncomingPushHandler`,
+  旧 `registerIOSVoIPPush` 内の無名関数から純関数として切り出し) に配線。
+  `expo-secure-store` から `trancall:push-hmac-secret` キーで secret を取得し検証、
+  失敗時は CallKit に何も投入せず log only で破棄 (fail-closed)。secret 書き込み処理自体は
+  未実装 (新規 G-11、§7 参照)。
+- **iOS PKPushRegistry 実体化**: `apps/mobile/plugins/templates/ios/CallBridge/CallBridgeProvider.swift`
+  (+ 追従して `apps/mobile/ios/CallBridge/CallBridgeProvider.swift`) に `PKPushRegistry` の生成・保持・
+  delegate 登録を実装。`plugins/with-ios-callbridge.js` に `withIosAppDelegateCallBridgeInit`
+  (`withAppDelegate` mod) を追加し、`expo prebuild` で生成される `AppDelegate.swift` の
+  `didFinishLaunchingWithOptions` 冒頭へ `CallBridgeProvider.shared.register()` +
+  `requestVoipPushRegistration()` を自動注入。`npx expo prebuild --clean` を実行し、
+  実際に生成された `AppDelegate.swift` に注入されていること、再実行しても重複注入されない
+  (冪等) ことを実測確認済み (G-1 解消)。
+
+---
+
+## 13. テスト・検証コマンド (再現用)
 
 ```bash
 export PATH="/opt/homebrew/opt/node@23/bin:$PATH"
 pnpm --filter @trancall/app-mobile typecheck   # green (modules/call-bridge 含む)
-pnpm --filter @trancall/app-mobile test        # green (542 tests / 36 files)
+pnpm --filter @trancall/app-mobile test        # green (576 tests / 40 files, #68/#70 このセッションで +34 tests / +2 files)
+pnpm turbo typecheck lint test --filter=@trancall/app-mobile  # green (6/6 tasks)
 pnpm turbo typecheck                            # green (26/26 tasks, 全16パッケージ)
 cd apps/mobile
 npx expo config --json > /dev/null && echo CONFIG_OK
+npx expo prebuild --clean --no-install          # green、AppDelegate.swift へ CallBridgeProvider 初期化コード注入を確認
 npx expo-modules-autolinking search --platform ios --json      # call-bridge 発見確認
 npx expo-modules-autolinking resolve --platform ios --json     # podspec 解決確認
 npx expo-modules-autolinking search --platform android --json  # call-bridge 発見確認

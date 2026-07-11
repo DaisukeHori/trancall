@@ -16,6 +16,7 @@ import {
   makeMediaFacade,
   makeNotificationFacade,
   makeEventBus,
+  makeBlockListRepository,
 } from "./helpers/mock-facades.js";
 
 const creatorId = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440001");
@@ -31,6 +32,7 @@ const TEST_CALLER_LANGUAGE = "ja";
 function makeService(overrides?: {
   canStart?: boolean;
   createRoomOk?: boolean;
+  isBlockedFn?: (userId: string, targetUserId: string) => boolean;
 }) {
   const roomRepo = createInMemoryRoomRepository();
   const participantRepo = createInMemoryParticipantRepository();
@@ -38,6 +40,7 @@ function makeService(overrides?: {
   const media = makeMediaFacade(overrides?.createRoomOk ?? true);
   const notification = makeNotificationFacade();
   const eventBus = makeEventBus();
+  const blockListRepo = makeBlockListRepository(overrides?.isBlockedFn);
 
   const service = createCallLifecycleService({
     roomRepo,
@@ -46,9 +49,10 @@ function makeService(overrides?: {
     media,
     notification,
     eventBus,
+    blockListRepo,
   });
 
-  return { service, roomRepo, participantRepo, billing, media, notification, eventBus };
+  return { service, roomRepo, participantRepo, billing, media, notification, eventBus, blockListRepo };
 }
 
 // =============================================================================
@@ -99,6 +103,54 @@ describe("CallLifecycleService.createCall", () => {
     const rooms = [...roomRepo._store.values()];
     expect(rooms).toHaveLength(1);
     expect(rooms[0]?.status).toBe("ended");
+  });
+
+  // =============================================================================
+  // Issue #69: ROOM_USER_BLOCKED (createCall)
+  // =============================================================================
+
+  it("Issue #69: creator が invitee をブロックしている → ROOM_USER_BLOCKED、room は作成されない", async () => {
+    const { service, roomRepo } = makeService({
+      isBlockedFn: (a, b) =>
+        (a === creatorId && b === inviteeId1) || (a === inviteeId1 && b === creatorId),
+    });
+
+    const result = await service.createCall(creatorId, [inviteeId1], {
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("ROOM_USER_BLOCKED");
+
+    // DB に room が作成されていないこと (ブロックチェックは DB 書き込みより前)
+    expect(roomRepo._store.size).toBe(0);
+  });
+
+  it("Issue #69: ブロック関係がなければ createCall は成功する", async () => {
+    const { service, blockListRepo } = makeService();
+
+    const result = await service.createCall(creatorId, [inviteeId1], {
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(blockListRepo.isBlocked).toHaveBeenCalledWith(creatorId, inviteeId1);
+  });
+
+  it("Issue #69: 複数 invitee のうち 1 人とだけブロック関係がある場合も ROOM_USER_BLOCKED", async () => {
+    const { service } = makeService({
+      isBlockedFn: (a, b) =>
+        (a === creatorId && b === inviteeId2) || (a === inviteeId2 && b === creatorId),
+    });
+
+    const result = await service.createCall(creatorId, [inviteeId1, inviteeId2], {
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("ROOM_USER_BLOCKED");
   });
 
   it("invitee 2 人に sendIncomingCall が並列で呼ばれる", async () => {

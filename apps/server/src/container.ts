@@ -13,6 +13,7 @@ import { createAuthFacade } from "@trancall/auth";
 import type {
   AuthFacade,
   AuthEventBus,
+  AuthUserRegisteredEvent,
   AuthConsentRecordedEvent,
   AuthConsentRevokedEvent,
 } from "@trancall/auth";
@@ -49,6 +50,9 @@ import type { RoomFacade } from "@trancall/room";
 
 // Repositories — auth
 import { createProfileRepository } from "./adapters/repositories/auth/profile-repository.supabase.js";
+import { createProfileWriteRepository } from "./adapters/repositories/auth/profile-write-repository.supabase.js";
+import { createLegacyConsentRepository } from "./adapters/repositories/auth/legacy-consent-repository.supabase.js";
+import { createProfileDeletionRepository } from "./adapters/repositories/auth/profile-deletion-repository.supabase.js";
 import { createConsentRepository } from "./adapters/repositories/auth/consent-repository.supabase.js";
 import { createLegalDocVersionRepository } from "./adapters/repositories/auth/legal-doc-version-repository.supabase.js";
 // Repositories — billing
@@ -78,6 +82,8 @@ import { createTranslationEventOutboxRepository } from "./adapters/repositories/
 // Repositories — room
 import { createRoomRepository } from "./adapters/repositories/room/room-repository.supabase.js";
 import { createParticipantRepository } from "./adapters/repositories/room/participant-repository.supabase.js";
+// Issue #69 (1): room が要求する BlockListRepository (contact の block_list への read-only view)
+import { createRoomBlockListRepository } from "./adapters/repositories/room/block-list-repository.adapter.js";
 
 // Adapters
 import { buildLiveKitAdapter } from "./adapters/livekit-adapter.js";
@@ -91,6 +97,8 @@ import type { EventBus } from "./adapters/event-bus.js";
 
 // #46: translation.ended 購読者 (usage metering)
 import { registerUsageMeteringSubscriber } from "./adapters/usage-metering-subscriber.js";
+// Issue #69 (2): room.participant_joined 購読者 (transcript_access 自動付与)
+import { registerTranscriptAccessSubscriber } from "./adapters/transcript-access-subscriber.js";
 
 import type { Config } from "./config.js";
 
@@ -108,10 +116,12 @@ export interface AppContainer {
   /** #46: roomId ↔ billing 予約 sessionId 対応表。room-routes.ts が書き込み/読み取りに使う。 */
   roomReservationSessionRepo: RoomReservationSessionRepository;
   /**
-   * #27: account-routes.ts の POST /api/account/restore がサブスクリプションの
-   * cancelAtPeriodEnd フラグを復元するために直接使う (BillingFacade には
-   * 「取消の取り消し」に相当するメソッドが存在しないため、apps/server が自ら
-   * 生成した SubscriptionRepository 実装を account-routes 側にも注入する)。
+   * #27/#65: billing facade の構築に使う SubscriptionRepository 実装。
+   * 【#65 で解消】 account-routes.ts の POST /api/account/restore は従来これを
+   * 直接使ってサブスクリプションの cancelAtPeriodEnd フラグを復元していたが、
+   * BillingFacade.reactivateSubscription の追加により facade 経由に切り替わったため、
+   * account-routes.ts への直接注入は不要になった。他の直接利用が必要になった場合に
+   * 備え、コンテナからは引き続き参照可能にしておく。
    */
   subscriptionRepo: SubscriptionRepository;
   /**
@@ -134,6 +144,11 @@ export function buildContainer(config: Config): AppContainer {
   // ── Repositories ──────────────────────────────────────────────────────────
   // auth
   const profileRepo = createProfileRepository(supabase);
+  // Issue #72.1: PATCH /api/auth/profile / POST /api/auth/consent (レガシー) の
+  // facade バイパスを解消するための書き込み用リポジトリ
+  const profileWriteRepo = createProfileWriteRepository(supabase);
+  const legacyConsentRepo = createLegacyConsentRepository(supabase);
+  const profileDeletionRepo = createProfileDeletionRepository(supabase);
   const consentRepo = createConsentRepository(supabase);
   const legalDocRepo = createLegalDocVersionRepository(supabase);
   // billing
@@ -149,6 +164,10 @@ export function buildContainer(config: Config): AppContainer {
   const inviteRepo = createInviteRepository(supabase);
   const profileSearchRepo = createProfileSearchRepository(supabase);
   const reportRepo = createReportRepository(supabase);
+  // Issue #69 (1): room が要求する BlockListRepository。room モジュールは contact を
+  // 直接 import できないため、apps/server が contact の BlockRepository 実装を
+  // room 側の read-only インターフェースに合わせて包む。
+  const roomBlockListRepo = createRoomBlockListRepository(blockRepo);
   // notification
   const deviceTokenRepo = createDeviceTokenRepository(supabase);
   const pushLogRepo = createPushLogRepository(supabase);
@@ -169,7 +188,7 @@ export function buildContainer(config: Config): AppContainer {
   // AuthEventBus は EventBus の narrowed wrapper として注入する
   const authEventBus: AuthEventBus = {
     async publish(
-      event: AuthConsentRecordedEvent | AuthConsentRevokedEvent,
+      event: AuthUserRegisteredEvent | AuthConsentRecordedEvent | AuthConsentRevokedEvent,
     ): Promise<void> {
       // DomainEvent union に auth イベントを追加済みのため publish 可能
       await eventBus.publish(event);
@@ -180,6 +199,9 @@ export function buildContainer(config: Config): AppContainer {
     consentRepo,
     legalDocRepo,
     eventBus: authEventBus,
+    profileWriteRepo,
+    legacyConsentRepo,
+    profileDeletionRepo,
   });
 
   // media (auth に依存)
@@ -258,7 +280,11 @@ export function buildContainer(config: Config): AppContainer {
   const blockService = createBlockService(blockRepo);
   const searchService = createSearchService(profileSearchRepo, blockRepo);
   const reportService = createReportService(reportRepo);
-  const inviteService = createInviteService(inviteRepo, contactRepo);
+  // Issue #72.3: 招待リンクのベース URL をハードコードせず config.ts (環境変数
+  // INVITE_BASE_URL) から注入する
+  const inviteService = createInviteService(inviteRepo, contactRepo, {
+    baseUrl: config.INVITE_BASE_URL,
+  });
   const contact = createContactFacade(
     contactService,
     blockService,
@@ -287,7 +313,7 @@ export function buildContainer(config: Config): AppContainer {
   // translation
   const translation = createTranslationFacade({ sessionRepo, metricsRepo });
 
-  // room (billing + media + notification + eventBus に依存)
+  // room (billing + media + notification + eventBus + blockListRepo に依存)
   const room = createRoomFacade({
     roomRepo,
     participantRepo,
@@ -295,6 +321,17 @@ export function buildContainer(config: Config): AppContainer {
     media,
     notification,
     eventBus,
+    blockListRepo: roomBlockListRepo,
+  });
+
+  // Issue #69 (2): room.participant_joined を購読して transcript_access を自動付与する。
+  // packages/transcript には「アクセス権を作成する」呼び出しがどこにも存在しなかった
+  // (Issue #69 調査で判明)。設計判断の詳細は adapters/transcript-access-subscriber.ts
+  // 先頭のコメント参照。
+  registerTranscriptAccessSubscriber(eventBus, {
+    transcript,
+    room,
+    legalDocRepo,
   });
 
   return {

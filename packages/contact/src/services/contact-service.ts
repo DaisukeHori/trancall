@@ -23,7 +23,10 @@ export interface ContactService {
     contactId: string,
   ): Promise<Result<true>>;
 
-  listContacts(userId: UserId): Promise<ContactEntry[]>;
+  /**
+   * Issue #72.2: DB エラー時は Result.err で伝播する (呼び出し元も合わせて対応)。
+   */
+  listContacts(userId: UserId): Promise<Result<ContactEntry[]>>;
 
   toggleFavorite(
     userId: UserId,
@@ -82,7 +85,7 @@ export function createContactService(
       return contactRepo.remove(userId, contactId);
     },
 
-    listContacts: async (userId: UserId): Promise<ContactEntry[]> => {
+    listContacts: async (userId: UserId): Promise<Result<ContactEntry[]>> => {
       return contactRepo.list(userId);
     },
 

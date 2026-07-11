@@ -11,21 +11,38 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createProfileSearchRepository } from "../adapters/repositories/contact/profile-search-repository.supabase.js";
 
 function makeSupabaseMock() {
-  const ilikeMock = vi.fn();
+  // 実際の supabase-js クエリビルダーに合わせ、フィルタ系メソッド (eq/ilike) は
+  // すべて同一のチェーン可能オブジェクトを返し、終端メソッド (limit/maybeSingle) のみ
+  // Promise を解決する (Issue #64: searchByDisplayName が `.eq("is_searchable", true)`
+  // → `.ilike(...)` → `.limit(...)` の順でチェーンするため、eq の戻り値にも ilike が
+  // 必要になった)。
   const limitMock = vi.fn().mockResolvedValue({ data: [], error: null });
-  const eqMock = vi.fn();
-  const selectMock = vi.fn();
-  const fromMock = vi.fn();
-  const schemaMock = vi.fn();
+  const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
 
-  ilikeMock.mockReturnValue({ limit: limitMock });
-  eqMock.mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) });
-  selectMock.mockReturnValue({ ilike: ilikeMock, eq: eqMock });
-  fromMock.mockReturnValue({ select: selectMock });
-  schemaMock.mockReturnValue({ from: fromMock });
+  const chain = {
+    eq: vi.fn(),
+    ilike: vi.fn(),
+    limit: limitMock,
+    maybeSingle: maybeSingleMock,
+  };
+  chain.eq.mockReturnValue(chain);
+  chain.ilike.mockReturnValue(chain);
+
+  const selectMock = vi.fn().mockReturnValue(chain);
+  const fromMock = vi.fn().mockReturnValue({ select: selectMock });
+  const schemaMock = vi.fn().mockReturnValue({ from: fromMock });
 
   const supabase = { schema: schemaMock } as unknown as SupabaseClient;
-  return { supabase, schemaMock, fromMock, selectMock, ilikeMock, limitMock };
+  return {
+    supabase,
+    schemaMock,
+    fromMock,
+    selectMock,
+    eqMock: chain.eq,
+    ilikeMock: chain.ilike,
+    limitMock,
+    maybeSingleMock,
+  };
 }
 
 describe("ProfileSearchRepository.searchByDisplayName — ILIKE ワイルドカードエスケープ (#26)", () => {
@@ -95,5 +112,27 @@ describe("ProfileSearchRepository.searchByDisplayName — ILIKE ワイルドカ�
     expect(schemaMock).toHaveBeenCalledWith("trancall_auth");
     expect(fromMock).toHaveBeenCalledWith("public_profiles");
     expect(fromMock).not.toHaveBeenCalledWith("profiles");
+  });
+});
+
+describe("ProfileSearchRepository — opt-in 検索フラグ (Issue #64)", () => {
+  it("searchByDisplayName は is_searchable=true の WHERE 条件を付与する", async () => {
+    const { supabase, eqMock } = makeSupabaseMock();
+    const repo = createProfileSearchRepository(supabase);
+
+    await repo.searchByDisplayName("tanaka");
+
+    expect(eqMock).toHaveBeenCalledWith("is_searchable", true);
+  });
+
+  it("findByTrancallId は is_searchable でフィルタしない (完全一致検索は opt-in 対象外)", async () => {
+    const { supabase, eqMock } = makeSupabaseMock();
+    const repo = createProfileSearchRepository(supabase);
+
+    await repo.findByTrancallId("hori123");
+
+    // trancall_id での完全一致検索のみ (is_searchable は渡さない)
+    expect(eqMock).toHaveBeenCalledWith("trancall_id", "hori123");
+    expect(eqMock).not.toHaveBeenCalledWith("is_searchable", expect.anything());
   });
 });

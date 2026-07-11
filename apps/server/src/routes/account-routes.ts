@@ -19,21 +19,23 @@
  *    (期末キャンセル) を使い、DB 上は cancel_at_period_end フラグのみを立てて
  *    plan_tier/channel/stripe ID 等は保持する。restore 時にこのフラグを false に
  *    戻すことで、grace period 内であればサブスクの表示状態を復元できる。
- *    【既知の残課題】 Stripe 連携チャネル (stripe_web / storekit_external) は
+ *    【#65 で解消】 Stripe 連携チャネル (stripe_web / storekit_external) は
  *    `stripeAdapter.cancelSubscription(id, true)` で Stripe 側にも
  *    cancel_at_period_end=true を実際に送っているため、restore 側でローカル DB の
  *    フラグを false に戻すだけでは Stripe 側の設定までは戻らない (期末に Stripe が
- *    実際に解約してしまう可能性が残る)。Stripe 側を「解約取り消し」するには
- *    packages/billing に新しい adapter メソッドが必要で、本タスクのスコープ
- *    (packages/billing は #23 の export 以外変更しない) 外のため TODO として残す。
+ *    実際に解約してしまう) 問題があった。packages/billing に
+ *    `BillingFacade.reactivateSubscription` (内部で stripeAdapter.reactivateSubscription
+ *    → `stripe.subscriptions.update(id, { cancel_at_period_end: false })`) を追加し、
+ *    restore はこれを facade 経由で呼ぶことで Stripe 側も含めて完全に復元する
+ *    (直接 Stripe クライアントや subscriptionRepo を触らない)。
  *    IAP チャネルは元々どちらの分岐でも Apple/Google には通知していないため、
  *    このローカル DB フラグの復元だけで実質的に完全に復元される。
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { BillingFacade, SubscriptionRepository } from "@trancall/billing";
+import type { AuthFacade } from "@trancall/auth";
+import type { BillingFacade } from "@trancall/billing";
 import { brandUserId } from "@trancall/shared-kernel";
 import type { EventBus } from "../adapters/event-bus.js";
 
@@ -43,11 +45,6 @@ import type { EventBus } from "../adapters/event-bus.js";
 
 const DeleteAccountBodySchema = z.object({
   reason: z.string().max(500).optional(),
-});
-
-/** trancall_auth.profiles から取得した行のうち、本ルートが参照する列のみのスキーマ */
-const ProfileDeletionRowSchema = z.object({
-  deleted_at: z.string().nullable(),
 });
 
 // ---------------------------------------------------------------------------
@@ -72,13 +69,12 @@ function gracePeriodEndsAt(from: Date): Date {
 export function registerAccountRoutes(
   fastify: FastifyInstance,
   deps: {
-    supabase: SupabaseClient;
+    auth: AuthFacade;
     billing: BillingFacade;
     eventBus: EventBus;
-    subscriptionRepo: SubscriptionRepository;
   },
 ): void {
-  const { supabase, billing, eventBus, subscriptionRepo } = deps;
+  const { auth, billing, eventBus } = deps;
 
   // -------------------------------------------------------------------------
   // POST /api/account/delete
@@ -99,39 +95,25 @@ export function registerAccountRoutes(
     const userId = request.userId;
 
     // ── 1. すでに退会処理済みか確認 ──────────────────────────────────────────
-    const { data: existingProfileRaw, error: fetchError } = await supabase
-      .schema("trancall_auth")
-      .from("profiles")
-      .select("deleted_at")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (fetchError) {
+    // Issue #72.1: facade バイパス是正 — AuthFacade.getProfileDeletionStatus 経由で取得
+    const statusResult = await auth.getProfileDeletionStatus(userId);
+    if (!statusResult.ok) {
       return reply.status(500).send({
         ok: false,
-        error: { code: "INTERNAL_ERROR", message: fetchError.message, retryable: true },
+        error: { code: "INTERNAL_ERROR", message: statusResult.error.message, retryable: true },
       });
     }
 
-    if (existingProfileRaw != null) {
-      const parsedExisting = ProfileDeletionRowSchema.safeParse(existingProfileRaw);
-      if (!parsedExisting.success) {
-        return reply.status(500).send({
-          ok: false,
-          error: { code: "INTERNAL_ERROR", message: "profiles 行のスキーマが不正です", retryable: false },
-        });
-      }
-      if (parsedExisting.data.deleted_at != null) {
-        // 既に退会リクエスト済み (冪等: OK)
-        const gracePeriodEnd = gracePeriodEndsAt(new Date(parsedExisting.data.deleted_at));
-        return reply.status(200).send({
-          ok: true,
-          data: {
-            gracePeriodEndsAt: gracePeriodEnd.toISOString(),
-            message: "退会リクエストは既に受け付けられています。",
-          },
-        });
-      }
+    if (statusResult.data != null && statusResult.data.deletedAt != null) {
+      // 既に退会リクエスト済み (冪等: OK)
+      const gracePeriodEnd = gracePeriodEndsAt(new Date(statusResult.data.deletedAt));
+      return reply.status(200).send({
+        ok: true,
+        data: {
+          gracePeriodEndsAt: gracePeriodEnd.toISOString(),
+          message: "退会リクエストは既に受け付けられています。",
+        },
+      });
     }
 
     const userIdBranded = brandUserId(userId);
@@ -148,16 +130,12 @@ export function registerAccountRoutes(
     // ── 2. profiles.deleted_at を soft delete (先に確定させる) ──────────────
     // #27: サブスクの不可逆な状態変更より先に、可逆な soft delete を確定させることで
     // 「サブスクだけ消えて退会状態にならない」事故を防ぐ。
-    const { error: updateError } = await supabase
-      .schema("trancall_auth")
-      .from("profiles")
-      .update({ deleted_at: requestedAt.toISOString() })
-      .eq("user_id", userId);
-
-    if (updateError) {
+    // Issue #72.1: facade バイパス是正 — AuthFacade.setProfileDeletedAt 経由で書き込む
+    const setDeletedResult = await auth.setProfileDeletedAt(userId, requestedAt.toISOString());
+    if (!setDeletedResult.ok) {
       return reply.status(500).send({
         ok: false,
-        error: { code: "INTERNAL_ERROR", message: updateError.message, retryable: true },
+        error: { code: "INTERNAL_ERROR", message: setDeletedResult.error.message, retryable: true },
       });
     }
 
@@ -170,17 +148,13 @@ export function registerAccountRoutes(
     if (!cancelResult.ok) {
       // #27: サブスク側の変更が失敗した場合は soft delete をロールバックし、
       // クライアントには失敗を伝えて安全にリトライできる状態に戻す。
-      const { error: rollbackError } = await supabase
-        .schema("trancall_auth")
-        .from("profiles")
-        .update({ deleted_at: null })
-        .eq("user_id", userId);
+      const rollbackResult = await auth.setProfileDeletedAt(userId, null);
 
-      if (rollbackError) {
+      if (!rollbackResult.ok) {
         // ロールバック自体が失敗した場合は不整合 (soft delete 済みだがサブスクは未キャンセル) を
         // 明示するため、通常の INTERNAL_ERROR と区別できるようログに残す。
         request.log.error(
-          { userId, cancelError: cancelResult.error, rollbackError },
+          { userId, cancelError: cancelResult.error, rollbackError: rollbackResult.error },
           "[account-routes] delete: サブスクキャンセル失敗後の soft delete ロールバックにも失敗しました",
         );
       }
@@ -224,40 +198,16 @@ export function registerAccountRoutes(
     const userId = request.userId;
 
     // ── 1. 退会リクエスト済みか確認 ──────────────────────────────────────────
-    const { data: profileRaw, error: fetchError } = await supabase
-      .schema("trancall_auth")
-      .from("profiles")
-      .select("deleted_at")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (fetchError) {
+    // Issue #72.1: facade バイパス是正 — AuthFacade.getProfileDeletionStatus 経由で取得
+    const statusResult = await auth.getProfileDeletionStatus(userId);
+    if (!statusResult.ok) {
       return reply.status(500).send({
         ok: false,
-        error: { code: "INTERNAL_ERROR", message: fetchError.message, retryable: true },
+        error: { code: "INTERNAL_ERROR", message: statusResult.error.message, retryable: true },
       });
     }
 
-    if (profileRaw == null) {
-      return reply.status(400).send({
-        ok: false,
-        error: {
-          code: "ACCOUNT_NOT_DELETED",
-          message: "退会リクエストが見つかりません。",
-          retryable: false,
-        },
-      });
-    }
-
-    const parsedProfile = ProfileDeletionRowSchema.safeParse(profileRaw);
-    if (!parsedProfile.success) {
-      return reply.status(500).send({
-        ok: false,
-        error: { code: "INTERNAL_ERROR", message: "profiles 行のスキーマが不正です", retryable: false },
-      });
-    }
-
-    if (parsedProfile.data.deleted_at == null) {
+    if (statusResult.data == null || statusResult.data.deletedAt == null) {
       // 退会リクエストなし
       return reply.status(400).send({
         ok: false,
@@ -270,7 +220,7 @@ export function registerAccountRoutes(
     }
 
     // ── 2. 猶予期間内かチェック ───────────────────────────────────────────────
-    const deletedAt = new Date(parsedProfile.data.deleted_at);
+    const deletedAt = new Date(statusResult.data.deletedAt);
     const gracePeriodEnd = gracePeriodEndsAt(deletedAt);
     const now = new Date();
 
@@ -298,50 +248,31 @@ export function registerAccountRoutes(
     // #27: 退会時に atPeriodEnd=true でキャンセルしているため plan_tier/channel/
     // stripe ID 等は保持されている。ここでは cancel_at_period_end のみを false に
     // 戻し、退会前の状態を再現する。
+    // #65: billing.reactivateSubscription 経由で行うことで、stripe_web /
+    // storekit_external チャネルは Stripe 側の cancel_at_period_end も取り消される
+    // (直接 subscriptionRepo / Stripe クライアントを触らない、facade/adapter 経由)。
     // profiles/subscriptions は user_id UNIQUE 制約かつ自動 provisioning トリガー
     // (migration 00016) により全ユーザーに必ず 1 行存在するはずだが、万一
     // NOT_FOUND の場合は「復元すべきサブスクがない」として無視し、profile の
     // 復元を優先する (subscriptions 側の一時的な障害で退会取消自体をブロックしない)。
-    const subResult = await subscriptionRepo.findByUserId(userIdBranded.data);
-    if (subResult.ok && subResult.data.cancel_at_period_end) {
-      const row = subResult.data;
-      const restoreSubResult = await subscriptionRepo.updatePlan(userIdBranded.data, {
-        planTier: row.plan_tier,
-        purchaseChannel: row.purchase_channel,
-        stripeSubscriptionId: row.stripe_subscription_id,
-        stripeCustomerId: row.stripe_customer_id,
-        iapOriginalTransactionId: row.iap_original_transaction_id,
-        currentPeriodStart: row.current_period_start,
-        currentPeriodEnd: row.current_period_end,
-        cancelAtPeriodEnd: false,
-      });
-
-      if (!restoreSubResult.ok) {
-        // サブスク復元が失敗した場合は profiles の復元も行わず、丸ごとリトライ可能な
-        // 状態のまま 500 を返す (#27: まとめてロールバック方針との整合)。
-        return reply.status(500).send({
-          ok: false,
-          error: { code: "INTERNAL_ERROR", message: restoreSubResult.error.message, retryable: true },
-        });
-      }
-    } else if (!subResult.ok && subResult.error.code !== "NOT_FOUND") {
+    const reactivateResult = await billing.reactivateSubscription(userIdBranded.data);
+    if (!reactivateResult.ok && reactivateResult.error.code !== "NOT_FOUND") {
+      // サブスク復元が失敗した場合は profiles の復元も行わず、丸ごとリトライ可能な
+      // 状態のまま 500 を返す (#27: まとめてロールバック方針との整合)。
       return reply.status(500).send({
         ok: false,
-        error: { code: "INTERNAL_ERROR", message: subResult.error.message, retryable: true },
+        error: { code: "INTERNAL_ERROR", message: reactivateResult.error.message, retryable: true },
       });
     }
 
     // ── 4. soft delete を解除 ──────────────────────────────────────────────
-    const { error: restoreError } = await supabase
-      .schema("trancall_auth")
-      .from("profiles")
-      .update({ deleted_at: null })
-      .eq("user_id", userId);
+    // Issue #72.1: facade バイパス是正 — AuthFacade.setProfileDeletedAt 経由で書き込む
+    const restoreResult = await auth.setProfileDeletedAt(userId, null);
 
-    if (restoreError) {
+    if (!restoreResult.ok) {
       return reply.status(500).send({
         ok: false,
-        error: { code: "INTERNAL_ERROR", message: restoreError.message, retryable: true },
+        error: { code: "INTERNAL_ERROR", message: restoreResult.error.message, retryable: true },
       });
     }
 

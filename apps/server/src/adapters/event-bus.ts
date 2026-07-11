@@ -25,6 +25,19 @@ import type {
 // Auth ドメインイベント (docs/module-contracts.md v1.3 §3.1)
 // ---------------------------------------------------------------------------
 
+/**
+ * #67: ユーザー登録完了時に @trancall/auth facade (publishUserRegistered) が発行する。
+ * canonical payload: docs/schemas.ts UserRegisteredEvent / docs/module-contracts.md §3.1 §3.3。
+ */
+export interface AuthUserRegisteredEvent {
+  type: "auth.user_registered";
+  payload: {
+    userId: string;
+    email: string;
+    nativeLanguage: string;
+  };
+}
+
 export interface AuthConsentRecordedEvent {
   type: "auth.consent_recorded";
   payload: {
@@ -54,6 +67,7 @@ export interface AuthAccountDeletionRequestedEvent {
 }
 
 export type AuthDomainEvent =
+  | AuthUserRegisteredEvent
   | AuthConsentRecordedEvent
   | AuthConsentRevokedEvent
   | AuthAccountDeletionRequestedEvent;

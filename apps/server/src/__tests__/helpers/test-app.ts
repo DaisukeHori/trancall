@@ -33,6 +33,10 @@ const TEST_CONFIG: Config = {
   FCM_PROJECT_ID: undefined,
   TRANCALL_AGENT_HMAC_SECRET: "supersecretkey1234567890abcdefghij",
   INVITE_BASE_URL: "https://trancall.app/invite",
+  // #61: OIDC 検証自体は google-auth-library (OAuth2Client) をテスト側で vi.mock するため、
+  // ここでは audience が「設定されている」状態を再現するダミー値を置く
+  // (未設定=fail-close の挙動は billing-routes.test.ts 内で個別に上書きして検証する)。
+  GOOGLE_PLAY_PUBSUB_AUDIENCE: "https://api.trancall.test/api/billing/webhook/google",
 } as Config;
 
 export async function buildTestApp(container: AppContainer): Promise<FastifyInstance> {

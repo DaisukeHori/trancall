@@ -98,4 +98,72 @@ describe("AccessService", () => {
       expect(result.data).toBe(false);
     }
   });
+
+  // ===========================================================================
+  // Issue #69 (2): grantAccess
+  // ===========================================================================
+
+  it("test-7: grantAccess で新規 transcript_access が作成される (can_view=true)", async () => {
+    const result = await service.grantAccess(ROOM_ID, USER_A, "v1.0");
+    expect(result.ok).toBe(true);
+
+    const findResult = await repo.findOne(ROOM_ID, USER_A);
+    expect(findResult.ok).toBe(true);
+    if (findResult.ok) {
+      expect(findResult.data.canView).toBe(true);
+      expect(findResult.data.canExport).toBe(false);
+      expect(findResult.data.deletedAt).toBeNull();
+      expect(findResult.data.consentVersion).toBe("v1.0");
+    }
+  });
+
+  it("test-8: grantAccess は冪等 (既存行があれば何もしない)", async () => {
+    repo.addRecord(makeAccessRecord(USER_A, { consentVersion: "v1.0" }));
+
+    const result = await service.grantAccess(ROOM_ID, USER_A, "v2.0");
+    expect(result.ok).toBe(true);
+
+    const findResult = await repo.findOne(ROOM_ID, USER_A);
+    expect(findResult.ok).toBe(true);
+    if (findResult.ok) {
+      // 既存行の consentVersion は上書きされない (v1.0 のまま)
+      expect(findResult.data.consentVersion).toBe("v1.0");
+    }
+  });
+
+  it("test-9: grantAccess は明示的に deleteAccess 済みのアクセスを復活させない", async () => {
+    repo.addRecord(
+      makeAccessRecord(USER_A, { deletedAt: new Date().toISOString() }),
+    );
+
+    const result = await service.grantAccess(ROOM_ID, USER_A, "v1.0");
+    expect(result.ok).toBe(true);
+
+    const findResult = await repo.findOne(ROOM_ID, USER_A);
+    expect(findResult.ok).toBe(true);
+    if (findResult.ok) {
+      // deleted_at が復活していないこと (grant は insert-if-absent のみ)
+      expect(findResult.data.deletedAt).not.toBeNull();
+    }
+  });
+
+  it("test-10: grantAccess は相手のアクセスに影響しない", async () => {
+    repo.addRecord(makeAccessRecord(USER_B));
+
+    await service.grantAccess(ROOM_ID, USER_A, "v1.0");
+
+    const findResult = await repo.findOne(ROOM_ID, USER_B);
+    expect(findResult.ok).toBe(true);
+    if (findResult.ok) {
+      expect(findResult.data.deletedAt).toBeNull();
+    }
+  });
+
+  it("test-11: grantAccess は consentVersion が空文字なら VALIDATION_ERROR", async () => {
+    const result = await service.grantAccess(ROOM_ID, USER_A, "");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("VALIDATION_ERROR");
+    }
+  });
 });

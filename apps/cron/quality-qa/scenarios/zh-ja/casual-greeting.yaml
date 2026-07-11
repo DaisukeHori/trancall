@@ -1,4 +1,4 @@
-scenario_id: TC-S1-ja-zh
+scenario_id: TC-S1-zh-ja
 scenario: S1
 name: 日常会話 / Casual Greeting (中文 → 日本語)
 source_lang: zh

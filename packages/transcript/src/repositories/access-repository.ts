@@ -28,4 +28,17 @@ export interface AccessRepository {
     roomId: RoomId,
     userId: UserId,
   ): Promise<Result<TranscriptAccess>>;
+
+  /**
+   * Issue #69 (2): 指定 room/user の transcript_access 行が存在しなければ
+   * can_view=true / can_export=false で新規作成する (insert-if-absent、冪等)。
+   * 既存行 (deleteAccess 済みの論理削除行を含む) がある場合は何もしない —
+   * 通話参加のたびに自動実行される grant が、ユーザーが明示的に deleteAccess した
+   * アクセスを勝手に復活させてしまわないようにするため。
+   */
+  grant(
+    roomId: RoomId,
+    userId: UserId,
+    consentVersion: string,
+  ): Promise<Result<true>>;
 }

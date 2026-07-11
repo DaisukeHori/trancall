@@ -22,6 +22,7 @@ import { z } from "zod";
 import type { BillingFacade, IapAdapterConfig } from "@trancall/billing";
 import { verifyJwsSignature } from "@trancall/billing";
 import { getHttpStatus } from "../middleware/error-handler.js";
+import { verifyGooglePubSubOidcToken } from "../adapters/google-pubsub-oidc-adapter.js";
 
 const CheckoutSchema = z.object({
   tier: z.enum(["free", "light", "standard", "business"]),
@@ -102,9 +103,20 @@ function decodeJwsPayloadUnvalidated(jws: string): unknown {
 
 export function registerBillingRoutes(
   fastify: FastifyInstance,
-  deps: { billing: BillingFacade; iapAdapterConfig: IapAdapterConfig },
+  deps: {
+    billing: BillingFacade;
+    iapAdapterConfig: IapAdapterConfig;
+    /**
+     * #61: Google Cloud Pub/Sub push サブスクリプションの OIDC audience 検証値
+     * (apps/server/src/config.ts の GOOGLE_PLAY_PUBSUB_AUDIENCE)。
+     * 未設定の場合 POST /api/billing/webhook/google は fail-close (常に 401) となる。
+     * exactOptionalPropertyTypes 対応: config 由来の値は `string | undefined` を
+     * そのまま渡せるよう明示的に undefined を許容する。
+     */
+    googlePlayPubsubAudience?: string | undefined;
+  },
 ): void {
-  const { billing, iapAdapterConfig } = deps;
+  const { billing, iapAdapterConfig, googlePlayPubsubAudience } = deps;
 
   /**
    * Rate limit カウンター (in-memory, per-user, per-instance)
@@ -235,11 +247,24 @@ export function registerBillingRoutes(
   });
 
   // POST /api/billing/webhook/google
-  // TODO(#23): Google Play RTDN (Pub/Sub push) は通常 Google 発行の OIDC ID トークンを
-  // Authorization ヘッダーで送ってくる (audience/署名検証で呼び出し元を確認する) が、本エンドポイントは
-  // 現状そのトークンを検証していない。GooglePlayAdapter.parseWebhookPayload もペイロード解析のみ。
-  // 上記 Apple 同様、packages/billing のインターフェース変更を伴うため本 PR のスコープ外。
+  // #61: Google Play RTDN (Pub/Sub push) は Google 発行の OIDC ID トークンを
+  // Authorization ヘッダーで送ってくるため、google-auth-library の
+  // OAuth2Client.verifyIdToken() (verifyGooglePubSubOidcToken 経由) で audience/署名/有効期限を
+  // 検証し、呼び出し元が正当な Google Cloud Pub/Sub であることを確認してから
+  // billing.handleGoogleIapWebhook に委譲する。GOOGLE_PLAY_PUBSUB_AUDIENCE 未設定時は
+  // fail-close (常に 401 で拒否) する。
   fastify.post("/api/billing/webhook/google", async (request: FastifyRequest, reply: FastifyReply) => {
+    const authorizationHeader = request.headers.authorization;
+    const oidcResult = await verifyGooglePubSubOidcToken(
+      authorizationHeader,
+      googlePlayPubsubAudience,
+    );
+    if (!oidcResult.ok) {
+      return reply
+        .status(getHttpStatus(oidcResult.error.code))
+        .send({ ok: false, error: oidcResult.error });
+    }
+
     const result = await billing.handleGoogleIapWebhook(request.body);
     if (!result.ok) {
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });

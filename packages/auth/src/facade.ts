@@ -17,6 +17,7 @@
 import {
   type Result,
   type UserId,
+  OutputLanguage,
   ok,
   err,
 } from "@trancall/shared-kernel";
@@ -32,6 +33,16 @@ import { type Profile, ProfileSchema } from "./schemas.ts";
 import { type ConsentRepository } from "./repositories/consent-repository.ts";
 import { type LegalDocumentVersionRepository } from "./repositories/legal-document-version-repository.ts";
 import {
+  type ProfileWriteRepository,
+  type ProfileUpdateFields,
+} from "./repositories/profile-write-repository.ts";
+import { type LegacyConsentRepository } from "./repositories/legacy-consent-repository.ts";
+import {
+  type ProfileDeletionRepository,
+  type ProfileDeletionStatus,
+} from "./repositories/profile-deletion-repository.ts";
+import {
+  type AuthUserRegisteredEvent,
   type AuthConsentRecordedEvent,
   type AuthConsentRevokedEvent,
 } from "./events.ts";
@@ -50,6 +61,15 @@ export interface ProfileRepository {
 
 export type { ConsentRepository } from "./repositories/consent-repository.ts";
 export type { LegalDocumentVersionRepository } from "./repositories/legal-document-version-repository.ts";
+export type {
+  ProfileWriteRepository,
+  ProfileUpdateFields,
+} from "./repositories/profile-write-repository.ts";
+export type { LegacyConsentRepository } from "./repositories/legacy-consent-repository.ts";
+export type {
+  ProfileDeletionRepository,
+  ProfileDeletionStatus,
+} from "./repositories/profile-deletion-repository.ts";
 
 // ============================================================
 // EventBus narrowed interface (auth モジュール用)
@@ -61,7 +81,9 @@ export type { LegalDocumentVersionRepository } from "./repositories/legal-docume
  * Layer 3 server の統合 EventBus 実装がこの interface を満たす。
  */
 export interface AuthEventBus {
-  publish(event: AuthConsentRecordedEvent | AuthConsentRevokedEvent): Promise<void>;
+  publish(
+    event: AuthUserRegisteredEvent | AuthConsentRecordedEvent | AuthConsentRevokedEvent,
+  ): Promise<void>;
 }
 
 // ============================================================
@@ -101,6 +123,95 @@ export interface AuthFacade {
 
   /** プロフィール取得 (C-005 対応: media module が Token metadata 焼き込み時に呼ぶ) */
   getProfile(userId: UserId): Promise<Result<Profile>>;
+
+  // ─────────────────────────────────────────────────────────
+  // [Issue #67] ユーザー登録完了通知
+  // ─────────────────────────────────────────────────────────
+
+  /**
+   * ユーザー登録完了を通知する。
+   *
+   * サインアップ処理自体 (Supabase Auth signUp + DB トリガーによる
+   * trancall_auth.profiles / trancall_billing.subscriptions 初期行作成、
+   * supabase/migrations/00016) は本モジュール外 (apps/server の signup ハンドラ)
+   * で完結する。このメソッドは「登録が完了したこと」を受け取り、
+   * `auth.user_registered` DomainEvent を発行する副作用のみを担う。
+   *
+   * @param userId         登録したユーザー
+   * @param email          登録に使用したメールアドレス
+   * @param nativeLanguage 登録時点のネイティブ言語 (OutputLanguage 文字列。
+   *                       未検証の生文字列を渡してもよい — 内部で Zod
+   *                       safeParse し、不正な場合は発行をスキップする)
+   *
+   * **冪等性**: なし (呼び出し側が 1 登録につき 1 回だけ呼ぶ想定)。
+   * **副作用**: eventBus が設定されていれば `auth.user_registered` を発行する
+   *   (未設定時・発行失敗時・nativeLanguage が不正な場合はサイレントに無視し、
+   *   呼び出し元のサインアップ処理を止めない — recordConsent と同じ方針)。
+   * **retry**: 常に ok(true) を返すため呼び出し側でのリトライ判断は不要。
+   */
+  publishUserRegistered(
+    userId: UserId,
+    email: string,
+    nativeLanguage: string,
+  ): Promise<Result<true>>;
+
+  // ─────────────────────────────────────────────────────────
+  // [Issue #72.1] facade バイパス是正: 書き込み用メソッド
+  // ─────────────────────────────────────────────────────────
+
+  /**
+   * プロフィールを更新する (PATCH /api/auth/profile)。
+   *
+   * @param updates 差分のみ (undefined のフィールドは更新しない)
+   * @returns       更新後の最新 Profile
+   *
+   * **副作用**: DB `trancall_auth.profiles` を更新する。
+   * **retry**: 可 (同じ値での再更新は冪等)。
+   * **未設定時**: `ProfileWriteRepository` が未注入の場合は
+   *   `AUTH_PROFILE_WRITE_NOT_CONFIGURED` を返す。
+   */
+  updateProfile(
+    userId: UserId,
+    updates: ProfileUpdateFields,
+  ): Promise<Result<Profile>>;
+
+  /**
+   * レガシー同意記録 (POST /api/auth/consent、単数形の旧 API)。
+   *
+   * Sprint 2 D7 の `recordConsent` (scope 単位、`user_consents` テーブル) とは別の、
+   * Sprint 1 由来のレガシー経路。既存の書き込み対象・挙動を変更せず facade 経由に
+   * 移設したもの (詳細は LegacyConsentRepository の JSDoc 参照)。
+   *
+   * **未設定時**: `LegacyConsentRepository` が未注入の場合は
+   *   `AUTH_CONSENT_NOT_CONFIGURED` を返す。
+   */
+  recordLegacyConsentVersion(
+    userId: UserId,
+    consentVersion: string,
+  ): Promise<Result<true>>;
+
+  /**
+   * 退会 (soft delete) 状態を取得する (POST /api/account/delete / restore が使う)。
+   * プロフィール行が存在しない場合は `ok(null)` を返す (エラーにしない)。
+   *
+   * **未設定時**: `ProfileDeletionRepository` が未注入の場合は
+   *   `AUTH_PROFILE_WRITE_NOT_CONFIGURED` を返す。
+   */
+  getProfileDeletionStatus(
+    userId: UserId,
+  ): Promise<Result<ProfileDeletionStatus | null>>;
+
+  /**
+   * 退会 (soft delete) 状態を設定する。`deletedAt: null` で退会状態を解除する
+   * (POST /api/account/restore、およびサブスク変更失敗時のロールバックで使用)。
+   *
+   * **未設定時**: `ProfileDeletionRepository` が未注入の場合は
+   *   `AUTH_PROFILE_WRITE_NOT_CONFIGURED` を返す。
+   */
+  setProfileDeletedAt(
+    userId: UserId,
+    deletedAt: string | null,
+  ): Promise<Result<true>>;
 
   // ─────────────────────────────────────────────────────────
   // [新規 Sprint 2 D7] 同意管理メソッド
@@ -208,6 +319,12 @@ export interface CreateAuthFacadeOptions {
   consentRepo?: ConsentRepository;
   legalDocRepo?: LegalDocumentVersionRepository;
   eventBus?: AuthEventBus;
+  /** [Issue #72.1] PATCH /api/auth/profile 用の書き込みリポジトリ (省略可) */
+  profileWriteRepo?: ProfileWriteRepository;
+  /** [Issue #72.1] POST /api/auth/consent (レガシー) 用の書き込みリポジトリ (省略可) */
+  legacyConsentRepo?: LegacyConsentRepository;
+  /** [Issue #72.1] POST /api/account/delete・restore 用の退会状態リポジトリ (省略可) */
+  profileDeletionRepo?: ProfileDeletionRepository;
 }
 
 /**
@@ -216,6 +333,8 @@ export interface CreateAuthFacadeOptions {
  * consentRepo / legalDocRepo / eventBus を省略すると、
  * 同意管理メソッドは AUTH_CONSENT_NOT_CONFIGURED エラーを返す。
  * (後方互換のため: Sprint 1 まで consentRepo 不要だった)
+ * 同様に profileWriteRepo / legacyConsentRepo を省略すると、
+ * updateProfile / recordLegacyConsentVersion はそれぞれ未設定エラーを返す。
  */
 export function createAuthFacade(
   repoOrOptions: ProfileRepository | CreateAuthFacadeOptions,
@@ -226,7 +345,15 @@ export function createAuthFacade(
       ? { profileRepo: repoOrOptions }
       : repoOrOptions;
 
-  const { profileRepo, consentRepo, legalDocRepo, eventBus } = options;
+  const {
+    profileRepo,
+    consentRepo,
+    legalDocRepo,
+    eventBus,
+    profileWriteRepo,
+    legacyConsentRepo,
+    profileDeletionRepo,
+  } = options;
 
   return {
     // ─────────────────────────────────────────────────────
@@ -248,6 +375,130 @@ export function createAuthFacade(
         });
       }
       return ok(parsed.data);
+    },
+
+    // ─────────────────────────────────────────────────────
+    // publishUserRegistered (Issue #67)
+    // ─────────────────────────────────────────────────────
+    async publishUserRegistered(
+      userId: UserId,
+      email: string,
+      nativeLanguage: string,
+    ): Promise<Result<true>> {
+      if (!eventBus) {
+        // 同意イベントと同方針: eventBus 未接続時はサイレントに無視する
+        return ok(true as const);
+      }
+
+      const nativeLanguageParsed = OutputLanguage.safeParse(nativeLanguage);
+      if (!nativeLanguageParsed.success) {
+        // 不正な nativeLanguage で発行を止めてサインアップ自体を失敗させないため、
+        // イベント発行のみをスキップする (サイレント失敗、recordConsent と同方針)
+        return ok(true as const);
+      }
+
+      const event: AuthUserRegisteredEvent = {
+        eventId: generateUUID(),
+        occurredAt: new Date().toISOString(),
+        aggregateId: userId,
+        type: "auth.user_registered",
+        payload: {
+          userId,
+          email,
+          nativeLanguage: nativeLanguageParsed.data,
+        },
+      };
+      try {
+        await eventBus.publish(event);
+      } catch {
+        // サイレント失敗 (canonical: legal-and-consent.md §4.3 と同方針)
+      }
+
+      return ok(true as const);
+    },
+
+    // ─────────────────────────────────────────────────────
+    // updateProfile (Issue #72.1)
+    // ─────────────────────────────────────────────────────
+    async updateProfile(
+      userId: UserId,
+      updates: ProfileUpdateFields,
+    ): Promise<Result<Profile>> {
+      if (!profileWriteRepo) {
+        return err({
+          code: "AUTH_PROFILE_WRITE_NOT_CONFIGURED",
+          message: "ProfileWriteRepository が設定されていません",
+          retryable: false,
+        });
+      }
+
+      const writeResult = await profileWriteRepo.update(userId, updates);
+      if (!writeResult.ok) {
+        return writeResult;
+      }
+
+      // 更新後の最新値を再取得して返す (PATCH /api/auth/profile の既存挙動を維持)
+      const result = await profileRepo.findByUserId(userId);
+      if (!result.ok) {
+        return result;
+      }
+      const parsed = ProfileSchema.safeParse(result.data);
+      if (!parsed.success) {
+        return err({
+          code: "auth.profile.invalid_schema",
+          message: "プロフィールデータがスキーマと不整合です",
+          retryable: false,
+          details: { issues: parsed.error.issues.map((i) => i.message) },
+        });
+      }
+      return ok(parsed.data);
+    },
+
+    // ─────────────────────────────────────────────────────
+    // recordLegacyConsentVersion (Issue #72.1)
+    // ─────────────────────────────────────────────────────
+    async recordLegacyConsentVersion(
+      userId: UserId,
+      consentVersion: string,
+    ): Promise<Result<true>> {
+      if (!legacyConsentRepo) {
+        return err({
+          code: "AUTH_CONSENT_NOT_CONFIGURED",
+          message: "LegacyConsentRepository が設定されていません",
+          retryable: false,
+        });
+      }
+      return legacyConsentRepo.recordConsentVersion(userId, consentVersion);
+    },
+
+    // ─────────────────────────────────────────────────────
+    // getProfileDeletionStatus / setProfileDeletedAt (Issue #72.1)
+    // ─────────────────────────────────────────────────────
+    async getProfileDeletionStatus(
+      userId: UserId,
+    ): Promise<Result<ProfileDeletionStatus | null>> {
+      if (!profileDeletionRepo) {
+        return err({
+          code: "AUTH_PROFILE_WRITE_NOT_CONFIGURED",
+          message: "ProfileDeletionRepository が設定されていません",
+          retryable: false,
+        });
+      }
+      return profileDeletionRepo.findStatus(userId);
+    },
+
+    async setProfileDeletedAt(
+      userId: UserId,
+      deletedAt: string | null,
+    ): Promise<Result<true>> {
+      if (!profileDeletionRepo) {
+        return err({
+          code: "AUTH_PROFILE_WRITE_NOT_CONFIGURED",
+          message: "ProfileDeletionRepository が設定されていません",
+          retryable: false,
+        });
+      }
+      return profileDeletionRepo.setDeletedAt(userId, deletedAt);
     },
 
     // ─────────────────────────────────────────────────────
