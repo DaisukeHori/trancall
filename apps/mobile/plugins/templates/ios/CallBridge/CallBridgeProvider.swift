@@ -15,6 +15,7 @@
 // プロトコル越しにのみこのクラスを呼び出す (dependency inversion、CallBridgeModule.swift 冒頭コメント参照)。
 import CallKit
 import AVFAudio
+import PushKit // PKPushRegistry (#68/#70: VoIP push 登録の実体)
 import CallBridge
 import ExpoModulesCore // Promise 型 (CallBridgeProviding プロトコルのシグネチャに必要)
 
@@ -31,6 +32,10 @@ final class CallBridgeProvider: NSObject, CallBridgeProviding {
 
   let provider: CXProvider
   private var pushKitDelegate: PushKitDelegate?
+  // #68/#70: PKPushRegistry の生成後、参照を保持しないと ARC により即座に解放され
+  // (delegate 設定・desiredPushTypes 指定が無意味になり) VoIP push が一切受信できなくなる。
+  // CallBridgeProvider.shared がアプリ生存期間中ずっと保持する。
+  private var pushRegistry: PKPushRegistry?
   private var activeCalls: [UUID: TrackedCall] = [:]
   private let callController = CXCallController()
 
@@ -50,15 +55,21 @@ final class CallBridgeProvider: NSObject, CallBridgeProviding {
   }
 
   /// `CallBridgeModule.providerDelegate` に自身を登録する。
-  /// ⚠️ device-verification-required: この register() を呼ぶ場所が現状無い。
-  /// expo prebuild が生成する ios/TranCall/AppDelegate.swift の
-  /// `application(_:didFinishLaunchingWithOptions:)` から
-  /// `CallBridgeProvider.shared.register()` を呼ぶ配線を実機ビルド時に追加すること (Sprint 4)。
+  /// #68/#70: `plugins/with-ios-callbridge.js` の `withIosAppDelegateCallBridgeInit` mod が、
+  /// expo prebuild で生成される ios/TranCall/AppDelegate.swift の
+  /// `application(_:didFinishLaunchingWithOptions:)` 冒頭にこの呼び出しを自動注入する
+  /// (手動配線不要。以前は「呼ぶ場所が無い」既知ギャップだったが解消済み)。
   func register() {
     CallBridgeModule.providerDelegate = self
   }
 
-  // MARK: - PushKit registration entry point (called from CallBridgeModule.registerForVoipPush)
+  // MARK: - PushKit registration entry point
+  //
+  // #68/#70: AppDelegate 起動時 (register() と同じタイミング) に呼ばれることを想定。
+  // Apple の VoIP push は端末終了状態からもアプリを起こすため、JS の
+  // `callBridge.registerForVoipPush()` 呼び出しを待たず、起動直後に無条件で
+  // PKPushRegistry を生成し delegate 登録するのが正しい (JS からの呼び出しは
+  // 冪等: 二重生成を防ぐため pushRegistry != nil なら何もしない)。
 
   /// §4.3: HMAC 共有鍵は expo-secure-store 経由でビルド時注入された値を使う想定
   /// (native-call-bridge.md §12.1)。ここでは placeholder として空文字を渡す
@@ -66,6 +77,16 @@ final class CallBridgeProvider: NSObject, CallBridgeProviding {
   func requestVoipPushRegistration() {
     if pushKitDelegate == nil {
       pushKitDelegate = PushKitDelegate(provider: provider, hmacSecret: fetchHmacSecretPlaceholder())
+    }
+
+    // #68/#70: PKPushRegistry(...) 自体をここで生成し delegate として登録する。
+    // これが無いと PushKitDelegate (PKPushRegistryDelegate 実装) が一度も呼ばれず、
+    // VoIP push を一切受信できない (以前は "生成コードがどこにもない" 既知ギャップだった)。
+    if pushRegistry == nil {
+      let registry = PKPushRegistry(queue: nil)
+      registry.delegate = pushKitDelegate
+      registry.desiredPushTypes = [.voIP]
+      pushRegistry = registry
     }
   }
 

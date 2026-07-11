@@ -1,4 +1,9 @@
-const { withInfoPlist, withEntitlementsPlist, withDangerousMod } = require("expo/config-plugins");
+const {
+  withInfoPlist,
+  withEntitlementsPlist,
+  withDangerousMod,
+  withAppDelegate,
+} = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
@@ -24,6 +29,13 @@ const path = require("path");
  *                                               withDefaultPlugins 内で自動適用されるため、
  *                                               本プラグインでは扱わない — app.json 側を参照)
  *   - Info.plist UIBackgroundModes = [voip, audio] (§4.1)
+ *   - ios/TranCall/AppDelegate.swift          (#68/#70: withAppDelegate で
+ *                                               `application(_:didFinishLaunchingWithOptions:)`
+ *                                               冒頭に `CallBridgeProvider.shared.register()` +
+ *                                               `requestVoipPushRegistration()` 呼び出しを注入。
+ *                                               AppDelegate.swift 自体は expo prebuild が生成する
+ *                                               ためリポジトリに実体は無い — native-call-bridge-impl-status.md
+ *                                               G-1 の解消)
  *
  * ⚠️ device-verification-required:
  *   本プラグインは CallBridge/*.swift をファイルシステムへコピーするのみ。
@@ -85,11 +97,70 @@ const withIosApnsEntitlement = (config) => {
   });
 };
 
+/**
+ * #68/#70 (G-1 解消): `ios/CallBridge/CallBridgeProvider.swift` は
+ * `CallBridgeProvider.shared.register()` (CallBridgeModule.providerDelegate 登録) と
+ * `CallBridgeProvider.shared.requestVoipPushRegistration()` (PKPushRegistry 生成 +
+ * PushKitDelegate を delegate として登録) を実装済みだが、これらを実際に呼ぶ箇所が
+ * 存在しなかった (grep で `PKPushRegistry(` がリポジトリ全体でゼロ件だった既知ギャップ)。
+ *
+ * `AppDelegate.swift` は `expo prebuild` が都度生成するファイルでリポジトリに実体が無いため、
+ * `plugins/with-android-native.js` の `withAppBuildGradle` 文字列注入パターン (regex ベースの
+ * 冪等注入) に倣い、`withAppDelegate` で `application(_:didFinishLaunchingWithOptions:)` の
+ * 冒頭に直接 Swift コードを注入する。
+ *
+ * VoIP push は端末終了状態からもアプリを起動しうるため、JS 側 (`callBridge.registerForVoipPush()`)
+ * からの呼び出しを待たず、起動直後に無条件で登録するのが正しい設計
+ * (`requestVoipPushRegistration()` 内部で pushRegistry != nil チェック済みのため二重呼び出しも安全)。
+ */
+const withIosAppDelegateCallBridgeInit = (config) => {
+  return withAppDelegate(config, (mod) => {
+    if (mod.modResults.language !== "swift") {
+      // Objective-C AppDelegate (レガシー Bare Workflow 由来) は非対応。
+      // Expo SDK54 の標準テンプレートは Swift AppDelegate を生成する。
+      console.warn(
+        "[with-ios-callbridge] AppDelegate は Swift ではありません " +
+          `(language: ${mod.modResults.language})。CallBridgeProvider 初期化コードの注入をスキップしました。`,
+      );
+      return mod;
+    }
+
+    let contents = mod.modResults.contents;
+
+    if (!contents.includes("CallBridgeProvider.shared.register()")) {
+      const initSnippet =
+        "    // TranCall CallBridge (#68/#70): CXProvider delegate 登録 + PKPushRegistry 生成。\n" +
+        "    // VoIP push は端末終了状態からもアプリを起こすため、JS からの呼び出しを待たず\n" +
+        "    // 起動直後に無条件で行う。\n" +
+        "    CallBridgeProvider.shared.register()\n" +
+        "    CallBridgeProvider.shared.requestVoipPushRegistration()\n\n";
+
+      // `application(_:didFinishLaunchingWithOptions:) -> Bool {` のシグネチャ末尾 (複数行) を
+      // アンカーにし、関数本体の先頭に注入する。
+      const anchor = /didFinishLaunchingWithOptions launchOptions:[\s\S]*?\)\s*->\s*Bool\s*\{/;
+
+      if (anchor.test(contents)) {
+        contents = contents.replace(anchor, (match) => `${match}\n${initSnippet}`);
+      } else {
+        console.warn(
+          "[with-ios-callbridge] AppDelegate.swift 内に " +
+            "didFinishLaunchingWithOptions のシグネチャが見つからず、CallBridgeProvider " +
+            "初期化コードを注入できませんでした (#68/#70, device-verification-required)。",
+        );
+      }
+    }
+
+    mod.modResults.contents = contents;
+    return mod;
+  });
+};
+
 /** @type {import("expo/config-plugins").ConfigPlugin} */
 const withIosCallBridge = (config) => {
   config = withIosBackgroundModes(config);
   config = withIosApnsEntitlement(config);
   config = withIosCallBridgeFiles(config);
+  config = withIosAppDelegateCallBridgeInit(config);
   return config;
 };
 

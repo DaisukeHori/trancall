@@ -1,0 +1,18 @@
+# Expo Continuous Native Generation (CNG)
+#
+# `android/` `ios/` は `expo prebuild` (ローカル / EAS Build いずれも) が
+# Config Plugin (`plugins/with-android-native.js` / `plugins/with-ios-callbridge.js`) 経由で
+# 都度再生成する。native ソース (FcmService.kt / HmacValidator.kt / CallBridge/*.swift /
+# TranCall.entitlements / PrivacyInfo.xcprivacy 等) の唯一の正本は
+# `plugins/templates/` (および app.json の ios.entitlements / ios.privacyManifests) であり、
+# ここを直接編集すること。
+#
+# コミットされたままだと EAS Build の CNG が「bare プロジェクト」と誤判定し、
+# prebuild (= Config Plugin 適用) をスキップして gradlew/xcodeproj を欠いた
+# 不完全なツリーのままビルドを試みてしまう (#56)。
+#
+# 先頭の `/` で apps/mobile/ 直下の android/ios のみを対象にする (無指定だと
+# `plugins/templates/ios/` や `modules/call-bridge/{ios,android}/` のような
+# 同名ディレクトリまで誤って無視してしまうため必須)。
+/android/
+/ios/

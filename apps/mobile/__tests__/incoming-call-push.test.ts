@@ -38,6 +38,15 @@ vi.mock("expo-modules-core", () => ({
   requireOptionalNativeModule: () => null,
 }));
 
+// #68/#70: use-incoming-call-push.ts → voip-push.ts が HMAC 検証配線のため
+// expo-secure-store を import するようになった。expo-secure-store の実パッケージは
+// 内部で expo-modules-core の requireNativeModule (モジュールトップレベルで即時実行) を
+// 呼び出し native module 不在で例外になるため、auth-store.test.ts と同方針で
+// expo-secure-store 自体を直接 mock する。
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: vi.fn(async () => null),
+}));
+
 import { navigateToIncomingCall } from "../src/hooks/use-incoming-call-push.js";
 
 const PAYLOAD = {
