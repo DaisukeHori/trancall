@@ -319,7 +319,13 @@ MSCA対応（日本市場）:
 
 ### POST /api/billing/storekit-external/report
 
-> **未実装 (Phase 2 予定)**: `BillingFacade` に対応メソッドがないため、このエンドポイントは Layer 3-A スコープ外。Phase 2 で実装予定。
+> **実装済み (P-2)**: `BillingFacade.reportExternalPurchaseTransaction` (内部で
+> `ExternalPurchaseAdapter.reportMonthlyTransaction` に委譲) 経由で実装。
+> `externalPurchaseToken` は `ExternalPurchaseAdapter.generateRedirectToken()` が発行する
+> redirectToken (64 文字 hex) を指す。所有者一致・stripeSessionId 一致を検証してから
+> Apple 月次レポートキューへ登録する。Apple External Purchase Server API への実際の HTTP
+> 呼び出しは Phase 1a はログ出力のみ、Phase 1b で実装 (他の Apple External Purchase 報告
+> メソッドと同じ方針、`packages/billing/src/adapters/external-purchase-adapter.ts` 参照)。
 
 ```
 Apple StoreKit External Purchase で発生した取引を Apple に月次報告するための内部記録エンドポイント。
