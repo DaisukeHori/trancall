@@ -23,6 +23,10 @@ export {
   ParticipantRoleSchema,
   ParticipantSchema,
   RoomStateSchema,
+  RoomHistoryParticipantSchema,
+  RoomHistoryEntrySchema,
+  RoomHistoryResponseSchema,
+  GetRoomHistoryQuerySchema,
 } from "./schemas.ts";
 
 export type {
@@ -37,9 +41,14 @@ export { RoomErrorCode } from "./errors.ts";
 export type { RoomErrorCode as RoomErrorCodeType } from "./errors.ts";
 
 // Repository interfaces（apps/server 側での実装用）
-export type { RoomRepository } from "./repositories/room-repository.ts";
+export type { RoomRepository, FindEndedRoomsOptions } from "./repositories/room-repository.ts";
 export type { ParticipantRepository } from "./repositories/participant-repository.ts";
 export type { BlockListRepository } from "./repositories/block-list-repository.ts";
+// L-13: getRoomHistory の補足情報 (apps/server 側での実装用)
+export type {
+  RoomHistoryEnrichmentRepository,
+  RoomHistoryParticipantProfile,
+} from "./repositories/room-history-enrichment-repository.ts";
 
 // EventBus interface
 export type { EventBus, RoomDomainEvent } from "./event-bus.ts";

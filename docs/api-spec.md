@@ -179,19 +179,21 @@ Side effects:
 
 ### GET /api/rooms/history?limit=20&before=2026-05-11T00:00:00Z
 
-> **Phase 1a P1 (Sprint 2/3) 実装対象** (Sprint 1 完了報告 v12 §7 P1 と整合)。Sprint 1 では `mobile/recent-calls-store` が `[]` 固定で待機中。実装は Layer 3 server で `RoomFacade.history` を新規追加し、mobile からの REST 経由取得を有効化する。
+> **実装完了 (L-13)**。`RoomFacade.getRoomHistory` (`packages/room/src/services/history-service.ts`) が実データを返す。`RoomRepository.findEndedByParticipantId` が room モジュール所有の `trancall_room.rooms`/`participants` のみを参照し (2 クエリ)、`RoomHistoryEnrichmentRepository` (apps/server 実装、room 自己定義の read-only インターフェース) が `trancall_auth.public_profiles` VIEW / `trancall_billing.usage_windows` SUM / transcript の既存 `AccessRepository.canView` を参照して displayName・costYen・hasTranscript を補完する (best-effort、取得失敗時はフォールバック値)。`mobile/recent-calls-store` からの REST 経由取得も有効化済み。
 
 **Query parameters**:
 - `limit`: integer, 1-50, default 20
 - `before`: ISO8601 datetime (`startedAt < before` フィルタ、初回呼出は省略可)
 
-**Response Zod schema** (新規、`packages/room/src/schemas.ts` Sprint 3 拡張で追加):
+**Response Zod schema** (`packages/room/src/schemas.ts`、L-13 で実装):
 
 ```ts
 export const RoomHistoryParticipantSchema = z.object({
   userId: UserIdSchema,
   displayName: z.string(),
-  trancallId: z.string().regex(/^@[a-z0-9_]+$/),
+  // 実装では他モジュールの trancallId 表現 (PublicProfile 等) と同様 z.string() のまま
+  // (canonical な正規表現バリデーション付き TrancallId 型は現状リポジトリ内に存在しない)
+  trancallId: z.string(),
   avatarUrl: z.url().nullable(),
   isHost: z.boolean(),
 });
@@ -247,13 +249,14 @@ export type RoomHistoryResponse = z.infer<typeof RoomHistoryResponseSchema>;
 }
 ```
 
-**実装側の制約** (Sprint 3 で `RoomFacade.history` 実装時):
-- ソート: `startedAt DESC`
-- 表示対象: `rooms.status = 'ended' AND <自分が participant に含まれる>`
-- 上限: 過去 90 日 (Free/Light) / 365 日 (Standard/Business、subscription tier に従う、`getSubscription` 経由)
-- 必要 Repository メソッド: `RoomRepository.findEndedByParticipantId(userId, limit, before)` (Sprint 3 で追加)
-- `costYen` は同 PR で `BillingFacade.getCostByRoomId(roomId, userId)` を追加して集計するか、`UsageRepository.sumByRoomId(roomId)` を追加するかは Sprint 3 着手時に判断
-- `RoomFacade.history` の contract は `docs/module-contracts.md` v1.4.0 で正式追加予定 (Sprint 3 同期時)
+**実装側の制約** (L-13 実装済み):
+- ソート: `startedAt (= rooms.created_at) DESC`
+- 表示対象: `rooms.status = 'ended' AND <自分が participant に含まれ、実際に join した (joined_at IS NOT NULL)>`
+- 上限: 過去 90 日 (Free/Light) / 365 日 (Standard/Business、subscription tier に従う、`billing.getSubscription` 経由)。この日数は `@trancall/billing` の `PlanConfig.transcriptRetentionDays` (7/30/90/365、トランスクリプト本文の保持期間) とは別概念であり、`packages/room/src/services/history-service.ts` の `HISTORY_WINDOW_DAYS` で独自に定義する (混同注意)
+- `startedAt` は `rooms` テーブルに `status='active'` 遷移時刻を持つ列がないため、現状 `rooms.created_at` で近似する
+- 必要 Repository メソッド: `RoomRepository.findEndedByParticipantId(userId, opts)` (実装済み、`apps/server/src/adapters/repositories/room/room-repository.supabase.ts`)
+- `costYen` / `hasTranscript` / participant profile は `RoomHistoryEnrichmentRepository` (room 自己定義の read-only インターフェース、`apps/server/src/adapters/repositories/room/room-history-enrichment-repository.supabase.ts` が実装) 経由で解決する。未注入時は costYen=0 / hasTranscript=false / displayName="Unknown" にフォールバックする
+- **未反映**: `docs/module-contracts.md` §2.8 RoomFacade の contract に `getRoomHistory` がまだ追加されていない (Opus によるフォローアップが必要、メモリポリシー「設計書は Opus 自身が直接書く」)
 
 **エラー**: HTTP 401 `AUTH_TOKEN_EXPIRED` のみ (空配列は正常系、`rooms: [], nextCursor: null`)
 
