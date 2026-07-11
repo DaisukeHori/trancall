@@ -28,8 +28,11 @@ export interface ContactRepository {
 
   /**
    * 連絡先一覧を取得する。
+   *
+   * Issue #72.2: DB エラー時は Result.err で伝播する
+   * (「連絡先 0 件」と「取得失敗」を呼び出し元が区別できるようにするため)。
    */
-  list(userId: UserId): Promise<ContactEntry[]>;
+  list(userId: UserId): Promise<Result<ContactEntry[]>>;
 
   /**
    * すでに連絡先として存在するか確認する。

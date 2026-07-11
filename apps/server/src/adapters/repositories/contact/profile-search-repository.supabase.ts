@@ -5,11 +5,17 @@
  * このビューは deleted_at IS NULL の行のみ・公開可能な最小カラムのみを返すため、
  * 退会済みユーザーは検索結果に含まれない。
  *
- * NOTE (#26): 現行スキーマには「検索対象に含めるか」を明示するユーザー opt-in
- * フラグが存在しない (全ユーザーがデフォルトで public_profiles に含まれる)。
- * true の opt-in 制御が必要な場合は profiles テーブルへの列追加 (migration) と
- * UI 設定が別途必要 — 本タスクでは深追いせず、既存の「退会ユーザー除外」までを
- * 検索対象フィルタとして適用する。
+ * Issue #64: 表示名の部分一致検索 (searchByDisplayName) は `is_searchable = true`
+ * (migration 00024) の opt-in ユーザーのみを対象にする。デフォルト false のため、
+ * 既存ユーザーは全員デフォルトで非検索対象になる (プライバシー保護のための
+ * 安全側デフォルト)。
+ *
+ * TranCall ID 完全一致検索 (findByTrancallId) は opt-in フィルタの対象外とする。
+ * ProfileSearchRepository インターフェース JSDoc (packages/contact/src/repositories/
+ * profile-search-repository.ts) の通り、opt-in 制御は searchByDisplayName にのみ
+ * 適用される契約であり、TranCall ID を明示的に知っているユーザーからの追加
+ * (招待リンクや ID 共有経由) は「不特定多数からの発見可能性 (discoverability)」を
+ * 問題にする opt-in 検索とは性質が異なるため、意図的に除外している。
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -61,6 +67,8 @@ export function createProfileSearchRepository(
         .schema("trancall_auth")
         .from("public_profiles")
         .select("user_id, trancall_id, display_name, native_language, avatar_url")
+        // Issue #64: opt-in (is_searchable=true) のユーザーのみを検索対象にする
+        .eq("is_searchable", true)
         .ilike("display_name", `%${escapedQuery}%`)
         .limit(limit);
 

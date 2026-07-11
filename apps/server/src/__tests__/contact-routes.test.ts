@@ -122,6 +122,29 @@ describe("GET /api/contacts/search", () => {
   });
 });
 
+describe("POST /api/contacts/invites/:token/consume", () => {
+  it("Issue #72.4: 招待トークンを消費できる", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/contacts/invites/abc123/consume",
+      headers: AUTH_HEADER,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as { ok: boolean; data: unknown };
+    expect(body.ok).toBe(true);
+  });
+
+  it("認証なしで 401 を返す", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/contacts/invites/abc123/consume",
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+});
+
 describe("POST /api/contacts/block", () => {
   it("ユーザーをブロックできる", async () => {
     const response = await app.inject({

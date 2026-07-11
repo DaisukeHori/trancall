@@ -24,6 +24,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import type { Config } from "../config.js";
+import type { NonceRepository } from "../adapters/repositories/agent/nonce-repository.supabase.js";
 
 /**
  * リプレイ攻撃防止のタイムスタンプ許容ウィンドウ (docs/security-detail.md §2 準拠、5分)。
@@ -48,7 +49,7 @@ export function verifyHmac(
   return timingSafeEqual(expectedBuf, signatureBuf);
 }
 
-export function createHmacPreHandler(config: Config) {
+export function createHmacPreHandler(config: Config, nonceRepo: NonceRepository) {
   return async function hmacPreHandler(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -101,12 +102,35 @@ export function createHmacPreHandler(config: Config) {
       });
     }
 
-    // #25 残課題 (TODO): idempotencyKey 単位でのリクエスト自体の重複排除 (nonce store) は
-    // 未実装。現状は event type ごとの DB UNIQUE 制約
-    // (module-contracts.md §7.3: translation_sessions.agent_job_id /
-    //  transcript.segments UNIQUE(room_id, participant_id, sequence_no)) が
-    // 事実上の冪等性を担保しているが、有効なタイムスタンプウィンドウ内での
-    // signature 再送そのもの (replay) を専用に拒否するストアはまだない。
-    // 追加するには新規テーブル (supabase migrations) が必要なため、本 PR のスコープ外とする。
+    // #63: idempotencyKey 単位でのリクエスト重複排除 (nonce store)。
+    // event type ごとの DB UNIQUE 制約 (module-contracts.md §7.3) は「同一イベントの
+    // 重複処理」を防ぐが、translation.degraded/recovered のように DB 永続化を伴わず
+    // EventBus.publish のみ行うイベントは UNIQUE 制約による保護が効かない。
+    // ここでリクエスト自体の重複 (Agent の正当なリトライ、または署名リプレイ) を検出する。
+    //
+    // expiresAt は署名の鮮度ウィンドウ (TIMESTAMP_TOLERANCE_MS) が終わる時刻。
+    // このウィンドウを過ぎた timestamp は上のチェックで既に 401 になるため、
+    // ウィンドウを過ぎた nonce 行は安全に (バッチ等で) 削除できる。
+    const expiresAt = new Date(ts + TIMESTAMP_TOLERANCE_MS).toISOString();
+    const nonceResult = await nonceRepo.checkAndInsert(idempotencyKey, expiresAt);
+    if (!nonceResult.ok) {
+      return reply.status(500).send({
+        ok: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "リクエストの重複チェックに失敗しました",
+          retryable: true,
+        },
+      });
+    }
+
+    if (!nonceResult.data.isNew && nonceResult.data.alreadyProcessed) {
+      // 既に正常完了済みのリクエストの再送 (Agent の正当なリトライ、またはリプレイ)。
+      // 副作用 (DomainEvent publish 等) を再実行せず、成功結果のみ返す。
+      return reply.status(200).send({ ok: true });
+    }
+
+    // isNew === true (初回) または alreadyProcessed === false (前回未完了、
+    // Agent の正当なリトライを許可) の場合はそのままハンドラへ進む。
   };
 }

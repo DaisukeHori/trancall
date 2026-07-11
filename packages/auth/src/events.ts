@@ -5,6 +5,7 @@
  * canonical: docs/module-contracts.md v1.3 §3.1 (イベント発行・購読マトリクス)
  *
  * 購読者 (Phase 1 では未実装):
+ * - auth.user_registered  → 将来の analytics (Issue #67)
  * - auth.consent_recorded → 将来の analytics / audit log
  * - auth.consent_revoked  → 将来の analytics / billing
  */
@@ -15,7 +16,27 @@ import {
   DomainEventBase,
   UserIdSchema,
   ConsentScopeSchema,
+  OutputLanguage,
 } from "@trancall/shared-kernel";
+
+// ============================================================
+// auth.user_registered — ユーザー登録完了時に発行 (Issue #67)
+// canonical payload: docs/schemas.ts UserRegisteredEvent /
+// docs/module-contracts.md §3.1 §3.3
+// ============================================================
+
+export const AuthUserRegisteredEventSchema = DomainEventBase.extend({
+  type: z.literal("auth.user_registered"),
+  payload: z.object({
+    /** 登録したユーザー */
+    userId: UserIdSchema,
+    /** 登録に使用したメールアドレス */
+    email: z.email(),
+    /** 登録時点のネイティブ言語 */
+    nativeLanguage: OutputLanguage,
+  }),
+});
+export type AuthUserRegisteredEvent = z.infer<typeof AuthUserRegisteredEventSchema>;
 
 // ============================================================
 // auth.consent_recorded — 同意記録時に発行
@@ -66,4 +87,7 @@ export type AuthConsentRevokedEvent = z.infer<typeof AuthConsentRevokedEventSche
  * auth モジュールが発行する全 DomainEvent の union。
  * EventBus の narrowed interface で使用する。
  */
-export type AuthDomainEvent = AuthConsentRecordedEvent | AuthConsentRevokedEvent;
+export type AuthDomainEvent =
+  | AuthUserRegisteredEvent
+  | AuthConsentRecordedEvent
+  | AuthConsentRevokedEvent;

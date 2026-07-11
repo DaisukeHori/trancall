@@ -163,10 +163,14 @@ describe("POST /internal/agent/events", () => {
   });
 
   it("無効なイベント type で 400 を返す", async () => {
+    // #63: HMAC ミドルウェアの nonce store が idempotencyKey 単位で重複排除するため、
+    // 他のテストケース (特に成功して処理済みになる先頭のテスト) と idempotencyKey が
+    // 衝突しないよう、このテスト専用のキーを使う。
+    const key = "90909090-9090-4090-8090-909090909090";
     const payload = { type: "unknown.event.type", data: {} };
     const body = JSON.stringify(payload);
     const timestamp = freshTimestamp();
-    const sig = makeSignature(body, IDEMPOTENCY_KEY, timestamp);
+    const sig = makeSignature(body, key, timestamp);
 
     const response = await app.inject({
       method: "POST",
@@ -174,7 +178,7 @@ describe("POST /internal/agent/events", () => {
       headers: {
         "content-type": "application/json",
         "x-trancall-signature": sig,
-        "x-trancall-idempotency-key": IDEMPOTENCY_KEY,
+        "x-trancall-idempotency-key": key,
         "x-trancall-timestamp": timestamp,
       },
       payload,

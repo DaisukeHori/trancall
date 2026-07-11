@@ -571,8 +571,8 @@ export function makeContactRepository(): ContactRepository {
       return ok(true);
     },
 
-    list: async (userId: UserId): Promise<ContactEntry[]> => {
-      return entries.filter((e) => e.userId === userId);
+    list: async (userId: UserId) => {
+      return ok(entries.filter((e) => e.userId === userId));
     },
 
     exists: async (userId: UserId, contactUserId: UserId): Promise<boolean> => {

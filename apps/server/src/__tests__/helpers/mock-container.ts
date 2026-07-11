@@ -107,6 +107,21 @@ export function createMockContainer(): AppContainer {
     recordConsent: vi.fn().mockResolvedValue(ok(true)),
     getRequiredConsents: vi.fn().mockResolvedValue(ok([])),
     revokeConsent: vi.fn().mockResolvedValue(ok(true)),
+    // Issue #67: signup 完了通知 (auth.user_registered publish)
+    publishUserRegistered: vi.fn().mockResolvedValue(ok(true)),
+    // Issue #72.1: facade バイパス是正で追加した書き込み用メソッド
+    updateProfile: vi.fn().mockResolvedValue(ok({
+      userId: MOCK_USER_ID,
+      email: "test@example.com",
+      displayName: "Test User",
+      nativeLanguage: "ja",
+      trancallId: "testuser",
+      updatedAt: new Date().toISOString(),
+    })),
+    recordLegacyConsentVersion: vi.fn().mockResolvedValue(ok(true)),
+    // デフォルトは「未退会」。account-routes(-atomicity).test.ts は個別に上書きする。
+    getProfileDeletionStatus: vi.fn().mockResolvedValue(ok(null)),
+    setProfileDeletedAt: vi.fn().mockResolvedValue(ok(true)),
   };
 
   // Billing facade mock
@@ -210,7 +225,8 @@ export function createMockContainer(): AppContainer {
 
   // Contact facade mock
   const contact = {
-    listContacts: vi.fn().mockResolvedValue([]),
+    // Issue #72.2: listContacts は Result<ContactEntry[]> を返す
+    listContacts: vi.fn().mockResolvedValue(ok([])),
     addContact: vi.fn().mockResolvedValue(ok({
       contactId: "10101010-1010-4010-8010-101010101010",
       userId: MOCK_USER_ID,
