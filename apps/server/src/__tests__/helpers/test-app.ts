@@ -30,7 +30,9 @@ const TEST_CONFIG: Config = {
   APNS_BUNDLE_ID: "com.trancall.app",
   APNS_SANDBOX: false,
   FCM_SERVICE_ACCOUNT_JSON: undefined,
-  FCM_PROJECT_ID: undefined,
+  // L-10: config.ts の Zod default ("trancall") と同じ値をテスト用にも明示する
+  // (FCM_PROJECT_ID は default() により Config 型上 string 必須になった)
+  FCM_PROJECT_ID: "trancall",
   TRANCALL_AGENT_HMAC_SECRET: "supersecretkey1234567890abcdefghij",
   INVITE_BASE_URL: "https://trancall.app/invite",
   // #61: OIDC 検証自体は google-auth-library (OAuth2Client) をテスト側で vi.mock するため、

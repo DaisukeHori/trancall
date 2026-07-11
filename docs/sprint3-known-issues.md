@@ -28,12 +28,12 @@
 
 **対処タイミング**: Sprint 4。
 
-### 2.3 `apps/server/src/config.ts` 関連
+### 2.3 `apps/server/src/config.ts` 関連 (L-10 で解消)
 
 | 項目 | 状態 |
 |---|---|
-| `IAP_APPLE_BUNDLE_ID` / `IAP_APPLE_TEAM_ID` | Apple JWS 検証は Phase 1b。Phase 1a では不要 |
-| `FCM_PROJECT_ID` | `notification-adapters.ts` で `"trancall"` hardcode 中。functional impact なし。Sprint 4 で env 化推奨 |
+| `IAP_APPLE_BUNDLE_ID` | **解消済み**: #40/#23 で `container.ts` の `iapAdapterConfig` (StoreKit 2 JWS 検証 / Apple Webhook 署名検証) に配線済み。本項目作成時点 (Phase 1a 初期) は未使用だったが現在は使用中のため本表の記載は陳腐化していた。`IAP_APPLE_TEAM_ID` という名前の変数は config.ts に一度も追加されておらず (Apple JWS チェーン検証は bundleId/environment/ルート証明書のみで完結するため team id は不要と判明)、削除対象コードも存在しない。 |
+| `FCM_PROJECT_ID` | **解消済み (L-10)**: `notification-adapters.ts` の `"trancall"` ハードコードフォールバックを撤去し、`config.ts` の `FCM_PROJECT_ID: z.string().min(1).default("trancall")` に既定値を一元化した。運用で project id を変える場合は環境変数のみ変更すればよい。 |
 
 ### 2.4 `transcript-routes.test.ts` mock 更新済 (T-10 内で対処済)
 

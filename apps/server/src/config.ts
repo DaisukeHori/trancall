@@ -40,7 +40,11 @@ const ConfigSchema = z.object({
 
   // FCM
   FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
-  FCM_PROJECT_ID: z.string().optional(),
+  // L-10: 既定値 "trancall" を config.ts 側の Zod default に一元化する
+  // (旧実装は apps/server/src/adapters/notification-adapters.ts に "trancall" を
+  // ハードコードしたフォールバックとして持っていた)。運用で Firebase project id が
+  // 異なる場合は環境変数 FCM_PROJECT_ID で上書きする。
+  FCM_PROJECT_ID: z.string().min(1).default("trancall"),
 
   // HMAC secret for Agent ↔ Server
   TRANCALL_AGENT_HMAC_SECRET: z.string().min(32),

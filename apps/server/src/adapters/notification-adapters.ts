@@ -61,7 +61,9 @@ export function buildFcmAdapter(config: Config): FcmAdapter {
   }
 
   return createFcmAdapter({
-    projectId: config.FCM_PROJECT_ID ?? "trancall",
+    // L-10: 既定値 "trancall" は config.ts の FCM_PROJECT_ID Zod default に一元化済み。
+    // ここでのフォールバックは不要 (config.FCM_PROJECT_ID は常に string を返す)。
+    projectId: config.FCM_PROJECT_ID,
     serviceAccountJsonPath: config.FCM_SERVICE_ACCOUNT_JSON,
   });
 }
