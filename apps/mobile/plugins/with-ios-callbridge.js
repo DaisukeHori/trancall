@@ -3,6 +3,8 @@ const {
   withEntitlementsPlist,
   withDangerousMod,
   withAppDelegate,
+  withXcodeProject,
+  IOSConfig,
 } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
@@ -37,15 +39,20 @@ const path = require("path");
  *                                               ためリポジトリに実体は無い — native-call-bridge-impl-status.md
  *                                               G-1 の解消)
  *
- * ⚠️ device-verification-required:
- *   本プラグインは CallBridge/*.swift をファイルシステムへコピーするのみ。
- *   Xcode プロジェクト (.pbxproj) の "Compile Sources" Build Phase への
- *   ファイル参照登録は自動化していない (Xcode 未検証環境のため、pbxproj 破損リスクを
- *   避けて保守的に実装)。実機ビルド時は Xcode で
- *   「Add Files to "TranCall"...」から ios/CallBridge/*.swift を手動追加するか、
- *   `@expo/config-plugins` の `IOSConfig.XcodeProjectFile.withBuildSourceFile` 系 API を
- *   使った追加実装 + 実機ビルド検証が必要。
- *   (`docs/native-call-bridge-impl-status.md` 参照)
+ * H-2 (G-2 解消、このセッション): 本プラグインは CallBridge/*.swift をファイルシステムへ
+ *   コピーするだけでなく、`withIosCallBridgePbxprojSources` (`withXcodeProject` mod) で
+ *   Xcode プロジェクト (.pbxproj) の PBXFileReference / PBXBuildFile / PBXSourcesBuildPhase
+ *   (= "Compile Sources" Build Phase) への登録も自動化している。
+ *   `@expo/config-plugins` の `IOSConfig.XcodeUtils.ensureGroupRecursively` /
+ *   `addBuildSourceFileToGroup` (`IOSConfig.XcodeProjectFile.withBuildSourceFile` が内部で
+ *   使うのと同じ低レベル API) を直接呼び、`ios/TranCall/` 配下ではなく `ios/CallBridge/`
+ *   (TranCall.xcodeproj のプロジェクトルート直下、sibling group) に配置済みの実ファイルを
+ *   そのまま登録する (`withBuildSourceFile` 自体は `ios/<projectName>/` 配下前提のため
+ *   直接は使えない — projectName プレフィックスを付けない現行のファイル配置を変更しない
+ *   ための意図的な選択)。
+ *   ⚠️ device-verification-required: pbxproj への文字列的な登録が正しくても、
+ *   実際に Xcode/xcodebuild でコンパイルが通るかはこの環境では検証できない
+ *   (`docs/native-call-bridge-impl-status.md` 参照)。
  */
 
 const IOS_TEMPLATES_DIR = path.join(__dirname, "templates", "ios");
@@ -74,6 +81,38 @@ const withIosCallBridgeFiles = (config) => {
       return mod;
     },
   ]);
+};
+
+/**
+ * H-2 (G-2 解消): `withIosCallBridgeFiles` がコピーした `ios/CallBridge/*.swift` を
+ * Xcode プロジェクトの Compile Sources Build Phase へ登録する。
+ *
+ * `IOSConfig.XcodeUtils.ensureGroupRecursively` で mainGroup 直下に "CallBridge" という
+ * PBXGroup を (無ければ) 作成し、`addBuildSourceFileToGroup` で各ファイルを
+ * PBXFileReference + PBXBuildFile + PBXSourcesBuildPhase に登録する。
+ * 既に登録済み (`project.hasFile`) の場合は skip する (`expo prebuild` の再実行に対して冪等)。
+ */
+const withIosCallBridgePbxprojSources = (config) => {
+  return withXcodeProject(config, (mod) => {
+    const project = mod.modResults;
+    const groupName = "CallBridge";
+
+    IOSConfig.XcodeUtils.ensureGroupRecursively(project, groupName);
+
+    for (const file of IOS_TEMPLATE_FILES) {
+      const relativePath = file.dest.join("/"); // 例: "CallBridge/HmacValidator.swift"
+      if (project.hasFile(relativePath)) {
+        continue;
+      }
+      IOSConfig.XcodeUtils.addBuildSourceFileToGroup({
+        filepath: relativePath,
+        groupName,
+        project,
+      });
+    }
+
+    return mod;
+  });
 };
 
 const withIosBackgroundModes = (config) => {
@@ -160,6 +199,7 @@ const withIosCallBridge = (config) => {
   config = withIosBackgroundModes(config);
   config = withIosApnsEntitlement(config);
   config = withIosCallBridgeFiles(config);
+  config = withIosCallBridgePbxprojSources(config);
   config = withIosAppDelegateCallBridgeInit(config);
   return config;
 };
