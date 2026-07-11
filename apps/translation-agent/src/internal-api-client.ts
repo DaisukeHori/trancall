@@ -130,6 +130,27 @@ export type AgentEvent =
   | TranslationDegradedPayload
   | TranslationRecoveredPayload;
 
+/**
+ * Issue #69 (4): ハートビート — apps/server/src/routes/agent-routes.ts の
+ * `POST /internal/translation/heartbeat` (`HeartbeatBodySchema`) と一致させる。
+ * `type` フィールドを持たない (AgentEvent discriminated union とは別の独立した
+ * エンドポイント宛のペイロードのため)。
+ */
+export const HeartbeatPayloadSchema = z.object({
+  agentJobId: z.uuid(),
+  sessionId: z.uuid(),
+  alive: z.literal(true),
+  occurredAt: z.iso.datetime(),
+  metrics: z
+    .object({
+      cpuPercent: z.number().min(0).max(100).optional(),
+      memMb: z.number().nonnegative().optional(),
+      openaiWsState: z.string().optional(),
+    })
+    .optional(),
+});
+export type HeartbeatPayload = z.infer<typeof HeartbeatPayloadSchema>;
+
 // --- クライアント本体 ---
 
 export interface InternalApiClientConfig {
@@ -161,8 +182,25 @@ export class InternalApiClient {
    * Idempotency-Key を付与し、retryable な失敗は exponential backoff で再送する。
    */
   async postEvent(event: AgentEvent): Promise<Result<void, PostError>> {
+    return this.postJson("/internal/agent/events", event);
+  }
+
+  /**
+   * Issue #69 (4): ハートビートを Server に送信する。
+   * `POST /internal/translation/heartbeat` (apps/server/src/routes/agent-routes.ts) 宛。
+   * 認証方式 (HMAC-SHA256 署名 + idempotency-key + timestamp) は postEvent と同一。
+   */
+  async postHeartbeat(payload: HeartbeatPayload): Promise<Result<void, PostError>> {
+    return this.postJson("/internal/translation/heartbeat", payload);
+  }
+
+  /**
+   * 共通送信ロジック (postEvent / postHeartbeat で共有)。
+   * Idempotency-Key を付与し、retryable な失敗は exponential backoff で再送する。
+   */
+  private async postJson(path: string, payload: unknown): Promise<Result<void, PostError>> {
     const idempotencyKey = randomUUID();
-    const body = JSON.stringify(event);
+    const body = JSON.stringify(payload);
     // 確定#4: timestamp は署名対象に含める (apps/server/src/middleware/hmac-middleware.ts
     // と canonical string を一致させる必要がある、両側は必ずペアで変更すること)。
     // リトライ全体で同一 timestamp を使い回す (許容ウィンドウ 5 分に対しリトライの
@@ -176,7 +214,7 @@ export class InternalApiClient {
     };
 
     for (let attempt = 0; attempt <= this.config.maxRetries; attempt += 1) {
-      const result = await this.doPost(body, signature, idempotencyKey, timestamp);
+      const result = await this.doPost(path, body, signature, idempotencyKey, timestamp);
       if (result.ok) {
         return { ok: true, data: undefined };
       }
@@ -202,13 +240,14 @@ export class InternalApiClient {
   }
 
   private async doPost(
+    path: string,
     body: string,
     signature: string,
     idempotencyKey: string,
     timestamp: string,
   ): Promise<Result<void, PostError>> {
     try {
-      const response = await this.fetchImpl(`${this.config.serverUrl}/internal/agent/events`, {
+      const response = await this.fetchImpl(`${this.config.serverUrl}${path}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -392,5 +431,21 @@ export function buildRecoveredEvent(args: {
     targetLang: args.targetLang,
     degradedDurationMs: args.degradedDurationMs,
     occurredAt: args.occurredAt.toISOString(),
+  };
+}
+
+/** Issue #69 (4): ハートビートのペイロードを生成する */
+export function buildHeartbeatEvent(args: {
+  agentJobId: string;
+  sessionId: string;
+  occurredAt: Date;
+  metrics?: HeartbeatPayload["metrics"];
+}): HeartbeatPayload {
+  return {
+    agentJobId: args.agentJobId,
+    sessionId: args.sessionId,
+    alive: true,
+    occurredAt: args.occurredAt.toISOString(),
+    ...(args.metrics ? { metrics: args.metrics } : {}),
   };
 }

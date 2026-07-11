@@ -897,6 +897,24 @@ export function makeAccessRepository(): InMemoryAccessRepo {
       }
       return ok(found);
     },
+
+    // Issue #69 (2): insert-if-absent (既存行 — 削除済みを含む — があれば何もしない)
+    grant: async (roomId: RoomId, userId: UserId, consentVersion: string): Promise<Result<true>> => {
+      const exists = accesses.some((a) => a.roomId === roomId && a.userId === userId);
+      if (!exists) {
+        accesses.push({
+          id: crypto.randomUUID(),
+          roomId,
+          userId,
+          canView: true,
+          canExport: false,
+          deletedAt: null,
+          consentVersion,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      return ok(true);
+    },
   };
 }
 

@@ -10,13 +10,15 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { randomUUID } from "node:crypto";
 import { RoomIdSchema, UserIdSchema } from "@trancall/shared-kernel";
 import type { UserId } from "@trancall/shared-kernel";
 
 import { createJoinService } from "../src/services/join-service.js";
+import { ROOM_MAX_PARTICIPANTS } from "../src/constants.js";
 import { createInMemoryRoomRepository } from "./helpers/in-memory-room-repository.js";
 import { createInMemoryParticipantRepository } from "./helpers/in-memory-participant-repository.js";
-import { makeEventBus } from "./helpers/mock-facades.js";
+import { makeEventBus, makeBlockListRepository } from "./helpers/mock-facades.js";
 
 const creatorId = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440001");
 const userId2 = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440002");
@@ -24,14 +26,17 @@ const userId3 = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440003");
 const uninvitedUserId = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440099");
 const testRoomId = RoomIdSchema.parse("550e8400-e29b-41d4-a716-446655440010");
 
-function makeService() {
+function makeService(overrides?: {
+  isBlockedFn?: (userId: string, targetUserId: string) => boolean;
+}) {
   const roomRepo = createInMemoryRoomRepository();
   const participantRepo = createInMemoryParticipantRepository();
   const eventBus = makeEventBus();
+  const blockListRepo = makeBlockListRepository(overrides?.isBlockedFn);
 
-  const service = createJoinService({ roomRepo, participantRepo, eventBus });
+  const service = createJoinService({ roomRepo, participantRepo, eventBus, blockListRepo });
 
-  return { service, roomRepo, participantRepo, eventBus };
+  return { service, roomRepo, participantRepo, eventBus, blockListRepo };
 }
 
 /**
@@ -201,5 +206,147 @@ describe("JoinService.joinCall", () => {
     if (!roomResult.ok) return;
     // 拒否された join では waiting → active に遷移しない
     expect(roomResult.data.status).toBe("waiting");
+  });
+
+  // =============================================================================
+  // Issue #69: ROOM_USER_BLOCKED (joinCall)
+  // =============================================================================
+
+  it("Issue #69: join しようとしているユーザーと host がブロック関係 → ROOM_USER_BLOCKED", async () => {
+    const { service, roomRepo, participantRepo } = makeService({
+      isBlockedFn: (a, b) =>
+        (a === userId2 && b === creatorId) || (a === creatorId && b === userId2),
+    });
+    await seedRoom(roomRepo, participantRepo, "waiting", [userId2]);
+
+    const result = await service.joinCall(testRoomId, userId2);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("ROOM_USER_BLOCKED");
+  });
+
+  it("Issue #69: ROOM_USER_BLOCKED では participants / room 状態が変化しない", async () => {
+    const { service, roomRepo, participantRepo } = makeService({
+      isBlockedFn: (a, b) =>
+        (a === userId2 && b === creatorId) || (a === creatorId && b === userId2),
+    });
+    await seedRoom(roomRepo, participantRepo, "waiting", [userId2]);
+
+    await service.joinCall(testRoomId, userId2);
+
+    const participantsResult = await participantRepo.findByRoomId(testRoomId);
+    expect(participantsResult.ok).toBe(true);
+    if (!participantsResult.ok) return;
+    const member = participantsResult.data.find((p) => p.user_id === userId2);
+    // 招待済み・未参加のまま (joined_at はセットされない)
+    expect(member?.joined_at).toBeNull();
+
+    const roomResult = await roomRepo.findById(testRoomId);
+    expect(roomResult.ok).toBe(true);
+    if (!roomResult.ok) return;
+    expect(roomResult.data.status).toBe("waiting");
+  });
+
+  it("Issue #69: ブロック関係がなければ join は成功する", async () => {
+    const { service, roomRepo, participantRepo } = makeService();
+    await seedRoom(roomRepo, participantRepo, "waiting", [userId2]);
+
+    const result = await service.joinCall(testRoomId, userId2);
+    expect(result.ok).toBe(true);
+  });
+
+  it("Issue #69: 既に join 済みのユーザーの再 join はブロックチェック対象外 (冪等)", async () => {
+    // host (creatorId) は既に join 済み。host 自身とブロック関係を持つユーザーが
+    // seed される想定はないが、host の再 join 自体がブロックチェックを経由しない
+    // ことを isBlocked が一切呼ばれないことで確認する。
+    const { service, roomRepo, participantRepo, blockListRepo } = makeService({
+      isBlockedFn: () => true, // 誰とでもブロック関係にあると仮定しても
+    });
+    await seedRoom(roomRepo, participantRepo, "waiting");
+
+    const result = await service.joinCall(testRoomId, creatorId);
+    expect(result.ok).toBe(true);
+    expect(blockListRepo.isBlocked).not.toHaveBeenCalled();
+  });
+
+  // =============================================================================
+  // Issue #69: ROOM_FULL (joinCall)
+  // =============================================================================
+
+  it("Issue #69: 定員 (ROOM_MAX_PARTICIPANTS) に達した room への新規 join は ROOM_FULL", async () => {
+    const { service, roomRepo, participantRepo } = makeService();
+    await seedRoom(roomRepo, participantRepo, "active", []);
+
+    // host (1人) に加えて ROOM_MAX_PARTICIPANTS - 1 人を「既に join 済み」として
+    // 直接登録し、定員ちょうどにする。
+    for (let i = 0; i < ROOM_MAX_PARTICIPANTS - 1; i += 1) {
+      const uid = UserIdSchema.parse(randomUUID());
+      await participantRepo.upsert({
+        roomId: testRoomId,
+        userId: uid,
+        role: "member",
+        joinedAt: new Date().toISOString(),
+      });
+    }
+
+    // 新たに 1 人を「招待済み・未参加」として登録し、join を試みる
+    const newInvitee = UserIdSchema.parse(randomUUID());
+    await participantRepo.upsert({
+      roomId: testRoomId,
+      userId: newInvitee,
+      role: "member",
+      joinedAt: null,
+    });
+
+    const result = await service.joinCall(testRoomId, newInvitee);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("ROOM_FULL");
+  });
+
+  it("Issue #69: 定員未満なら join は成功する", async () => {
+    const { service, roomRepo, participantRepo } = makeService();
+    await seedRoom(roomRepo, participantRepo, "active", []);
+
+    // host (1人) + 追加で ROOM_MAX_PARTICIPANTS - 2 人を join 済みにする (定員に 1 空き)
+    for (let i = 0; i < ROOM_MAX_PARTICIPANTS - 2; i += 1) {
+      const uid = UserIdSchema.parse(randomUUID());
+      await participantRepo.upsert({
+        roomId: testRoomId,
+        userId: uid,
+        role: "member",
+        joinedAt: new Date().toISOString(),
+      });
+    }
+
+    const newInvitee = UserIdSchema.parse(randomUUID());
+    await participantRepo.upsert({
+      roomId: testRoomId,
+      userId: newInvitee,
+      role: "member",
+      joinedAt: null,
+    });
+
+    const result = await service.joinCall(testRoomId, newInvitee);
+    expect(result.ok).toBe(true);
+  });
+
+  it("Issue #69: 定員に達していても既に join 済みのユーザーの再 join は ROOM_FULL にならない (冪等)", async () => {
+    const { service, roomRepo, participantRepo } = makeService();
+    await seedRoom(roomRepo, participantRepo, "active", []);
+
+    for (let i = 0; i < ROOM_MAX_PARTICIPANTS - 1; i += 1) {
+      const uid = UserIdSchema.parse(randomUUID());
+      await participantRepo.upsert({
+        roomId: testRoomId,
+        userId: uid,
+        role: "member",
+        joinedAt: new Date().toISOString(),
+      });
+    }
+
+    // host (既に join 済み) が再度 joinCall しても ROOM_FULL にはならない
+    const result = await service.joinCall(testRoomId, creatorId);
+    expect(result.ok).toBe(true);
   });
 });

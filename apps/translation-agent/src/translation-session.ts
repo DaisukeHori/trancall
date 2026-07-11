@@ -37,7 +37,9 @@ import {
   buildAgentMetricsEvent,
   buildDegradedEvent,
   buildRecoveredEvent,
+  buildHeartbeatEvent,
   type AgentMetricsPayload,
+  type HeartbeatPayload,
   type InternalApiClient,
 } from "./internal-api-client.js";
 import { type Logger } from "./logger.js";
@@ -64,6 +66,12 @@ export interface TranslationSessionConfig {
   metricsIntervalMs?: number;
   /** degraded 判定のサンプリング間隔 (ms)。テスト用に短くできる。デフォルト 5000 */
   degradedCheckIntervalMs?: number;
+  /**
+   * Issue #69 (4): ハートビート送信間隔 (ms)。
+   * docs/billing-detail.md 「通話中: heartbeat (30秒ごと)」に合わせたデフォルト 30000。
+   * テスト時は短く設定可能。
+   */
+  heartbeatIntervalMs?: number;
   /**
    * #31: session.close 送信後、WebSocket を実際に close() するまでの待機時間 (ms)。
    * translation-pipeline-design.md §4.5: "The server flushes pending input audio and
@@ -115,6 +123,22 @@ interface DegradedState {
   recoveredSince: number | null;
 }
 
+// --- Issue #69 (3): Publish 済み音声リソースの cleanup コールバック ---
+
+/**
+ * agent.ts が LiveKit Track (LocalAudioTrack) / AudioSource を生成した直後に
+ * `attachPublishedAudioResources()` で登録する cleanup コールバック。
+ * translation-session.ts は @livekit/rtc-node の型に直接依存しない (agent.ts 側の責務を
+ * 保つ) ため、実際の unpublishTrack / AudioSource.close 呼び出しは agent.ts が
+ * クロージャとして実装し、ここでは「end() 時に呼び出す」ことだけを保証する。
+ */
+export interface PublishedAudioResources {
+  /** ctx.agent.unpublishTrack(track.sid) 相当 (未 publish なら何もしない実装でよい) */
+  unpublish(): Promise<void>;
+  /** publishTrack.close(true) 相当 (LocalAudioTrack + 紐づく AudioSource を close する) */
+  closeSource(): Promise<void>;
+}
+
 // --- 本体 ---
 
 export class TranslationSession extends EventEmitter {
@@ -159,8 +183,17 @@ export class TranslationSession extends EventEmitter {
   // metrics 定期送信タイマー
   private metricsTimer: NodeJS.Timeout | null = null;
 
+  // Issue #69 (4): ハートビート定期送信タイマー
+  private heartbeatTimer: NodeJS.Timeout | null = null;
+
+  // Issue #69 (3): LiveKit へ Publish した翻訳音声 Track / AudioSource の cleanup コールバック。
+  // agent.ts の startSession が Track 生成直後に attachPublishedAudioResources() で登録する。
+  // end() で unpublish() → closeSource() の順に呼び出し、リソースリークを防ぐ。
+  private publishedAudioResources: PublishedAudioResources | null = null;
+
   private readonly metricsIntervalMs: number;
   private readonly degradedCheckIntervalMs: number;
+  private readonly heartbeatIntervalMs: number;
   // #31: session.close 送信後、close() するまでの待機時間
   private readonly sessionCloseFlushWaitMs: number;
 
@@ -179,6 +212,7 @@ export class TranslationSession extends EventEmitter {
     super();
     this.metricsIntervalMs = config.metricsIntervalMs ?? 30000;
     this.degradedCheckIntervalMs = config.degradedCheckIntervalMs ?? 5000;
+    this.heartbeatIntervalMs = config.heartbeatIntervalMs ?? 30000;
     this.sessionCloseFlushWaitMs = config.sessionCloseFlushWaitMs ?? 500;
   }
 
@@ -285,6 +319,18 @@ export class TranslationSession extends EventEmitter {
     this.startMetricsTimer();
     // T10: degraded/recovered チェックタイマー起動
     this.startDegradedCheckTimer();
+    // Issue #69 (4): ハートビート定期送信タイマー起動
+    this.startHeartbeatTimer();
+  }
+
+  /**
+   * Issue #69 (3): agent.ts が LiveKit へ Publish した翻訳音声 Track / AudioSource の
+   * cleanup コールバックを登録する。startSession が Track 生成直後 (実際に publish する
+   * 前) に呼ぶことで、publish に失敗したケースでも AudioSource が確実に close される。
+   * end() 時に unpublish() → closeSource() の順に呼び出される。
+   */
+  attachPublishedAudioResources(resources: PublishedAudioResources): void {
+    this.publishedAudioResources = resources;
   }
 
   /**
@@ -419,8 +465,34 @@ export class TranslationSession extends EventEmitter {
     // metrics タイマー停止
     this.stopMetricsTimer();
 
+    // Issue #69 (4): ハートビートタイマー停止
+    this.stopHeartbeatTimer();
+
     // 最後の metrics を送信
     await this.sendMetrics();
+
+    // Issue #69 (3): LiveKit へ Publish した翻訳音声 Track (LocalAudioTrack) の
+    // unpublishTrack と、紐づく AudioSource の close を行う。agent.ts の
+    // attachPublishedAudioResources() で登録済みの場合のみ実行する (best-effort、
+    // 片方が失敗してももう片方は試みる)。
+    if (this.publishedAudioResources) {
+      const resources = this.publishedAudioResources;
+      this.publishedAudioResources = null;
+      try {
+        await resources.unpublish();
+      } catch (e) {
+        this.config.logger.warn("TranslationSession: unpublishTrack 失敗 (best-effort)", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+      try {
+        await resources.closeSource();
+      } catch (e) {
+        this.config.logger.warn("TranslationSession: AudioSource close 失敗 (best-effort)", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
 
     if (this.openaiClient) {
       // T7: session.close で pending input audio をフラッシュ (Translation API には commit なし)
@@ -744,6 +816,51 @@ export class TranslationSession extends EventEmitter {
     if (this.metricsTimer) {
       clearInterval(this.metricsTimer);
       this.metricsTimer = null;
+    }
+  }
+
+  // --- Issue #69 (4): ハートビート ---
+
+  /**
+   * ハートビートを Server (`POST /internal/translation/heartbeat`) に送信する。
+   * 失敗は warn ログのみ (best-effort、セッション継続、agent.metrics/transcript.delta
+   * と同じ方針)。
+   */
+  private sendHeartbeat(): void {
+    const sessionId = this.config.sessionId ?? this.agentJobId;
+    const memMb = process.memoryUsage().rss / (1024 * 1024);
+    const openaiWsState = this.openaiClient?.getState();
+    const metrics: HeartbeatPayload["metrics"] = {
+      memMb,
+      ...(openaiWsState !== undefined ? { openaiWsState } : {}),
+    };
+
+    const event = buildHeartbeatEvent({
+      agentJobId: this.agentJobId,
+      sessionId,
+      occurredAt: new Date(),
+      metrics,
+    });
+
+    void this.config.internalApiClient.postHeartbeat(event).then((result) => {
+      if (!result.ok) {
+        this.config.logger.warn("TranslationSession: heartbeat 送信失敗", {
+          error: result.error.message,
+        });
+      }
+    });
+  }
+
+  private startHeartbeatTimer(): void {
+    this.heartbeatTimer = setInterval(() => {
+      this.sendHeartbeat();
+    }, this.heartbeatIntervalMs);
+  }
+
+  private stopHeartbeatTimer(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
   }
 }

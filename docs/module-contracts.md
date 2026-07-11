@@ -3,11 +3,11 @@
 | 項目 | 内容 |
 |---|---|
 | ドキュメント ID | CONTRACT-001 |
-| バージョン | 1.3.0 |
+| バージョン | 1.4.0 |
 | 作成日 | 2026-05-12 |
-| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、実装は Sprint 3 で追従予定) |
+| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、Issue #69 でリアルタイム品質トラッキング残課題 4 項目を実装済に同期) |
 | 対象 | Sprint 0 + Layer 1 完了モジュール + Sprint 2 D5/D7/D8 設計フェーズで拡張する billing / auth / shared-kernel 契約 |
-| 将来追加対象 | Sprint 3 で `packages/billing/src/facade.ts` (拡張 7 メソッド) / `packages/auth/src/facade.ts` (拡張 4 メソッド) / `packages/shared-kernel/src/schemas/native-call.ts` (新規) を実装、`module-contracts.md` v1.4.0 で実装完了状態に同期 |
+| 将来追加対象 | Sprint 3 で `packages/billing/src/facade.ts` (拡張 7 メソッド) / `packages/auth/src/facade.ts` (拡張 4 メソッド) / `packages/shared-kernel/src/schemas/native-call.ts` (新規) を実装、実装完了状態に同期 |
 
 ---
 
@@ -283,6 +283,12 @@ export interface TranscriptFacade {
     format: "pdf" | "txt",
   ): Promise<Result<{ contentBase64: string; mime: string; filename: string }, AppError>>;
   validateLiveDelta(rawDelta: unknown): Result<LiveSubtitleDelta, AppError>;
+  // [Issue #69 (2)] アクセス権の作成 (冪等)。既存行 (deleteAccess 済みを含む) は上書きしない。
+  grantAccess(
+    roomId: RoomId,
+    userId: UserId,
+    consentVersion: string,
+  ): Promise<Result<true, AppError>>;
 }
 ```
 
@@ -294,6 +300,7 @@ export interface TranscriptFacade {
 - `exportTranscript` は Sprint 3 T-9 で実装完了。戻り型に `filename` を追加 (canonical: `transcript-export-spec.md §2.1`、命名規則 `trancall-transcript-YYYYMMDD-HHmm-XXXXXXXX.{pdf|txt}`)。v1.3.0 では `{contentBase64, mime}` のみだったが v1.4.0 で `filename` 追加
 - `validateLiveDelta` は mobile 側の LiveKit Data Channel 受信時バリデーション用 (DB 書込みなし)
 - 旧 `docs/schemas.ts` 定義の `getLiveSubtitles(roomId): AsyncIterable<LiveSubtitleDelta>` は廃止 (LiveKit Data Channel 配信なので facade 側に AsyncIterable は不要)
+- **[Issue #69 (2) 追加]** `grantAccess` は insert-if-absent (`UNIQUE(room_id, user_id)` に既存行があれば何もしない、`deleteAccess` 済みの明示的な opt-out を自動 grant が復活させないため)。`apps/server/src/adapters/transcript-access-subscriber.ts` が `room.participant_joined` を購読し、通話成立時 (2人目以降の参加) に room の現在 join 済み参加者全員へ呼ぶ。詳細は §3.1 / §4.6 参照
 
 ### 2.7 TranslationFacade
 `packages/translation/src/facade.ts`
@@ -338,7 +345,8 @@ export interface RoomFacade {
 
 要求 Repository:
 - `RoomRepository`: `insert` / `findById` / `updateStatus`
-- `ParticipantRepository`: `upsert` / `findByRoomId` / `setLeftAtForAll`
+- `ParticipantRepository`: `upsert` / `findByRoomId` / `setLeftAtForAll` / `findOne` / `markJoined`
+- **[Issue #69 (1) 追加]** `BlockListRepository`: `isBlocked(userId, targetUserId): Promise<Result<boolean>>`。`@trancall/contact` が所有する `block_list` テーブルへの read-only view。room は contact を直接 import できない (§6 依存方向マトリクス、room → contact ❌) ため room 側で自己定義したインターフェースであり、`packages/contact` が要求する `ProfileSearchRepository` (§4.4、auth 所有 profiles への read-only view) と同型パターン。apps/server (`adapters/repositories/room/block-list-repository.adapter.ts`) が contact の `BlockRepository` 実装をそのまま包んで満たす
 
 要求: `EventBus` (publish インターフェース)
 
@@ -350,6 +358,8 @@ export interface RoomFacade {
 - `endCall` は冪等 (既に ended なら OK を返す)
 - `media.deleteRoom` は best-effort (失敗しても endCall は成功)
 - `billing.reserveMinutes` / `billing.reconcile` は Layer 3 server 側の責務 (room facade では呼ばない)
+- **[Issue #69 (1) 追加]** `createCall` は発信者 (creatorId) と各 invitee の間にブロック関係 (双方向) があれば `ROOM_USER_BLOCKED` (403) を返し、DB 書き込み前に中断する
+- **[Issue #69 (1) 追加]** `joinCall` は初回 join 時のみ、(a) 現在 join 済みの参加者数が `ROOM_MAX_PARTICIPANTS` (`packages/room/src/constants.ts`、`50`、host 1 + invitee 最大49 の技術的上限) に達していれば `ROOM_FULL` (409)、(b) join しようとしているユーザーと既に join 済みの誰かがブロック関係にあれば `ROOM_USER_BLOCKED` (403) を返す。既に join 済みのユーザーの再 join (冪等パス) はどちらのチェックも通らない
 - `notification.sendMissedCall` は Layer 3 server 側の責務 (inviteeIds を room が保持しないため)
 
 ---
@@ -362,7 +372,7 @@ export interface RoomFacade {
 |---|---|---|---|---|---|
 | `auth.user_registered` | auth | (将来) analytics | `UserRegisteredEvent` | 非同期 | EventBus (in-process pub/sub) |
 | `room.created` | room (Layer 2) | notification | `RoomCreatedEvent` | 非同期 | EventBus |
-| `room.participant_joined` | room (Layer 2) | translation | `ParticipantJoinedEvent` | 非同期 | EventBus |
+| `room.participant_joined` | room (Layer 2) | translation, **[Issue #69 (2)]** transcript (apps/server の `transcript-access-subscriber.ts` 経由、`transcript.grantAccess` を room の現在参加者全員に呼ぶ) | `ParticipantJoinedEvent` | 非同期 | EventBus |
 | `room.participant_left` | room (Layer 2) | translation | `ParticipantLeftEvent` | 非同期 | EventBus |
 | `translation.started` | translation | transcript | `TranslationStartedEvent` | 非同期 | EventBus |
 | `translation.ended` | translation | **billing**, transcript | `TranslationEndedEvent` | 非同期 | EventBus |
@@ -540,7 +550,7 @@ mobile 側 (`apps/mobile/src/lib/livekit/subtitles.ts`) は同 schema で **Zod 
 実装メソッド名と完全一致 (`packages/transcript/src/repositories/*.ts`):
 
 - `SegmentRepository`: `upsert` (UNIQUE(room_id, participant_id, sequence_no) 制約で冪等) / `findByRoomId` / `getNextSequenceNo` / `searchByFts`
-- `AccessRepository`: `canView` / `softDelete` (自分の `transcript_access.deleted_at` をセット) / `findOne`
+- `AccessRepository`: `canView` / `softDelete` (自分の `transcript_access.deleted_at` をセット) / `findOne` / **[Issue #69 (2) 追加]** `grant` (insert-if-absent、`UNIQUE(room_id, user_id)` に既存行があれば何もしない)
 
 ### 4.7 translation が要求する Repository
 
@@ -814,6 +824,7 @@ Agent 側 (`apps/translation-agent/src/internal-api-client.ts`) の Zod schema �
 | 2026-05-12 | 1.0.0 | 初版作成 (Layer 1 完了時点の canonical 抽出) |
 | 2026-05-12 | 1.1.0 | D3 反映: `translation.degraded` / `translation.recovered` の DomainEvent payload schema 確定 (§3.3)、LiveKit Data Channel Payload Schema 新規セクション §3.4、§3.1 表の当該行を 2 系統並列 (EventBus + LiveKit Data Channel) に更新、§7.4.2 session_ended の `reason` enum に `agent_publish_failed` を **契約上追加** (実装側 Zod 同期は T8 で実施)、§7.4.4 `openAIFirstDelta` のコメントを公式仕様 (`session.input_audio_buffer.append` → `session.output_audio.delta`) に修正、ヘッダーのバージョン 1.0.0 → 1.1.0、`AgentJobId` を `z.uuid()` で当面運用 (Sprint 2 で brand 化予定)、EventBus / Data Channel 両系統で `timestamp` キー名を統一。判定条件は `docs/translation-pipeline-design.md` §7 に委譲。`architecture.md` §5.3 の旧 Track 名 `mic-a` 表記は本 PR スコープ外、Sprint 2 別 PR で `raw-{participantId}` 形式に統一予定。|
 | 2026-05-12 | 1.3.0 | Sprint 2 D5/D7/D8 設計フェーズ統合: **§2.1 AuthFacade 拡張** (`recordConsent` / `hasConsent` / `revokeConsent` / `getRequiredConsents` 4 メソッド追加、`ConsentRepository` / `LegalDocumentVersionRepository` を要求、`docs/legal-and-consent.md` v1.1 §3 §4 が canonical)。**§2.3 BillingFacade 拡張** (`getPlanComparison` / `previewUpgrade` / `recordIapTransaction` / `startExternalPurchase` / `completeExternalPurchase` / `cancelSubscription` / `restorePurchases` 7 メソッド追加、`ExternalPurchaseTokenRepository` を要求、`docs/billing-ui-flow.md` v1.2 §5 が canonical)。**§3.1 DomainEvent 追加** (`billing.subscription_upgraded` / `billing.subscription_canceled` / `auth.consent_recorded` / `auth.consent_revoked` 4 種)。**§5 Error Code 追加** (`AUTH_CONSENT_REVOKED` / `AUTH_LEGAL_DOC_UNAVAILABLE` / `AUTH_CONSENT_VERSION_MISMATCH` / `AUTH_CONSENT_IRREVOCABLE` / `BILLING_IAP_RECEIPT_INVALID` / `BILLING_UPGRADE_PREVIEW_FAILED` / `BILLING_RESTORE_NO_PURCHASE` / `BILLING_INVALID_PLAN_CHANGE` 8 種)。新規 DB schema 所有 (billing が `trancall_billing.external_purchase_tokens`、auth が `trancall_auth.user_consents` を追加所有、Sprint 3 migration 00007/00008 で実装)。すべて設計書としての契約定義であり、実装側 (`packages/auth/src/facade.ts` / `packages/billing/src/facade.ts` / migrations) は Sprint 3 で順次実装、v1.4.0 で実装完了状態に同期する。v1.2.0 は欠番 (D5 単独 PR 時に未発行、D5+D7+D8 を本 v1.3.0 で統合)。|
+| 2026-07-11 | 1.4.0 | **Issue #69 (リアルタイム品質トラッキング残課題 4 項目) 実装完了に同期**。(1) **§2.8 RoomFacade**: `createCall`/`joinCall` に `ROOM_USER_BLOCKED` (ブロック関係チェック) / `ROOM_FULL` (`ROOM_MAX_PARTICIPANTS=50` 定員チェック、`packages/room/src/constants.ts`) の実装を反映。新規 `BlockListRepository` (room 自己定義、`@trancall/contact` の `block_list` への read-only view、`ProfileSearchRepository` §4.4 と同型パターン) を要求 Repository に追加。(2) **§2.6 TranscriptFacade**: `grantAccess` メソッド新規追加 (insert-if-absent、冪等)。**§3.1**: `room.participant_joined` の購読モジュールに transcript を追加 (`apps/server/src/adapters/transcript-access-subscriber.ts` が room.getState + transcript.grantAccess を組み合わせるオーケストレーション、room→transcript 直接依存は追加しない)。**§4.6**: `AccessRepository` に `grant` メソッド追加。(3) `apps/translation-agent`: `TranslationSession.end()` が LiveKit `LocalAudioTrack.unpublishTrack` / `AudioSource.close` (`LocalAudioTrack.close(true)` 経由) を呼ぶよう修正 (`attachPublishedAudioResources()` で agent.ts から cleanup コールバックを注入)。旧実装はセッション終了時にこれらを一切呼んでおらずリソースリークしていた。(4) `apps/translation-agent`: `InternalApiClient.postHeartbeat` を新規追加し `TranslationSession` が `heartbeatIntervalMs` (デフォルト 30000ms、`docs/billing-detail.md` の heartbeat 30秒間隔に整合) ごとに `POST /internal/translation/heartbeat` (既存の server 側受信実装 `apps/server/src/routes/agent-routes.ts` の `HeartbeatBodySchema` に合わせた `agentJobId`/`sessionId`/`alive: true`/`occurredAt`/`metrics?` payload、既存の HMAC 署名方式を流用) を送信するよう実装。エージェント側ハートビート送信が従来存在しなかった。|
 
 ---
 

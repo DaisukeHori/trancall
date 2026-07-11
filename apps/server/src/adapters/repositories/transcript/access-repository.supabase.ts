@@ -75,5 +75,29 @@ export function createAccessRepository(supabase: SupabaseClient): AccessReposito
       }
       return parseRow(data as Record<string, unknown>);
     },
+
+    // Issue #69 (2): insert-if-absent (UNIQUE(room_id, user_id) の ON CONFLICT DO NOTHING 相当)。
+    // ignoreDuplicates: true により、既存行 (deleteAccess 済みの論理削除行を含む) があっても
+    // 上書きしない (grant がユーザーの明示的な opt-out を勝手に復活させないため)。
+    async grant(roomId: RoomId, userId: UserId, consentVersion: string): Promise<Result<true>> {
+      const { error } = await supabase
+        .schema("trancall_transcript")
+        .from("transcript_access")
+        .upsert(
+          {
+            room_id: roomId,
+            user_id: userId,
+            can_view: true,
+            can_export: false,
+            consent_version: consentVersion,
+          },
+          { onConflict: "room_id,user_id", ignoreDuplicates: true },
+        );
+
+      if (error) {
+        return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
+      }
+      return ok(true);
+    },
   };
 }

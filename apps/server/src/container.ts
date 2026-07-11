@@ -82,6 +82,8 @@ import { createTranslationEventOutboxRepository } from "./adapters/repositories/
 // Repositories — room
 import { createRoomRepository } from "./adapters/repositories/room/room-repository.supabase.js";
 import { createParticipantRepository } from "./adapters/repositories/room/participant-repository.supabase.js";
+// Issue #69 (1): room が要求する BlockListRepository (contact の block_list への read-only view)
+import { createRoomBlockListRepository } from "./adapters/repositories/room/block-list-repository.adapter.js";
 
 // Adapters
 import { buildLiveKitAdapter } from "./adapters/livekit-adapter.js";
@@ -95,6 +97,8 @@ import type { EventBus } from "./adapters/event-bus.js";
 
 // #46: translation.ended 購読者 (usage metering)
 import { registerUsageMeteringSubscriber } from "./adapters/usage-metering-subscriber.js";
+// Issue #69 (2): room.participant_joined 購読者 (transcript_access 自動付与)
+import { registerTranscriptAccessSubscriber } from "./adapters/transcript-access-subscriber.js";
 
 import type { Config } from "./config.js";
 
@@ -160,6 +164,10 @@ export function buildContainer(config: Config): AppContainer {
   const inviteRepo = createInviteRepository(supabase);
   const profileSearchRepo = createProfileSearchRepository(supabase);
   const reportRepo = createReportRepository(supabase);
+  // Issue #69 (1): room が要求する BlockListRepository。room モジュールは contact を
+  // 直接 import できないため、apps/server が contact の BlockRepository 実装を
+  // room 側の read-only インターフェースに合わせて包む。
+  const roomBlockListRepo = createRoomBlockListRepository(blockRepo);
   // notification
   const deviceTokenRepo = createDeviceTokenRepository(supabase);
   const pushLogRepo = createPushLogRepository(supabase);
@@ -305,7 +313,7 @@ export function buildContainer(config: Config): AppContainer {
   // translation
   const translation = createTranslationFacade({ sessionRepo, metricsRepo });
 
-  // room (billing + media + notification + eventBus に依存)
+  // room (billing + media + notification + eventBus + blockListRepo に依存)
   const room = createRoomFacade({
     roomRepo,
     participantRepo,
@@ -313,6 +321,17 @@ export function buildContainer(config: Config): AppContainer {
     media,
     notification,
     eventBus,
+    blockListRepo: roomBlockListRepo,
+  });
+
+  // Issue #69 (2): room.participant_joined を購読して transcript_access を自動付与する。
+  // packages/transcript には「アクセス権を作成する」呼び出しがどこにも存在しなかった
+  // (Issue #69 調査で判明)。設計判断の詳細は adapters/transcript-access-subscriber.ts
+  // 先頭のコメント参照。
+  registerTranscriptAccessSubscriber(eventBus, {
+    transcript,
+    room,
+    legalDocRepo,
   });
 
   return {

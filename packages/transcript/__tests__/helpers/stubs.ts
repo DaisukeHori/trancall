@@ -2,6 +2,7 @@
  * テスト用 in-memory stub 実装
  */
 
+import { randomUUID } from "node:crypto";
 import { ok, err, type Result } from "@trancall/shared-kernel";
 import type { AppError, RoomId, UserId, ParticipantId } from "@trancall/shared-kernel";
 import type { TranscriptSegment, TranscriptAccess } from "../../src/schemas.js";
@@ -140,6 +141,31 @@ export class InMemoryAccessRepository implements AccessRepository {
       });
     }
     return ok(found);
+  }
+
+  // Issue #69 (2): insert-if-absent (既存行 — 削除済みを含む — があれば何もしない)。
+  async grant(
+    roomId: RoomId,
+    userId: UserId,
+    consentVersion: string,
+  ): Promise<Result<true>> {
+    const exists = this.records.some(
+      (r) => r.roomId === roomId && r.userId === userId,
+    );
+    if (exists) {
+      return ok(true);
+    }
+    this.records.push({
+      id: randomUUID(),
+      roomId,
+      userId,
+      canView: true,
+      canExport: false,
+      deletedAt: null,
+      consentVersion,
+      createdAt: new Date().toISOString(),
+    });
+    return ok(true);
   }
 
   clear(): void {

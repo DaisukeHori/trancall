@@ -365,6 +365,24 @@ export default defineAgent({
         audioSource,
       );
 
+      // Issue #69 (3): Track/AudioSource 生成直後 (実際に publish するより前) に
+      // cleanup コールバックを登録する。session.end() がこれを呼ぶことで
+      // unpublishTrack + AudioSource.close (LocalAudioTrack.close(true) が
+      // 紐づく AudioSource も併せて close する) が確実に実行され、リソースリークを防ぐ。
+      // ctx.agent が未 publish (falsy) のままセッションが終了した場合も
+      // publishTrack.close(true) で AudioSource は解放される。
+      session.attachPublishedAudioResources({
+        unpublish: async () => {
+          const sid = publishTrack.sid;
+          if (ctx.agent && sid !== undefined) {
+            await ctx.agent.unpublishTrack(sid);
+          }
+        },
+        closeSource: async () => {
+          await publishTrack.close(true);
+        },
+      });
+
       // 翻訳済み音声 (Base64 PCM16) → AudioSource → LiveKit Track へ流す
       // T5: agentPublish 計測点 (captureFrame 前後の wallclock 差分)
       // T8: publish 失敗カウンタ管理

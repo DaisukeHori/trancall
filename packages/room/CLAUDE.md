@@ -21,3 +21,4 @@ ROOM-001〜ROOM-010
 
 - transcript を直接importしない
 - translation を直接importしない（翻訳開始はイベント経由）
+- contact を直接importしない（ブロック判定は自己定義の `BlockListRepository` 経由、実体は apps/server が contact の `BlockRepository` を包んで注入する。Issue #69）
