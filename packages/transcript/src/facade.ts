@@ -85,6 +85,19 @@ export interface TranscriptFacade {
   ): Promise<Result<true>>;
 
   /**
+   * Issue #69 (2): 参加者に対する transcript_access を作成する (冪等)。
+   * 既存行 (deleteAccess 済みを含む) がある場合は何もしない。
+   * `room.participant_joined` を購読する apps/server 側の subscriber から、
+   * 通話成立時 (2人目以降の参加) に room の現在の参加者全員分呼ばれる想定
+   * (docs/module-contracts.md §3.1)。
+   */
+  grantAccess(
+    roomId: RoomId,
+    userId: UserId,
+    consentVersion: string,
+  ): Promise<Result<true>>;
+
+  /**
    * トランスクリプトをエクスポートする。
    * transcript-export-spec.md (TRANSCRIPT-EXPORT-001) 準拠。
    */
@@ -188,6 +201,10 @@ export function createTranscriptFacade(
 
     deleteAccess: async (roomId: RoomId, userId: UserId) => {
       return accessService.deleteAccess(roomId, userId);
+    },
+
+    grantAccess: async (roomId: RoomId, userId: UserId, consentVersion: string) => {
+      return accessService.grantAccess(roomId, userId, consentVersion);
     },
 
     exportTranscript: async (

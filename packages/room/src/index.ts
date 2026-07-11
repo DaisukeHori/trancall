@@ -39,6 +39,7 @@ export type { RoomErrorCode as RoomErrorCodeType } from "./errors.ts";
 // Repository interfaces（apps/server 側での実装用）
 export type { RoomRepository } from "./repositories/room-repository.ts";
 export type { ParticipantRepository } from "./repositories/participant-repository.ts";
+export type { BlockListRepository } from "./repositories/block-list-repository.ts";
 
 // EventBus interface
 export type { EventBus, RoomDomainEvent } from "./event-bus.ts";
@@ -47,3 +48,6 @@ export type { EventBus, RoomDomainEvent } from "./event-bus.ts";
 export type { RoomCreatedEvent } from "./events/room-created.ts";
 export type { ParticipantJoinedEvent } from "./events/participant-joined.ts";
 export type { ParticipantLeftEvent } from "./events/participant-left.ts";
+
+// Constants
+export { ROOM_MAX_PARTICIPANTS } from "./constants.ts";

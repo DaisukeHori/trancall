@@ -14,6 +14,7 @@ import type { NotificationFacade, IncomingCallNotification } from "@trancall/not
 import type { RoomState, ParticipantRow } from "../schemas.ts";
 import type { RoomRepository } from "../repositories/room-repository.ts";
 import type { ParticipantRepository } from "../repositories/participant-repository.ts";
+import type { BlockListRepository } from "../repositories/block-list-repository.ts";
 import type { EventBus } from "../event-bus.ts";
 import { createRoomCreatedEvent } from "../events/room-created.ts";
 import { createParticipantLeftEvent } from "../events/participant-left.ts";
@@ -50,6 +51,8 @@ export interface CallLifecycleServiceDeps {
   media: MediaFacade;
   notification: NotificationFacade;
   eventBus: EventBus;
+  /** Issue #69: createCall (発信) 時のブロックリストチェックに使う */
+  blockListRepo: BlockListRepository;
 }
 
 /**
@@ -81,7 +84,7 @@ export interface CallLifecycleService {
 export function createCallLifecycleService(
   deps: CallLifecycleServiceDeps,
 ): CallLifecycleService {
-  const { roomRepo, participantRepo, billing, media, notification, eventBus } = deps;
+  const { roomRepo, participantRepo, billing, media, notification, eventBus, blockListRepo } = deps;
 
   return {
     // =========================================================================
@@ -94,6 +97,38 @@ export function createCallLifecycleService(
       const canStart = await billing.canStartCall(creatorId);
       if (!canStart.ok) {
         return canStart;
+      }
+
+      // 1.5. Issue #69: invitee リストの正規化 (重複排除 + creatorId 自己招待除外) を
+      // ここで先に行い、直後のブロックリストチェック (1.6) と、後段の invitee 事前登録
+      // (4.5、旧実装ではここで計算していたが同じ計算を 2 回行わないよう引き上げた) の
+      // 両方で同じ sanitizedInviteeIds を使い回す。詳細な正規化理由は元の 4.5 節コメント
+      // (creatorId 混入時の host lockout 防止、大文字小文字正規化) を参照。
+      const normalizeUserId = (id: UserId): string => id.toLowerCase();
+      const normalizedCreatorId = normalizeUserId(creatorId);
+      const sanitizedInviteeIds = [
+        ...new Map(inviteeIds.map((id) => [normalizeUserId(id), id])).values(),
+      ].filter((id) => normalizeUserId(id) !== normalizedCreatorId);
+
+      // 1.6. Issue #69: ブロックリストチェック (ROOM_USER_BLOCKED)。
+      // 発信者 (creatorId) と各 invitee の間にブロック関係 (双方向、@trancall/contact 所有
+      // block_list) がある場合、DB 書き込みが発生する前 (rooms/participants INSERT より前) に
+      // 拒否する。billing.canStartCall は残高チェックのみで副作用がないため、ここで中断しても
+      // ロールバックは不要。
+      const blockCheckResults = await Promise.all(
+        sanitizedInviteeIds.map((inviteeId) => blockListRepo.isBlocked(creatorId, inviteeId)),
+      );
+      for (const blockCheckResult of blockCheckResults) {
+        if (!blockCheckResult.ok) {
+          return blockCheckResult;
+        }
+        if (blockCheckResult.data) {
+          return err({
+            code: "ROOM_USER_BLOCKED",
+            message: "ブロック関係にあるユーザーとの通話は開始できません",
+            retryable: false,
+          });
+        }
       }
 
       // 2. rooms INSERT
@@ -176,12 +211,8 @@ export function createCallLifecycleService(
       // host lockout が再発する。route 層 (CreateRoomSchema) で inviteeIds を小文字正規化
       // しているが、facade は route を経由しない直接呼び出し経路もあるため、ここでも
       // 独立して case-insensitive に正規化する (多層防御、route 側の正規化に依存しない)。
-      const normalizeUserId = (id: UserId): string => id.toLowerCase();
-      const normalizedCreatorId = normalizeUserId(creatorId);
-      const sanitizedInviteeIds = [
-        ...new Map(inviteeIds.map((id) => [normalizeUserId(id), id])).values(),
-      ].filter((id) => normalizeUserId(id) !== normalizedCreatorId);
-
+      // Issue #69: sanitizedInviteeIds は 1.5 で計算済みのものをそのまま使う。
+      //
       // best-effort: push 通知の失敗と同じ方針で、事前登録に失敗した invitee が
       // いても通話作成自体は失敗させない。ただし 2巡目 finding3: 失敗を握り潰さず
       // error レベルでログし (どの invitee か特定可能に)、transient (retryable) な

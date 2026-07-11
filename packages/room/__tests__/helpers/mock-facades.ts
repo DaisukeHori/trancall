@@ -8,6 +8,7 @@ import type { BillingFacade } from "@trancall/billing";
 import type { MediaFacade } from "@trancall/media";
 import type { NotificationFacade } from "@trancall/notification";
 import type { EventBus } from "../../src/event-bus.js";
+import type { BlockListRepository } from "../../src/repositories/block-list-repository.js";
 
 export function makeBillingFacade(canStart = true): BillingFacade {
   return {
@@ -46,6 +47,21 @@ export function makeNotificationFacade(): NotificationFacade {
     sendMissedCall: vi.fn().mockResolvedValue(ok(true as const)),
     registerDevice: vi.fn().mockResolvedValue(ok(true as const)),
     unregisterDevice: vi.fn().mockResolvedValue(ok(true as const)),
+  };
+}
+
+/**
+ * Issue #69: BlockListRepository のモック。
+ * デフォルトは「誰もブロックしていない」。ROOM_USER_BLOCKED のテストでは
+ * isBlockedFn に判定関数を渡して特定ペアだけブロック済みとして振る舞わせる。
+ */
+export function makeBlockListRepository(
+  isBlockedFn: (userId: string, targetUserId: string) => boolean = () => false,
+): BlockListRepository {
+  return {
+    isBlocked: vi.fn().mockImplementation(async (userId: string, targetUserId: string) => {
+      return ok(isBlockedFn(userId, targetUserId));
+    }),
   };
 }
 

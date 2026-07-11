@@ -19,3 +19,4 @@ SCRIPT-001〜SCRIPT-008
 - contact を直接importしない
 - notification を直接importしない
 - auth を直接importしない（ユーザー情報はイベントpayloadから取得）
+- room を直接importしない（`grantAccess` の呼び出しは `room.participant_joined` イベント経由、apps/server の `transcript-access-subscriber.ts` がオーケストレーション。Issue #69）

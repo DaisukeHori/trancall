@@ -95,12 +95,14 @@ function makeLogger(): Logger {
 // --- モック: InternalApiClient ---
 
 type PostEventArgs = Parameters<InternalApiClient["postEvent"]>[0];
+type PostHeartbeatArgs = Parameters<InternalApiClient["postHeartbeat"]>[0];
 
 function makeApiClient(
   responses: Array<{ ok: true } | { ok: false; error: { code: "network"; message: string } }> = [],
 ) {
   let callIndex = 0;
   const calls: PostEventArgs[] = [];
+  const heartbeatCalls: PostHeartbeatArgs[] = [];
 
   const postEvent = vi.fn(async (event: PostEventArgs) => {
     calls.push(event);
@@ -114,10 +116,19 @@ function makeApiClient(
         };
   });
 
+  // Issue #69 (4): heartbeat 専用モック (postEvent とは別カウント・別レスポンス系列)
+  const postHeartbeat = vi.fn(async (payload: PostHeartbeatArgs) => {
+    heartbeatCalls.push(payload);
+    return { ok: true as const, data: undefined };
+  });
+
   return {
     postEvent,
+    postHeartbeat,
     calls,
+    heartbeatCalls,
     get callCount() { return postEvent.mock.calls.length; },
+    get heartbeatCallCount() { return postHeartbeat.mock.calls.length; },
   };
 }
 
@@ -162,6 +173,9 @@ function makeConfig(
     logger: makeLogger(),
     metricsIntervalMs: 60000,
     degradedCheckIntervalMs: 1000,
+    // Issue #69 (4): 既存テストの vi.advanceTimersByTime に巻き込まれないよう
+    // デフォルトは大きめにしておく (heartbeat 専用テストで override する)
+    heartbeatIntervalMs: 60000,
     // #31: デフォルトはテストの待ち時間を減らすため 0 (即座に close)。
     // フラッシュ待機の挙動自体をテストする場合は overrides で明示的に指定する。
     sessionCloseFlushWaitMs: 0,
@@ -1062,5 +1076,178 @@ describe("TranslationSession: T14 getDegradedChannelMeta()", () => {
 
     const meta = session.getDegradedChannelMeta();
     expect(meta.sessionId).toBe(customSessionId);
+  });
+});
+
+// =============================================================================
+// Issue #69 (4): ハートビート定期送信
+// =============================================================================
+
+describe("TranslationSession: Issue #69 (4) ハートビート定期送信", () => {
+  it("heartbeatIntervalMs 経過ごとに postHeartbeat が呼ばれる", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(2);
+
+    expect(apiClient.heartbeatCallCount).toBeGreaterThanOrEqual(1);
+
+    await session.end("participant_left");
+  });
+
+  it("heartbeat payload は agentJobId/sessionId/alive=true/occurredAt を含む", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(2);
+
+    const payload = apiClient.heartbeatCalls[0];
+    expect(payload).toBeDefined();
+    expect(payload?.agentJobId).toBe(session.getAgentJobId());
+    expect(payload?.alive).toBe(true);
+    expect(payload?.occurredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(payload?.sessionId).toBeTruthy();
+
+    await session.end("participant_left");
+  });
+
+  it("config.sessionId が指定された場合、heartbeat の sessionId はそちらを使う", async () => {
+    const customSessionId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const { config, apiClient } = makeConfig({
+      heartbeatIntervalMs: 1000,
+      sessionId: customSessionId,
+    });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(2);
+
+    expect(apiClient.heartbeatCalls[0]?.sessionId).toBe(customSessionId);
+
+    await session.end("participant_left");
+  });
+
+  it("end() 後は heartbeat タイマーが停止する (追加の advance で postHeartbeat が増えない)", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    vi.advanceTimersByTime(1000);
+    await waitNextTick(2);
+    const countAtEnd = apiClient.heartbeatCallCount;
+
+    await session.end("participant_left");
+
+    vi.advanceTimersByTime(5000);
+    await waitNextTick(2);
+
+    expect(apiClient.heartbeatCallCount).toBe(countAtEnd);
+  });
+
+  it("postHeartbeat が失敗しても warn ログのみでセッションは継続する", async () => {
+    const { config, apiClient } = makeConfig({ heartbeatIntervalMs: 1000 });
+    apiClient.postHeartbeat.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "network", message: "heartbeat failed" },
+    });
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    await expect(async () => {
+      vi.advanceTimersByTime(1000);
+      await waitNextTick(2);
+    }).not.toThrow();
+
+    await session.end("participant_left");
+  });
+});
+
+// =============================================================================
+// Issue #69 (3): Publish 済み音声リソースの cleanup (unpublishTrack / AudioSource close)
+// =============================================================================
+
+describe("TranslationSession: Issue #69 (3) attachPublishedAudioResources cleanup", () => {
+  it("end() で unpublish() → closeSource() の順に呼ばれる", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const callOrder: string[] = [];
+    const unpublish = vi.fn(async () => {
+      callOrder.push("unpublish");
+    });
+    const closeSource = vi.fn(async () => {
+      callOrder.push("closeSource");
+    });
+    session.attachPublishedAudioResources({ unpublish, closeSource });
+
+    await session.end("participant_left");
+
+    expect(unpublish).toHaveBeenCalledTimes(1);
+    expect(closeSource).toHaveBeenCalledTimes(1);
+    expect(callOrder).toEqual(["unpublish", "closeSource"]);
+  });
+
+  it("attachPublishedAudioResources 未登録でも end() はエラーなく完了する", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    await expect(session.end("participant_left")).resolves.not.toThrow();
+  });
+
+  it("unpublish() が失敗しても closeSource() は呼ばれる (best-effort)", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const unpublish = vi.fn().mockRejectedValue(new Error("unpublish failed"));
+    const closeSource = vi.fn().mockResolvedValue(undefined);
+    session.attachPublishedAudioResources({ unpublish, closeSource });
+
+    await expect(session.end("participant_left")).resolves.not.toThrow();
+    expect(closeSource).toHaveBeenCalledTimes(1);
+  });
+
+  it("closeSource() が失敗しても end() 自体は例外を投げない (best-effort)", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const unpublish = vi.fn().mockResolvedValue(undefined);
+    const closeSource = vi.fn().mockRejectedValue(new Error("close failed"));
+    session.attachPublishedAudioResources({ unpublish, closeSource });
+
+    await expect(session.end("participant_left")).resolves.not.toThrow();
+  });
+
+  it("end() を 2 回呼んでも cleanup は 1 回だけ実行される (isEnding ガード)", async () => {
+    const { config } = makeConfig();
+    const session = new TranslationSession(config);
+    await session.start();
+    await waitNextTick(2);
+
+    const unpublish = vi.fn().mockResolvedValue(undefined);
+    const closeSource = vi.fn().mockResolvedValue(undefined);
+    session.attachPublishedAudioResources({ unpublish, closeSource });
+
+    await Promise.all([session.end("participant_left"), session.end("agent_shutdown")]);
+
+    expect(unpublish).toHaveBeenCalledTimes(1);
+    expect(closeSource).toHaveBeenCalledTimes(1);
   });
 });

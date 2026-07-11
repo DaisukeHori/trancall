@@ -17,6 +17,7 @@ import {
   makeMediaFacade,
   makeNotificationFacade,
   makeEventBus,
+  makeBlockListRepository,
 } from "./helpers/mock-facades.js";
 
 const creatorId = UserIdSchema.parse("550e8400-e29b-41d4-a716-446655440011");
@@ -31,6 +32,7 @@ const TEST_CALLER_LANGUAGE = "ja";
 function makeFacade(overrides?: {
   canStart?: boolean;
   createRoomOk?: boolean;
+  isBlockedFn?: (userId: string, targetUserId: string) => boolean;
 }) {
   const roomRepo = createInMemoryRoomRepository();
   const participantRepo = createInMemoryParticipantRepository();
@@ -38,6 +40,7 @@ function makeFacade(overrides?: {
   const media = makeMediaFacade(overrides?.createRoomOk ?? true);
   const notification = makeNotificationFacade();
   const eventBus = makeEventBus();
+  const blockListRepo = makeBlockListRepository(overrides?.isBlockedFn);
 
   const facade = createRoomFacade({
     roomRepo,
@@ -46,9 +49,10 @@ function makeFacade(overrides?: {
     media,
     notification,
     eventBus,
+    blockListRepo,
   });
 
-  return { facade, roomRepo, participantRepo, billing, media, notification, eventBus };
+  return { facade, roomRepo, participantRepo, billing, media, notification, eventBus, blockListRepo };
 }
 
 // =============================================================================
@@ -102,6 +106,21 @@ describe("RoomFacade.createCall", () => {
     await facade.createCall(creatorId, [], { translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE, });
     expect(media.createRoom).toHaveBeenCalledOnce();
   });
+
+  // Issue #69
+  it("ブロック関係 → ok=false, code=ROOM_USER_BLOCKED", async () => {
+    const { facade } = makeFacade({
+      isBlockedFn: (a, b) =>
+        (a === creatorId && b === inviteeId) || (a === inviteeId && b === creatorId),
+    });
+    const result = await facade.createCall(creatorId, [inviteeId], {
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("ROOM_USER_BLOCKED");
+  });
 });
 
 // =============================================================================
@@ -153,6 +172,29 @@ describe("RoomFacade.joinCall", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("ROOM_NOT_FOUND");
+  });
+
+  // Issue #69: 招待時点ではブロック関係がなくても、招待後〜join までの間に
+  // ブロックされた場合は join を拒否する (join 時点でも独立にチェックする)。
+  it("招待後にブロックされた場合、join は ROOM_USER_BLOCKED で拒否される", async () => {
+    let blocked = false;
+    const { facade } = makeFacade({
+      isBlockedFn: (a, b) =>
+        blocked && ((a === creatorId && b === inviteeId) || (a === inviteeId && b === creatorId)),
+    });
+
+    const createResult = await facade.createCall(creatorId, [inviteeId], {
+      translationEnabled: false, callerName: TEST_CALLER_NAME, languagePair: TEST_LANGUAGE_PAIR, callerLanguage: TEST_CALLER_LANGUAGE,
+    });
+    expect(createResult.ok).toBe(true);
+    if (!createResult.ok) return;
+
+    blocked = true;
+
+    const joinResult = await facade.joinCall(createResult.data.roomId, inviteeId);
+    expect(joinResult.ok).toBe(false);
+    if (joinResult.ok) return;
+    expect(joinResult.error.code).toBe("ROOM_USER_BLOCKED");
   });
 });
 

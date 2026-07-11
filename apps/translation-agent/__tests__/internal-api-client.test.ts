@@ -13,6 +13,8 @@ import {
   InternalApiClient,
   buildSessionStartedEvent,
   buildSessionEndedEvent,
+  buildHeartbeatEvent,
+  HeartbeatPayloadSchema,
 } from "../src/internal-api-client.js";
 import { createLogger } from "../src/logger.js";
 
@@ -195,6 +197,112 @@ describe("InternalApiClient.postEvent", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(result.ok).toBe(true);
   }, 30000);
+});
+
+// =============================================================================
+// Issue #69 (4): postHeartbeat
+// =============================================================================
+
+describe("InternalApiClient.postHeartbeat", () => {
+  it("POST /internal/translation/heartbeat に送信される", async () => {
+    let capturedUrl: string | null = null;
+    const fetchMock = vi.fn<typeof fetch>(async (url) => {
+      capturedUrl = String(url);
+      return new Response("ok", { status: 200 });
+    });
+    const client = makeClient(fetchMock);
+
+    const payload = buildHeartbeatEvent({
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "22222222-2222-4222-8222-222222222222",
+      occurredAt: new Date("2026-05-12T00:00:00.000Z"),
+    });
+    const result = await client.postHeartbeat(payload);
+
+    expect(result.ok).toBe(true);
+    expect(capturedUrl).toBe(`${SERVER_URL}/internal/translation/heartbeat`);
+  });
+
+  it("postEvent と同じ HMAC 署名方式 (body|idempotencyKey|timestamp) を使う", async () => {
+    let capturedHeaders: Record<string, string> | null = null;
+    let capturedBody: string | null = null;
+    const fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
+      capturedHeaders = init?.headers as Record<string, string>;
+      capturedBody = init?.body as string;
+      return new Response("ok", { status: 200 });
+    });
+    const client = makeClient(fetchMock);
+
+    const payload = buildHeartbeatEvent({
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "22222222-2222-4222-8222-222222222222",
+      occurredAt: new Date("2026-05-12T00:00:00.000Z"),
+      metrics: { memMb: 128, openaiWsState: "open" },
+    });
+    await client.postHeartbeat(payload);
+
+    expect(capturedHeaders).not.toBeNull();
+    if (!capturedHeaders || !capturedBody) return;
+    const headers = capturedHeaders as Record<string, string>;
+    const body = capturedBody as string;
+
+    const signature = headers["x-trancall-signature"];
+    const idempotencyKey = headers["x-trancall-idempotency-key"];
+    const timestamp = headers["x-trancall-timestamp"];
+
+    const expected = createHmac("sha256", SECRET)
+      .update(`${body}|${idempotencyKey ?? ""}|${timestamp ?? ""}`)
+      .digest("hex");
+    expect(signature).toBe(expected);
+
+    // body がサーバー側 HeartbeatBodySchema と互換であること
+    const parsed: unknown = JSON.parse(body);
+    expect(HeartbeatPayloadSchema.safeParse(parsed).success).toBe(true);
+  });
+
+  it("4xx は即座に return（リトライしない）", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(() => Promise.resolve(new Response("bad request", { status: 400 })));
+    const client = makeClient(fetchMock, 3);
+
+    const result = await client.postHeartbeat(
+      buildHeartbeatEvent({
+        agentJobId: "11111111-1111-4111-8111-111111111111",
+        sessionId: "22222222-2222-4222-8222-222222222222",
+        occurredAt: new Date(),
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("server_4xx");
+  });
+});
+
+describe("buildHeartbeatEvent", () => {
+  it("metrics 未指定なら metrics フィールドを含まない", () => {
+    const event = buildHeartbeatEvent({
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "22222222-2222-4222-8222-222222222222",
+      occurredAt: new Date("2026-05-12T00:00:00.000Z"),
+    });
+    expect(event.alive).toBe(true);
+    expect(event.metrics).toBeUndefined();
+    expect(HeartbeatPayloadSchema.safeParse(event).success).toBe(true);
+  });
+
+  it("metrics 指定時はそのまま含める", () => {
+    const event = buildHeartbeatEvent({
+      agentJobId: "11111111-1111-4111-8111-111111111111",
+      sessionId: "22222222-2222-4222-8222-222222222222",
+      occurredAt: new Date("2026-05-12T00:00:00.000Z"),
+      metrics: { memMb: 256, openaiWsState: "open" },
+    });
+    expect(event.metrics).toEqual({ memMb: 256, openaiWsState: "open" });
+    expect(HeartbeatPayloadSchema.safeParse(event).success).toBe(true);
+  });
 });
 
 describe("buildSessionEndedEvent", () => {

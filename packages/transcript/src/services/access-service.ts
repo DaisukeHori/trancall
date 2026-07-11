@@ -6,7 +6,7 @@
  * - canView: can_view=true AND deleted_at IS NULL チェック
  */
 
-import { type Result, ok } from "@trancall/shared-kernel";
+import { type Result, err, ok } from "@trancall/shared-kernel";
 import type { RoomId, UserId } from "@trancall/shared-kernel";
 import type { AccessRepository } from "../repositories/access-repository.ts";
 
@@ -23,6 +23,16 @@ export interface AccessService {
    * アクセス行が存在しない場合は NOT_FOUND エラーを返す。
    */
   deleteAccess(roomId: RoomId, userId: UserId): Promise<Result<true>>;
+
+  /**
+   * Issue #69 (2): 指定ユーザーに対する transcript_access を作成する (冪等)。
+   * 通話参加時 (room.participant_joined 購読) に apps/server から呼ばれる想定。
+   */
+  grantAccess(
+    roomId: RoomId,
+    userId: UserId,
+    consentVersion: string,
+  ): Promise<Result<true>>;
 }
 
 export function createAccessService(repo: AccessRepository): AccessService {
@@ -46,6 +56,17 @@ export function createAccessService(repo: AccessRepository): AccessService {
       }
 
       return repo.softDelete(roomId, userId);
+    },
+
+    grantAccess: async (roomId: RoomId, userId: UserId, consentVersion: string) => {
+      if (consentVersion.trim().length === 0) {
+        return err({
+          code: "VALIDATION_ERROR",
+          message: "consentVersion は必須です",
+          retryable: false,
+        });
+      }
+      return repo.grant(roomId, userId, consentVersion);
     },
   };
 }

@@ -13,6 +13,7 @@ import type { NotificationFacade } from "@trancall/notification";
 import type { RoomState } from "./schemas.ts";
 import type { RoomRepository } from "./repositories/room-repository.ts";
 import type { ParticipantRepository } from "./repositories/participant-repository.ts";
+import type { BlockListRepository } from "./repositories/block-list-repository.ts";
 import type { EventBus } from "./event-bus.ts";
 import { createCallLifecycleService, type CreateCallOptions } from "./services/call-lifecycle-service.ts";
 import { createJoinService } from "./services/join-service.ts";
@@ -91,6 +92,11 @@ export interface RoomFacadeDeps {
   media: MediaFacade;
   notification: NotificationFacade;
   eventBus: EventBus;
+  /**
+   * Issue #69: ROOM_USER_BLOCKED 判定に使う read-only ビュー。
+   * @trancall/contact 所有の block_list への実体は apps/server が注入する。
+   */
+  blockListRepo: BlockListRepository;
 }
 
 // =============================================================================
@@ -98,7 +104,7 @@ export interface RoomFacadeDeps {
 // =============================================================================
 
 export function createRoomFacade(deps: RoomFacadeDeps): RoomFacade {
-  const { roomRepo, participantRepo, billing, media, notification, eventBus } = deps;
+  const { roomRepo, participantRepo, billing, media, notification, eventBus, blockListRepo } = deps;
 
   const lifecycleService = createCallLifecycleService({
     roomRepo,
@@ -107,12 +113,14 @@ export function createRoomFacade(deps: RoomFacadeDeps): RoomFacade {
     media,
     notification,
     eventBus,
+    blockListRepo,
   });
 
   const joinService = createJoinService({
     roomRepo,
     participantRepo,
     eventBus,
+    blockListRepo,
   });
 
   return {
