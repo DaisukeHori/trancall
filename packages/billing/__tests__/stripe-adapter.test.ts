@@ -45,16 +45,24 @@ function makeStripeMockImpl(overrides: {
 
 // Stripe SDK モック
 vi.mock("stripe", () => {
-  return {
-    default: vi.fn().mockImplementation(makeStripeMockImpl()),
-    // Stripe.errors.StripeCardError などのモック
-    errors: {
-      StripeCardError: class StripeCardError extends Error {
-        code = "card_declined";
-      },
-      StripeInvalidRequestError: class StripeInvalidRequestError extends Error {},
-      StripeAPIError: class StripeAPIError extends Error {},
+  // 実際の "stripe" パッケージは CJS で `module.exports = Stripe; Stripe.errors = {...}`
+  // という形 (default エクスポート自体に静的プロパティとして errors が生えている) のため、
+  // `import Stripe from "stripe"; Stripe.errors.X` が動作する。モックでも同様に、
+  // default 関数オブジェクト自身に errors を生やす (兄弟の named export にすると
+  // default import 経由ではアクセスできない)。
+  const errorsNamespace = {
+    StripeCardError: class StripeCardError extends Error {
+      code = "card_declined";
     },
+    StripeInvalidRequestError: class StripeInvalidRequestError extends Error {},
+    StripeAPIError: class StripeAPIError extends Error {},
+  };
+  const StripeMock = vi.fn().mockImplementation(makeStripeMockImpl());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- テストモックのみ許可
+  (StripeMock as any).errors = errorsNamespace;
+  return {
+    default: StripeMock,
+    errors: errorsNamespace,
   };
 });
 
@@ -240,6 +248,39 @@ describe("StripeAdapter.cancelSubscription (#41)", () => {
     expect(result.ok).toBe(true);
     expect(cancelMock).toHaveBeenCalledWith("sub_test");
     expect(updateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("StripeAdapter.reactivateSubscription (#65)", () => {
+  beforeEach(async () => {
+    const Stripe = await import("stripe");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(makeStripeMockImpl());
+  });
+
+  it("正常系: subscriptions.update({cancel_at_period_end:false}) を呼ぶ (cancelSubscription の対称操作)", async () => {
+    const Stripe = await import("stripe");
+    const updateMock = vi.fn().mockResolvedValue({ id: "sub_test" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(makeStripeMockImpl({ update: updateMock }));
+
+    const adapter = createStripeAdapter(config);
+    const result = await adapter.reactivateSubscription("sub_test");
+
+    expect(result.ok).toBe(true);
+    expect(updateMock).toHaveBeenCalledWith("sub_test", { cancel_at_period_end: false });
+  });
+
+  it("異常系: Stripe API 失敗時はエラーを返す", async () => {
+    const Stripe = await import("stripe");
+    const updateMock = vi.fn().mockRejectedValue(new Error("network error"));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Stripe.default as any).mockImplementation(makeStripeMockImpl({ update: updateMock }));
+
+    const adapter = createStripeAdapter(config);
+    const result = await adapter.reactivateSubscription("sub_test");
+
+    expect(result.ok).toBe(false);
   });
 });
 

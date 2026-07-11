@@ -19,13 +19,15 @@
  *    (期末キャンセル) を使い、DB 上は cancel_at_period_end フラグのみを立てて
  *    plan_tier/channel/stripe ID 等は保持する。restore 時にこのフラグを false に
  *    戻すことで、grace period 内であればサブスクの表示状態を復元できる。
- *    【既知の残課題】 Stripe 連携チャネル (stripe_web / storekit_external) は
+ *    【#65 で解消】 Stripe 連携チャネル (stripe_web / storekit_external) は
  *    `stripeAdapter.cancelSubscription(id, true)` で Stripe 側にも
  *    cancel_at_period_end=true を実際に送っているため、restore 側でローカル DB の
  *    フラグを false に戻すだけでは Stripe 側の設定までは戻らない (期末に Stripe が
- *    実際に解約してしまう可能性が残る)。Stripe 側を「解約取り消し」するには
- *    packages/billing に新しい adapter メソッドが必要で、本タスクのスコープ
- *    (packages/billing は #23 の export 以外変更しない) 外のため TODO として残す。
+ *    実際に解約してしまう) 問題があった。packages/billing に
+ *    `BillingFacade.reactivateSubscription` (内部で stripeAdapter.reactivateSubscription
+ *    → `stripe.subscriptions.update(id, { cancel_at_period_end: false })`) を追加し、
+ *    restore はこれを facade 経由で呼ぶことで Stripe 側も含めて完全に復元する
+ *    (直接 Stripe クライアントや subscriptionRepo を触らない)。
  *    IAP チャネルは元々どちらの分岐でも Apple/Google には通知していないため、
  *    このローカル DB フラグの復元だけで実質的に完全に復元される。
  */
@@ -33,7 +35,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { BillingFacade, SubscriptionRepository } from "@trancall/billing";
+import type { BillingFacade } from "@trancall/billing";
 import { brandUserId } from "@trancall/shared-kernel";
 import type { EventBus } from "../adapters/event-bus.js";
 
@@ -75,10 +77,9 @@ export function registerAccountRoutes(
     supabase: SupabaseClient;
     billing: BillingFacade;
     eventBus: EventBus;
-    subscriptionRepo: SubscriptionRepository;
   },
 ): void {
-  const { supabase, billing, eventBus, subscriptionRepo } = deps;
+  const { supabase, billing, eventBus } = deps;
 
   // -------------------------------------------------------------------------
   // POST /api/account/delete
@@ -298,36 +299,20 @@ export function registerAccountRoutes(
     // #27: 退会時に atPeriodEnd=true でキャンセルしているため plan_tier/channel/
     // stripe ID 等は保持されている。ここでは cancel_at_period_end のみを false に
     // 戻し、退会前の状態を再現する。
+    // #65: billing.reactivateSubscription 経由で行うことで、stripe_web /
+    // storekit_external チャネルは Stripe 側の cancel_at_period_end も取り消される
+    // (直接 subscriptionRepo / Stripe クライアントを触らない、facade/adapter 経由)。
     // profiles/subscriptions は user_id UNIQUE 制約かつ自動 provisioning トリガー
     // (migration 00016) により全ユーザーに必ず 1 行存在するはずだが、万一
     // NOT_FOUND の場合は「復元すべきサブスクがない」として無視し、profile の
     // 復元を優先する (subscriptions 側の一時的な障害で退会取消自体をブロックしない)。
-    const subResult = await subscriptionRepo.findByUserId(userIdBranded.data);
-    if (subResult.ok && subResult.data.cancel_at_period_end) {
-      const row = subResult.data;
-      const restoreSubResult = await subscriptionRepo.updatePlan(userIdBranded.data, {
-        planTier: row.plan_tier,
-        purchaseChannel: row.purchase_channel,
-        stripeSubscriptionId: row.stripe_subscription_id,
-        stripeCustomerId: row.stripe_customer_id,
-        iapOriginalTransactionId: row.iap_original_transaction_id,
-        currentPeriodStart: row.current_period_start,
-        currentPeriodEnd: row.current_period_end,
-        cancelAtPeriodEnd: false,
-      });
-
-      if (!restoreSubResult.ok) {
-        // サブスク復元が失敗した場合は profiles の復元も行わず、丸ごとリトライ可能な
-        // 状態のまま 500 を返す (#27: まとめてロールバック方針との整合)。
-        return reply.status(500).send({
-          ok: false,
-          error: { code: "INTERNAL_ERROR", message: restoreSubResult.error.message, retryable: true },
-        });
-      }
-    } else if (!subResult.ok && subResult.error.code !== "NOT_FOUND") {
+    const reactivateResult = await billing.reactivateSubscription(userIdBranded.data);
+    if (!reactivateResult.ok && reactivateResult.error.code !== "NOT_FOUND") {
+      // サブスク復元が失敗した場合は profiles の復元も行わず、丸ごとリトライ可能な
+      // 状態のまま 500 を返す (#27: まとめてロールバック方針との整合)。
       return reply.status(500).send({
         ok: false,
-        error: { code: "INTERNAL_ERROR", message: subResult.error.message, retryable: true },
+        error: { code: "INTERNAL_ERROR", message: reactivateResult.error.message, retryable: true },
       });
     }
 

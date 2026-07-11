@@ -203,6 +203,18 @@ export interface BillingFacade {
   ): Promise<Result<SubscriptionState>>;
 
   /**
+   * [#65] 期末キャンセル予約 (cancelAtPeriodEnd=true) を取り消し、サブスクリプションを
+   * 継続させる。cancelSubscription(userId, atPeriodEnd=true) の対称操作。
+   * アカウント退会取消 (POST /api/account/restore) で使用する。
+   * stripe_web / storekit_external チャネルは Stripe 側の cancel_at_period_end も
+   * 取り消す (直接 Stripe クライアントを呼ばず本メソッド経由で行う)。IAP チャネルは
+   * Store 側に「取消の取消」API が存在しないため、ローカルのアプリ内フラグ更新のみ行う。
+   * @idempotent true (既に cancelAtPeriodEnd=false なら何もせず現在状態を返す)
+   * @retryable true
+   */
+  reactivateSubscription(userId: UserId): Promise<Result<SubscriptionState>>;
+
+  /**
    * 購入を復元する (iOS App Store ガイドライン必須)。
    * restoredCount=0 + subscription=null は正常な空結果 (エラーにしない)。
    * @idempotent true (同一 originalTransactionId は重複スキップ)
@@ -1001,6 +1013,60 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       });
 
       return stateResult;
+    },
+
+    // =========================================================================
+    // [#65] reactivateSubscription
+    // =========================================================================
+    async reactivateSubscription(
+      userId: UserId,
+    ): Promise<Result<SubscriptionState>> {
+      // 1. 現在のサブスクを取得
+      const subResult = await subscriptionRepo.findByUserId(userId);
+      if (!subResult.ok) return subResult;
+
+      const row = subResult.data;
+      const channel = row.purchase_channel;
+
+      // 2. 既に cancelAtPeriodEnd=false なら冪等 OK (何もしない)
+      if (!row.cancel_at_period_end) {
+        return subscriptionService.getSubscription(userId);
+      }
+
+      // 3. Stripe 裏付けのチャネル (stripe_web / storekit_external) は Stripe 側の
+      // cancel_at_period_end も取り消す (cancelSubscription の対称設計)。IAP チャネルは
+      // Store 側に「取消の取消」API が存在しないため、ローカルのアプリ内フラグ更新のみ行う。
+      if (channel === "stripe_web" || channel === "storekit_external") {
+        if (row.stripe_subscription_id === null) {
+          return err({
+            code: "INTERNAL_ERROR",
+            message: "Stripe subscription_id が見つからないため復元できません",
+            retryable: false,
+          });
+        }
+        const reactivateResult = await stripeAdapter.reactivateSubscription(
+          row.stripe_subscription_id,
+        );
+        if (!reactivateResult.ok) return reactivateResult;
+      }
+
+      // 4. ローカル DB の cancel_at_period_end フラグを false に戻す。
+      // [#41] と同様、他フィールドを明示的に現在値で渡すことで、updatePlan 実装側の
+      // 「未指定フィールドは null 化する」挙動による CHECK 制約違反を防ぐ。
+      const updateResult = await subscriptionRepo.updatePlan(userId, {
+        planTier: row.plan_tier,
+        purchaseChannel: channel,
+        stripeSubscriptionId: row.stripe_subscription_id,
+        stripeCustomerId: row.stripe_customer_id,
+        iapOriginalTransactionId: row.iap_original_transaction_id,
+        currentPeriodStart: row.current_period_start,
+        currentPeriodEnd: row.current_period_end,
+        cancelAtPeriodEnd: false,
+      });
+      if (!updateResult.ok) return updateResult;
+
+      // 5. 更新後の状態を取得
+      return subscriptionService.getSubscription(userId);
     },
 
     // =========================================================================

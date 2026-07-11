@@ -194,6 +194,18 @@ export function createMockContainer(): AppContainer {
       currentPeriodEnd: new Date().toISOString(),
       cancelAtPeriodEnd: true,
     })),
+    // #65: account-routes.ts の POST /api/account/restore が使う (退会取消時の Stripe 側
+    // cancel_at_period_end 取り消し込み復元)
+    reactivateSubscription: vi.fn().mockResolvedValue(ok({
+      planTier: "standard",
+      includedMinutes: 120,
+      usedMinutes: 0,
+      remainingMinutes: 120,
+      subscriptionStatus: "active",
+      currentPeriodStart: new Date().toISOString(),
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: false,
+    })),
   };
 
   // Contact facade mock

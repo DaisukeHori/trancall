@@ -114,7 +114,6 @@ export async function buildApp(
     supabase: container.supabase,
     billing: container.billing,
     eventBus: container.eventBus,
-    subscriptionRepo: container.subscriptionRepo,
   });
 
   // Agent 内部 API

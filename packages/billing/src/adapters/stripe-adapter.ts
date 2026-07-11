@@ -270,6 +270,25 @@ export function createStripeAdapter(config: StripeAdapterConfig) {
     },
 
     /**
+     * [#65] 期末キャンセル予約 (cancel_at_period_end=true) を取り消し、
+     * サブスクリプションを継続させる (cancelSubscription(id, atPeriodEnd=true) の対称操作)。
+     * アカウント退会取消 (account-routes.ts の POST /api/account/restore) から
+     * BillingFacade.reactivateSubscription 経由で呼ばれる。
+     */
+    async reactivateSubscription(
+      stripeSubscriptionId: string,
+    ): Promise<Result<void>> {
+      try {
+        await stripe.subscriptions.update(stripeSubscriptionId, {
+          cancel_at_period_end: false,
+        });
+        return ok(undefined);
+      } catch (e: unknown) {
+        return mapStripeError(e);
+      }
+    },
+
+    /**
      * customer.subscription.deleted イベントを解析してユーザー ID を取得する。
      */
     parseSubscriptionDeleted(event: Stripe.Event): Result<
