@@ -29,6 +29,26 @@ import { createSearchService } from "./services/search-service.ts";
 import { createExportService, type ExportFormat, type ExportInput, type RoomMeta } from "./services/export-service.ts";
 
 /**
+ * M-3: 1 パートあたりの最大セグメント数 (Phase 1a 上限)。
+ * これを超える長時間通話は `Math.ceil(totalSegments / MAX_SEGMENTS_PER_EXPORT_PART)`
+ * パートに分割してエクスポートする (docs/transcript-export-spec.md §2.1 / §8 参照)。
+ */
+const MAX_SEGMENTS_PER_EXPORT_PART = 1000;
+
+/**
+ * ファイル名にパート番号を挿入する (例: `foo.pdf` → `foo-part2of3.pdf`)。
+ * totalParts <= 1 の場合は無加工でそのまま返す (既存の命名規則との後方互換を維持)。
+ */
+function appendPartSuffix(filename: string, partNumber: number, totalParts: number): string {
+  if (totalParts <= 1) return filename;
+  const lastDot = filename.lastIndexOf(".");
+  if (lastDot === -1) return `${filename}-part${partNumber}of${totalParts}`;
+  const base = filename.slice(0, lastDot);
+  const ext = filename.slice(lastDot);
+  return `${base}-part${partNumber}of${totalParts}${ext}`;
+}
+
+/**
  * roomId / userId から room メタ情報を解決するプロバイダ。
  * apps/server 側で Supabase クエリ実装を DI 注入する。
  * テストでは in-memory stub を使う。
@@ -100,12 +120,35 @@ export interface TranscriptFacade {
   /**
    * トランスクリプトをエクスポートする。
    * transcript-export-spec.md (TRANSCRIPT-EXPORT-001) 準拠。
+   *
+   * M-3: 1000 セグメントを超える長時間通話は複数パートに分割してエクスポートする。
+   * `partIndex` (0-based、省略時 0) で取得するパートを指定する。返り値の
+   * `totalParts` / `hasMore` / `totalSegments` を見て、`hasMore=true` の間
+   * `partIndex` をインクリメントしながら追加で呼び出すことで全パートを取得できる。
+   * セグメント数が上限以下の場合は常に `totalParts=1` / `hasMore=false` となり、
+   * 既存の単発エクスポート (PDF/txt 1 ファイル) と完全に同じ挙動になる
+   * (後方互換: 呼び出し側が partIndex を渡さなくても従来通り動作する)。
    */
   exportTranscript(
     roomId: RoomId,
     userId: UserId,
     format: ExportFormat,
-  ): Promise<Result<{ contentBase64: string; mime: string; filename: string }>>;
+    partIndex?: number,
+  ): Promise<
+    Result<{
+      contentBase64: string;
+      mime: string;
+      filename: string;
+      /** 0-based。今回返したパートの番号 */
+      partIndex: number;
+      /** 総パート数 (1 = 分割不要) */
+      totalParts: number;
+      /** true の場合、partIndex+1 で追加のパートが取得できる */
+      hasMore: boolean;
+      /** room 全体のセグメント総数 (パート分割前) */
+      totalSegments: number;
+    }>
+  >;
 
   /**
    * LiveSubtitleDelta をバリデーションする。
@@ -211,6 +254,7 @@ export function createTranscriptFacade(
       roomId: RoomId,
       userId: UserId,
       format: ExportFormat,
+      partIndex?: number,
     ) => {
       // アクセス権チェック
       const canViewResult = await accessService.canView(roomId, userId);
@@ -244,17 +288,30 @@ export function createTranscriptFacade(
         });
       }
 
-      // 上限チェック (Phase 1a: 1000 segments)
-      if (segments.length > 1000) {
+      // M-3: 1000 セグメント超は複数パートに分割する (旧: TOO_LARGE ハードエラー)。
+      // セグメント数が上限以下なら totalParts=1 で従来と完全に同じ単発エクスポート。
+      const totalSegments = segments.length;
+      const totalParts = Math.max(1, Math.ceil(totalSegments / MAX_SEGMENTS_PER_EXPORT_PART));
+      const requestedPartIndex = partIndex ?? 0;
+
+      if (
+        !Number.isInteger(requestedPartIndex) ||
+        requestedPartIndex < 0 ||
+        requestedPartIndex >= totalParts
+      ) {
         return err({
-          code: "TRANSCRIPT_EXPORT_TOO_LARGE",
-          message: "会話が長すぎます (1000 セグメント超)、分割エクスポートを Sprint 3 で実装予定",
+          code: "TRANSCRIPT_EXPORT_INVALID_PART",
+          message: `partIndex は 0〜${totalParts - 1} の範囲で指定してください (指定値: ${requestedPartIndex})`,
           retryable: false,
-          httpStatus: 422,
+          httpStatus: 400,
         });
       }
 
-      // RoomMeta 取得（プロバイダ提供時は使用、未提供時はセグメントから推定）
+      const partStart = requestedPartIndex * MAX_SEGMENTS_PER_EXPORT_PART;
+      const partSegments = segments.slice(partStart, partStart + MAX_SEGMENTS_PER_EXPORT_PART);
+
+      // RoomMeta 取得（プロバイダ提供時は使用、未提供時はセグメントから推定）。
+      // 話者名・翻訳ペアの推定は room 全体の segments を使う (パートごとに変わらないため)。
       let roomMeta: RoomMeta;
       if (roomMetaProvider) {
         const metaResult = await roomMetaProvider.getRoomMeta(roomId, userId);
@@ -301,12 +358,30 @@ export function createTranscriptFacade(
 
       const exportInput: ExportInput = {
         roomMeta,
-        segments,
+        segments: partSegments,
         termsVersion,
         privacyVersion,
       };
 
-      return exportService.exportTranscript(exportInput, format);
+      const exportResult = await exportService.exportTranscript(exportInput, format);
+      if (!exportResult.ok) {
+        return exportResult;
+      }
+
+      const filename = appendPartSuffix(
+        exportResult.data.filename,
+        requestedPartIndex + 1,
+        totalParts,
+      );
+
+      return ok({
+        ...exportResult.data,
+        filename,
+        partIndex: requestedPartIndex,
+        totalParts,
+        hasMore: requestedPartIndex + 1 < totalParts,
+        totalSegments,
+      });
     },
 
     validateLiveDelta: (rawDelta: unknown) => {

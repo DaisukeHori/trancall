@@ -22,6 +22,10 @@ const ERROR_CODE_TO_STATUS: Record<string, number> = {
   "media.token.invalid_request": 400,
   // ACCOUNT_NOT_DELETED: #27 POST /api/account/restore — 退会リクエストなしで restore を呼んだ
   ACCOUNT_NOT_DELETED: 400,
+  // M-3: GET /api/transcripts/:roomId/export?part=N で N が範囲外 (totalParts 未満の
+  // 非負整数以外) の場合。transcript facade (packages/transcript/src/facade.ts) が
+  // httpStatus: 400 を埋め込んで返す
+  TRANSCRIPT_EXPORT_INVALID_PART: 400,
   // 401
   UNAUTHORIZED: 401,
   AUTH_INVALID_CREDENTIALS: 401,
@@ -58,8 +62,10 @@ const ERROR_CODE_TO_STATUS: Record<string, number> = {
   AUTH_CONSENT_IRREVOCABLE: 422,
   TRANSCRIPT_EXPORT_EMPTY: 422,
   SUPPORT_INVALID_BODY: 422,
-  // TRANSCRIPT_EXPORT_TOO_LARGE: transcript facade (packages/transcript/src/facade.ts) は
-  // httpStatus: 422 を埋め込んで返すため、それに合わせる (旧 507 は facade の実値と不一致だった)
+  // M-3: TRANSCRIPT_EXPORT_TOO_LARGE (1000 セグメント超のハードエラー) は分割エクスポート
+  // 実装により facade から返されなくなった (TRANSCRIPT_EXPORT_INVALID_PART に置き換え、
+  // 400 グループ参照)。マッピングは既存クライアント互換のため残す (facade は返さないが、
+  // 万一古いキャッシュ/別経路から来ても 422 として扱われる)。
   TRANSCRIPT_EXPORT_TOO_LARGE: 422,
   // 429
   RATE_LIMITED: 429,

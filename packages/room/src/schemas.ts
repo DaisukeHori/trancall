@@ -107,3 +107,50 @@ export const UpsertParticipantCommandSchema = z.object({
   joinedAt: z.iso.datetime().nullable(),
 });
 export type UpsertParticipantCommand = z.infer<typeof UpsertParticipantCommandSchema>;
+
+// ---------------------------------------------------------------------------
+// L-13: 通話履歴 (docs/api-spec.md GET /api/rooms/history)
+// ---------------------------------------------------------------------------
+
+export const RoomHistoryParticipantSchema = z.object({
+  userId: UserIdSchema,
+  displayName: z.string(),
+  trancallId: z.string(),
+  avatarUrl: z.url().nullable(),
+  isHost: z.boolean(),
+});
+export type RoomHistoryParticipant = z.infer<typeof RoomHistoryParticipantSchema>;
+
+export const RoomHistoryEntrySchema = z.object({
+  roomId: RoomIdSchema,
+  // history は ended のみ返す
+  status: z.literal("ended"),
+  roomType: z.enum(["audio", "video"]),
+  translationEnabled: z.boolean(),
+  // trancall_room.rooms に status='active' 遷移時刻を持つ列がないため、
+  // 現状は rooms.created_at を startedAt として扱う (近似値、docs/api-spec.md 注記)
+  startedAt: z.iso.datetime(),
+  endedAt: z.iso.datetime(),
+  durationSeconds: z.number().int().nonnegative(),
+  // 自分を含む参加者全員 (実際に join した = joined_at !== null の行のみ)
+  participants: z.array(RoomHistoryParticipantSchema).min(1),
+  myRole: ParticipantRoleSchema,
+  // 当該通話の billing usage 合計 (円)。enrichment repository 未注入時は 0 固定
+  costYen: z.number().int().nonnegative(),
+  // transcript_access.can_view=true なら true。enrichment repository 未注入時は false 固定
+  hasTranscript: z.boolean(),
+});
+export type RoomHistoryEntry = z.infer<typeof RoomHistoryEntrySchema>;
+
+export const RoomHistoryResponseSchema = z.object({
+  rooms: z.array(RoomHistoryEntrySchema),
+  // 次ページ取得用カーソル (現ページ最古 entry の startedAt)。null = これ以上なし
+  nextCursor: z.iso.datetime().nullable(),
+});
+export type RoomHistoryResponse = z.infer<typeof RoomHistoryResponseSchema>;
+
+export const GetRoomHistoryQuerySchema = z.object({
+  limit: z.number().int().min(1).max(50),
+  before: z.iso.datetime().optional(),
+});
+export type GetRoomHistoryQuery = z.infer<typeof GetRoomHistoryQuerySchema>;

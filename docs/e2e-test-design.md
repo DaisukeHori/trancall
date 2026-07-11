@@ -83,7 +83,6 @@ E2E は **下位 3 層でカバー不能な統合パスのみ** を対象とす�
 - 通話の **両端末同時** 実態 → 1 端末 + Mock peer で代替
 - WCAG 2.1 AA コントラスト比の自動検証 → 専用ツール (axe-core 等) で別途、または手動チェック
 - CONTACT-002 (QR コード追加) → 実装が Sprint 2/Phase 2 のため当面手動
-- ROOM-009/010 (通話履歴一覧 / 履歴から再発信) → `GET /api/rooms/history` が Sprint 2 実装のため未対応
 
 ---
 
@@ -355,7 +354,12 @@ Phase 1a で **本書作成のみ**、コードは 0 行追加。Sprint 1 のス
 
 ## 11. 既知の未解決事項
 
-1. **DataChannel 直注入の API 設計**: `apps/mobile/src/lib/livekit/` がまだ未実装 (Layer 4-C で initial 実装中)。Phase 1b 開始時に `__e2e_pushSubtitleDelta` 注入口を確定する必要あり。
+1. **DataChannel 直注入の API 設計 (M-11 で確定・実装)**: `apps/mobile/src/lib/livekit/` は Layer 4-C で実装済み。`__e2e_pushSubtitleDelta` 注入口は `apps/mobile/src/lib/e2e/subtitle-injection.ts` として実装した。
+   - **API**: `globalThis.__e2e_pushSubtitleDelta({ sourceLang, targetLang, text, isFinal, sessionId?, elapsedMs? })`。`sourceLang`/`targetLang` は `OutputLanguage` (shared-kernel)、他は `subtitle.delta` payload の最小形。
+   - **変換経路**: 入力を `TranslationStatusChannelPayloadSchema` の `subtitle.delta` variant と同じ wire shape に組み立て、本番の Data Channel 受信時と全く同じ `parseSubtitleDelta()` (`apps/mobile/src/lib/livekit/subtitles.ts`) に通してから `useSubtitleStore.receivePartialDelta()` を呼ぶ。side ("me"/"peer") 判定も本番と同一ロジック (呼び出し時点の `useAuthStore` の `profile.native_language` を使用)。
+   - **ガード**: `isE2eTestMode()` (`apps/mobile/src/api/auth-api.ts` の既存 `EXPO_PUBLIC_E2E_TEST_MODE==="true"` フラグを再利用) が false の間は `globalThis.__e2e_pushSubtitleDelta` は一切生成されない。`registerE2ESubtitleInjection()` を `App.tsx` 起動時に一度だけ呼ぶ。
+   - **単体テスト**: `apps/mobile/__tests__/e2e-subtitle-injection.test.ts` (有効ペイロード/無効ペイロード/未 hydrate プロフィールのフォールバック/本番ガードの 4 観点)。
+   - **残課題 (Phase 1b 実装時に決定)**: Maestro flow (`.yaml`) から実機/シミュレータ上で稼働する RN アプリの `globalThis` へどう到達するかは未確定。本リポジトリの既存 Maestro スクリプト (`apps/mobile/e2e/maestro/scripts/*.js`) は `fetch()` で `apps/mock-server` の REST エンドポイントを叩くパターンのみを使っており (Node 側で動く `runScript`、アプリの JS スレッドには直接アクセスできない)、mock-server 側の `POST /api/__e2e__/inject-subtitle-delta` (§4.2、現状 stub) をアプリが E2E モード時にポーリングして `pushSubtitleDelta()` を呼ぶブリッジを追加するか、Metro の remote JS console 経由で `evaluateJavascript` するか等、具体的な配線方式は H-3 (LiveKit 実接続配線、未着手) の解消と合わせて Phase 1b で確定する。
 2. **Maestro 実機 flaky 計測**: 採用判断は Sprint 2 Day 3 までに smoke 5 flow を回し、retry なしで 95%+ green が出るか確認。落ちる場合は Detox を再評価。
 3. **eas build E2E profile**: `eas.json` の `e2e` profile (環境変数、native module 差し替え) は Layer 4 完了後に作成。Phase 1a では雛形のみ docs に残す。
 4. **mock-server の TS 共有**: `apps/server` と shape を完全同期する仕組み。当面手動同期、Phase 1c で共通 schema パッケージ化を検討。

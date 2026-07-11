@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { PDFParse } from "pdf-parse";
 import { createExportService } from "../src/services/export-service.js";
 import type { ExportInput, RoomMeta } from "../src/services/export-service.js";
 import {
@@ -441,6 +442,73 @@ describe("ExportService", () => {
         // バイナリ PDF を文字列として走査し、フォント名の存在を検証する
         const pdfStr = buf.toString("latin1");
         expect(pdfStr).toContain("NotoSansArabic");
+      }
+    });
+  });
+
+  // ---------- L-5: PDF フッタ 'Page X of Y' ----------
+
+  describe("PDF フッタページ番号 (L-5)", () => {
+    it("test-19: 1 segment のみの短い transcript は 1 ページに収まり 'Page 1 of 1' になる", async () => {
+      const singleSegment = [makeSegment({})];
+      const result = await service.exportTranscript(
+        makeInput({ segments: singleSegment }),
+        "pdf",
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const buf = Buffer.from(result.data.contentBase64, "base64");
+      const parser = new PDFParse({ data: buf });
+      try {
+        const extracted = await parser.getText();
+        expect(extracted.total).toBe(1);
+        expect(extracted.pages[0]?.text).toContain("Page 1 of 1");
+      } finally {
+        await parser.destroy();
+      }
+    });
+
+    it("test-20: 複数ページにまたがる transcript は各ページに 'Page N of totalPages' が入る", async () => {
+      const participantC = mustOk(brandParticipantId("f47ac10b-58cc-4372-a567-0e02b2c3d495"));
+      // 十分に長い segments で確実に複数ページへ跨がせる (原文+翻訳とも長文)
+      const longSegments: TranscriptSegment[] = Array.from({ length: 60 }, (_, i) =>
+        makeSegment({
+          participantId: i % 2 === 0 ? PARTICIPANT_A : participantC,
+          speakerName: i % 2 === 0 ? "山田太郎" : "Long Speaker",
+          originalText: "これはページ跨ぎテスト用の長文です。".repeat(10),
+          translatedText: "This is a long sentence for pagination testing. ".repeat(10),
+          languagePair: "ja → en",
+          startTimeMs: i * 5000,
+          endTimeMs: i * 5000 + 4000,
+          sequenceNo: i,
+          segmentId: `f47ac10b-58cc-4372-a567-0e02b2c3d6${i.toString(16).padStart(2, "0")}`,
+          sourceEventId: `f47ac10b-58cc-4372-a567-0e02b2c3d7${i.toString(16).padStart(2, "0")}`,
+        }),
+      );
+
+      const result = await service.exportTranscript(
+        makeInput({ segments: longSegments }),
+        "pdf",
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const buf = Buffer.from(result.data.contentBase64, "base64");
+      const parser = new PDFParse({ data: buf });
+      try {
+        const extracted = await parser.getText();
+        // 60 segments の長文なら複数ページへ跨がるはず
+        expect(extracted.total).toBeGreaterThan(1);
+        for (let i = 0; i < extracted.pages.length; i++) {
+          const pageText = extracted.pages[i]?.text ?? "";
+          expect(pageText).toContain(`Page ${i + 1} of ${extracted.total}`);
+        }
+        // 最終ページの表記が総ページ数と一致する ('Page X of Y' の Y が固定値であること)
+        const lastPageText = extracted.pages[extracted.pages.length - 1]?.text ?? "";
+        expect(lastPageText).toContain(`Page ${extracted.total} of ${extracted.total}`);
+      } finally {
+        await parser.destroy();
       }
     });
   });

@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RoomRepository } from "@trancall/room";
+import type { FindEndedRoomsOptions, RoomRepository } from "@trancall/room";
 import type { RoomFacade } from "@trancall/room";
 import { type Result, type RoomId, type UserId, err, ok } from "@trancall/shared-kernel";
 
@@ -119,6 +119,62 @@ export function createRoomRepository(supabase: SupabaseClient): RoomRepository {
         return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
       }
       return parseRow(data as Record<string, unknown>);
+    },
+
+    // L-13: 通話履歴 (docs/api-spec.md GET /api/rooms/history)。
+    // trancall_room.participants と trancall_room.rooms は同一モジュール (room) が
+    // 所有するため、2 クエリで完結させる (他モジュールのテーブルは一切参照しない)。
+    // 1) 対象ユーザーが参加した room_id 一覧を取得
+    // 2) それらのうち status='ended' かつ since/before の範囲内の行を新しい順に limit 件
+    async findEndedByParticipantId(
+      userId: UserId,
+      opts: FindEndedRoomsOptions,
+    ): Promise<Result<RoomRow[]>> {
+      const { data: participantRows, error: participantError } = await supabase
+        .schema("trancall_room")
+        .from("participants")
+        .select("room_id")
+        .eq("user_id", userId);
+
+      if (participantError) {
+        return err({ code: "INTERNAL_ERROR", message: participantError.message, retryable: true });
+      }
+      const roomIds = [
+        ...new Set(
+          (participantRows as Array<{ room_id: string }>).map((r) => r.room_id),
+        ),
+      ];
+      if (roomIds.length === 0) {
+        return ok([]);
+      }
+
+      let query = supabase
+        .schema("trancall_room")
+        .from("rooms")
+        .select("*")
+        .in("room_id", roomIds)
+        .eq("status", "ended")
+        .order("created_at", { ascending: false })
+        .limit(opts.limit);
+
+      if (opts.since != null) {
+        query = query.gte("created_at", opts.since);
+      }
+      if (opts.before != null) {
+        query = query.lt("created_at", opts.before);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
+      }
+
+      const rows: RoomRow[] = [];
+      for (const row of data as Record<string, unknown>[]) {
+        const parsed = parseRow(row);
+        if (parsed.ok) rows.push(parsed.data);
+      }
+      return ok(rows);
     },
   };
 }
