@@ -22,6 +22,7 @@ import { Badge, Button, useTheme } from "@trancall/ui-kit";
 import { useTranslation } from "../i18n/index";
 import { StatsCard, StatsRow } from "../components/stats-card";
 import { CostSummary } from "../components/CostSummary";
+import { navigateToSubscriptionScreen } from "../navigation/navigation-ref";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 // ---------------------------------------------------------------------------
@@ -103,8 +104,9 @@ export function CallSummaryScreen({ navigation, route }: Props) {
   const hasOverage = resolvedOverageCostYen > 0;
 
   const handleUpgradeSuggestion = () => {
-    // TODO: Settings → Subscription 画面へのナビゲーション (Sprint 3 settings-subscription-screen)
-    navigation.popToTop();
+    // M-5: Settings → Subscription 画面 (settings-subscription-screen.tsx、実装済み) へ
+    // cross-stack ナビゲーションする。pre-call-screen.tsx と同じ共通ヘルパー。
+    navigateToSubscriptionScreen();
   };
 
   const handleViewTranscript = () => {

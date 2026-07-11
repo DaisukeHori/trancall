@@ -27,6 +27,7 @@ import {
 import { useRecentCallsStore } from "../stores/recent-calls-store";
 import { PreCallCostEstimate } from "../components/PreCallCostEstimate";
 import { createCall } from "../api/room-api";
+import { navigateToSubscriptionScreen } from "../navigation/navigation-ref";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { CallStackParamList } from "../navigation/call-overlay";
 
@@ -76,10 +77,9 @@ export function PreCallScreen({ route, navigation }: Props) {
     costEstimate != null && costEstimate.recommendedAction === "upgrade";
 
   const handleUpgrade = () => {
-    // TODO: Settings → Subscription 画面への cross-stack ナビゲーションは
-    // Subscription 画面実装後 (T-18 以降) に実装予定。
-    // 現状はキャンセルして戻る (課金ブロック)。
-    navigation.goBack();
+    // M-5: Settings → Subscription 画面 (settings-subscription-screen.tsx、実装済み) へ
+    // cross-stack ナビゲーションする。
+    navigateToSubscriptionScreen();
   };
 
   const handleProceedFromOverage = () => {
