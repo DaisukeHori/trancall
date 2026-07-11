@@ -173,6 +173,9 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
     size: "A4",
     margins: PAGE_MARGINS,
     autoFirstPage: false,
+    // L-5: 'Page X of Y' フッタ描画のため、全ページ生成後に switchToPage で
+    // 戻れるようにページをバッファリングする (pdfkit の標準機能)
+    bufferPages: true,
     info: {
       Title: `TranCall Transcript - ${roomMeta.roomId.slice(0, 8)}`,
       Author: "TranCall",
@@ -206,13 +209,9 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
     ...roomMeta.otherNames,
   ].join(", ");
 
-  let currentPage = 0;
-  let totalPages = 0; // 後で差し替え (pdfkit は ahead estimation 不可のため placeholder)
-
   // ページ追加ヘルパー
   const addPage = () => {
     doc.addPage({ size: "A4", margins: PAGE_MARGINS });
-    currentPage++;
     drawHeader();
   };
 
@@ -236,23 +235,44 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
       .stroke();
   };
 
-  // フッタ描画（ページ番号はテキスト + 暫定番号）
-  const drawFooter = (pageNum: number) => {
+  // フッタ描画（L-5: pdfkit は ahead estimation ができず総ページ数がこの時点で
+  // 未確定のため、1 パス目では区切り線のみ描画する。ページ番号テキストは全ページ
+  // 生成完了後、bufferPages + switchToPage で各ページに戻り 'Page X of Y' として
+  // 第 2 パスで描画する（下記 drawFooterPageNumbers 参照）)
+  const drawFooter = () => {
     const y = PAGE_HEIGHT - PAGE_MARGINS.bottom - FOOTER_H + 4;
     doc
       .moveTo(PAGE_MARGINS.left, y - 4)
       .lineTo(PAGE_WIDTH - PAGE_MARGINS.right, y - 4)
       .strokeColor("#cccccc")
       .stroke();
-    doc
-      .font("Regular")
-      .fontSize(8)
-      .fillColor("#888888")
-      .text(`Page ${pageNum}`, PAGE_MARGINS.left, y, { width: CONTENT_WIDTH / 2 })
-      .text("TranCall (c) 2026", PAGE_MARGINS.left + CONTENT_WIDTH / 2, y, {
-        width: CONTENT_WIDTH / 2,
-        align: "right",
-      });
+  };
+
+  // L-5: 全ページ生成完了後に呼び出し、各ページのフッタへ 'Page X of Y' を描画する。
+  // 総ページ数は doc.bufferedPageRange().count (pdfkit 自身が把握する実際の物理ページ数)
+  // を正とする — .text() は height 制約なしで呼ぶと内容が収まらない場合に pdfkit が
+  // 内部で自動的に addPage() することがあり (1 セグメントの原文/訳文が極端に長い場合等)、
+  // 本モジュールが明示的に呼んだ addPage() 回数だけでは実際のページ数を数え切れない。
+  // bufferedPageRange() は暗黙のページ追加も含めた実数を返すため、これを唯一の正とする。
+  const drawFooterPageNumbers = () => {
+    const y = PAGE_HEIGHT - PAGE_MARGINS.bottom - FOOTER_H + 4;
+    const range = doc.bufferedPageRange();
+    const totalPagesCount = range.count;
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      const pageNum = i - range.start + 1;
+      doc
+        .font("Regular")
+        .fontSize(8)
+        .fillColor("#888888")
+        .text(`Page ${pageNum} of ${totalPagesCount}`, PAGE_MARGINS.left, y, {
+          width: CONTENT_WIDTH / 2,
+        })
+        .text("TranCall (c) 2026", PAGE_MARGINS.left + CONTENT_WIDTH / 2, y, {
+          width: CONTENT_WIDTH / 2,
+          align: "right",
+        });
+    }
   };
 
   // メタ情報ブロック描画
@@ -308,7 +328,7 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
     const estimatedHeight = 14 + 15 + (transText ? 15 : 0) + 8;
 
     if (y + estimatedHeight > BODY_BOTTOM) {
-      drawFooter(currentPage);
+      drawFooter();
       addPage();
       y = BODY_TOP;
     }
@@ -352,7 +372,7 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
     `プライバシーポリシー v${input.privacyVersion} に同意のうえ生成されました。`;
 
   if (y + 30 > BODY_BOTTOM) {
-    drawFooter(currentPage);
+    drawFooter();
     addPage();
     y = BODY_TOP;
   }
@@ -368,10 +388,12 @@ async function generatePDF(input: ExportInput): Promise<Buffer> {
     .fillColor("#888888")
     .text(consentText, PAGE_MARGINS.left, y, { width: CONTENT_WIDTH });
 
-  // 最終ページのフッタ
-  drawFooter(currentPage);
-  totalPages = currentPage;
-  void totalPages; // 変数使用（ページ数は動的差し替えのため今は参照のみ）
+  // 最終ページのフッタ（区切り線のみ、ページ番号は下記第 2 パスで描画）
+  drawFooter();
+
+  // L-5: 全ページ生成完了後、bufferedPageRange() から総ページ数を確定して
+  // 各ページに 'Page X of Y' を描画する
+  drawFooterPageNumbers();
 
   return streamToBuffer(doc);
 }
