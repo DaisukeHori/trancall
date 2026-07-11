@@ -645,30 +645,25 @@ Supabase Dashboard → Table Editor → schema=`trancall_event` → `agent_metri
 - Dashboard → Logs → Postgres / API / Auth 別ビュー
 - 高負荷時のスロークエリは Phase 1c で pg_stat_statements 拡張
 
-### 11.4 Phase 1a の横断調査
+### 11.4 横断調査
 
-> **前提**: 本節の `correlation_id` フィルタおよび `ENVIRONMENT` タグは Sprint 2 内の別タスクで config.ts / logger 実装を追加したのちに有効化される。Phase 1a (本 dry-run 実施時点) では未実装のため、`timestamp` 範囲 + `service` 名 + `room_id` で代替相関を取る。
+> **実装済み (L-15)**: `apps/server` の `correlation_id` (リクエスト単位) と `ENVIRONMENT` タグは実装完了。`apps/translation-agent` 側への `correlation_id` 伝搬 (Server → Agent HMAC リクエストへの付与) は本タスクのスコープ外のため未実装のまま (§11.4.2 手順 2 は Phase 1b で apps/translation-agent 側を対応する追加タスクとして残る)。
 
 3 サービス (Render / Vercel / Supabase) のログは別々の Dashboard に分かれる。
 
-#### 11.4.1 Phase 1a (現在の暫定運用)
+#### 11.4.1 apps/server 側の実装内容 (L-15)
 
-`correlation_id` は未実装のため、`timestamp` 範囲 (UTC 時刻帯) + `service` 名 + `room_id` を手掛かりに各 Dashboard を横断検索する手動運用とする:
+- `apps/server/src/config.ts`: `ENVIRONMENT` 環境変数 (`development` | `staging` | `production`、既定 `development`) を Zod で検証。
+- `apps/server/src/logger.ts`: `setLoggerEnvironment()` (起動時に一度呼ぶ) で `environment` フィールドを全ログ行に付与。`enterCorrelationId()` / `getCorrelationId()` (Node `AsyncLocalStorage`) でリクエスト単位の `correlation_id` を全ログ行に自動付与 (呼び出しチェーンへの明示的なバケツリレー不要)。
+- `apps/server/src/middleware/correlation-id-middleware.ts`: `onRequest` フックで `x-correlation-id` リクエストヘッダーがあれば再利用、なければ UUID v4 を新規生成し、`request.correlationId` に格納 + `enterCorrelationId()` でログコンテキストに設定 + レスポンスヘッダー `x-correlation-id` としても返す。
+- 適用箇所: `apps/server/src/app.ts` (Fastify) / `apps/server/api/index.ts` (Vercel serverless entrypoint) の双方で `setLoggerEnvironment(config.ENVIRONMENT)` を起動時に呼ぶ。
 
-1. インシデント発生時刻の UTC 時刻帯を特定する
-2. Render Logs → 時刻帯で絞り込み → `room_id` でフィルタして Agent 側ログを確認
-3. Vercel Logs → 同時刻帯で絞り込み → `room_id` でフィルタして Server 側ログを確認
-4. Supabase Logs → Postgres / API タブで同時刻帯の SQL を確認
-5. 3 つの Dashboard のログを時系列で突き合わせてエラー箇所を特定する
+#### 11.4.2 横断調査手順
 
-#### 11.4.2 Phase 1b 以降 (correlation_id 実装後)
-
-Sprint 2 内の別タスクで logger に `correlation_id` を追加した後は、以下の手順で横断調査が可能になる:
-
-1. Mobile → Server リクエスト時に `correlation_id` (UUID v4) を生成し HTTP header に付与
-2. Server → Agent HMAC リクエストにも `correlation_id` を伝搬
-3. 各サービスのログには `{ "correlation_id": "...", ... }` を JSON Lines で出力
-4. インシデント調査時は Render Logs / Vercel Logs / Supabase Logs それぞれで `correlation_id` を検索
+1. Mobile → Server リクエスト時に `correlation_id` (UUID v4) を HTTP header (`x-correlation-id`) に付与すると、Server 側がそれを再利用する (未付与時は Server 側で新規生成しレスポンスヘッダーで返すので、mobile 側は初回はレスポンスヘッダーから拾って以降のリクエストに伝搬する運用も可能)
+2. Server → Agent HMAC リクエストへの `correlation_id` 伝搬は **未実装** (apps/translation-agent 側の対応が別タスクとして必要)
+3. apps/server のログには `{ "correlation_id": "...", "environment": "...", ... }` を JSON Lines で出力
+4. インシデント調査時は Vercel Logs (apps/server) で `correlation_id` を検索。Render Logs (apps/translation-agent) は手順 2 が未実装のため、引き続き `timestamp` 範囲 + `room_id` で代替相関を取る (§11.4.1 旧 Phase 1a 運用を継続)
 
 Phase 1b で Sentry または Datadog Logs に集約予定。
 
@@ -718,9 +713,9 @@ Phase 1b で Sentry または Datadog Logs に集約予定。
 9. **Supabase Free tier の制限**: バックアップ機能なし (誤 migration / データ誤削除は復元不可)、同時 DB 接続数 60 上限。Phase 1a の staging は使い捨て前提、production 切替前に必ず Pro plan に移行。
    Mitigation: Phase 1a dry-run 期間中はステータスを「使い捨て staging」と位置づけ、マイグレーション前に SQL ダンプを手動バックアップする。
 10. **NODE_ENV と ENVIRONMENT の役割分離**: Render/Vercel に投入する `NODE_ENV` は config.ts Zod enum (development/test/production) 制約のため `production` 固定。staging/prod の論理的環境識別は別途 `ENVIRONMENT` 環境変数で行う。
-    Mitigation: `NODE_ENV` は Zod enum 制約により誤設定が起動時に検出される。`ENVIRONMENT` の Zod validation 追加は §13 #11 の Sprint 2 別タスクで対応する。
-11. **`ENVIRONMENT` / `correlation_id` 未実装 (Sprint 2 内タスク)**: `ENVIRONMENT` 環境変数は `apps/translation-agent/src/config.ts` および `apps/server/src/config.ts` のいずれにも未定義 (2026-05-12 時点)。`correlation_id` も両サービスの logger で未実装。§11.4 の横断調査フローは実装完了後に有効化される。
-   Mitigation: 本 PR では実装変更を行わず、Sprint 2 内の別タスク (config.ts + logger 修正) として管理し、チケットで追跡する。
+    Mitigation: `NODE_ENV` は Zod enum 制約により誤設定が起動時に検出される。`ENVIRONMENT` の Zod validation は apps/server 側で実装済み (L-15、§13 #11 参照)。apps/translation-agent 側は未対応のまま残っている。
+11. **`ENVIRONMENT` / `correlation_id` — apps/server は実装済み (L-15)、apps/translation-agent は未実装**: `apps/server/src/config.ts` に `ENVIRONMENT` を追加し、`apps/server/src/logger.ts` / `middleware/correlation-id-middleware.ts` で `environment` タグとリクエスト単位の `correlation_id` を全ログ行に付与するようになった (§11.4.1)。`apps/translation-agent/src/config.ts` には `ENVIRONMENT` 変数がまだ無く、Server → Agent 方向への `correlation_id` 伝搬も未実装のため、Agent 側ログとの横断調査は引き続き `timestamp` + `room_id` の代替相関に依存する。
+   Mitigation: apps/translation-agent 側の `ENVIRONMENT` + `correlation_id` 対応 (HMAC リクエストヘッダーでの伝搬含む) を Phase 1b の別タスクとしてチケット化する。
 
 ---
 

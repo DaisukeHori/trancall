@@ -12,6 +12,7 @@ import type { Config } from "../../config.js";
 const TEST_CONFIG: Config = {
   PORT: 3001,
   NODE_ENV: "test",
+  ENVIRONMENT: "development",
   SUPABASE_URL: "https://test.supabase.co",
   SUPABASE_SERVICE_ROLE_KEY: "test-service-key",
   LIVEKIT_URL: "wss://livekit.test",

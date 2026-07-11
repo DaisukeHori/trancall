@@ -12,6 +12,10 @@ const ConfigSchema = z.object({
   // Server
   PORT: z.string().default("3000").transform(Number),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  // L-15: 論理環境識別用 (NODE_ENV は Render/Vercel では常に "production" 固定になるため
+  // staging/production を区別できない、docs/deployment-render-dryrun.md §13 #10)。
+  // ログの `environment` フィールドに使う (§11.4 横断調査)。
+  ENVIRONMENT: z.enum(["development", "staging", "production"]).default("development"),
 
   // Supabase
   SUPABASE_URL: z.url(),

@@ -11,6 +11,7 @@ import type { AppContainer } from "./container.js";
 import { registerAuthMiddleware } from "./middleware/auth-middleware.js";
 import { registerErrorHandler } from "./middleware/error-handler.js";
 import { registerRawBodyParser } from "./middleware/raw-body-parser.js";
+import { registerCorrelationIdMiddleware } from "./middleware/correlation-id-middleware.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerContactRoutes } from "./routes/contact-routes.js";
 import { registerRoomRoutes } from "./routes/room-routes.js";
@@ -58,6 +59,10 @@ export async function buildApp(
     // 落ちるため、実際の構成と一致させることが重要 (Fastify trustProxy オプション参照)。
     trustProxy: 1,
   });
+
+  // L-15: correlation_id をリクエストごとに発番/伝搬する (以降の全ミドルウェア・
+  // ルートハンドラでの logger 呼び出しに自動付与されるよう、なるべく早い段階で登録する)
+  registerCorrelationIdMiddleware(fastify);
 
   // セキュリティ
   await fastify.register(helmet, {
