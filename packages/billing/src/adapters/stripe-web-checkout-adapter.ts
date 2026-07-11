@@ -54,12 +54,19 @@ export function createStripeWebCheckoutAdapter(config: StripeWebCheckoutConfig) 
      * @param targetTier 購入目標プラン
      * @param channel 購入チャネル (stripe_web / storekit_external)
      * @param customerEmail オプション: Stripe Checkout 画面にあらかじめ表示するメール
+     * @param redirectToken [#44] StoreKit External Purchase フロー (storekit_external)
+     *   専用: ExternalPurchaseAdapter.generateRedirectToken() で事前生成した redirectToken。
+     *   指定時は success_url / returnUrl のクエリパラメータ (`redirect_token`) に埋め込む。
+     *   これにより、Stripe 決済完了後のリダイレクト経由でクライアントが redirectToken を
+     *   受け取れるようになる (従来は session_id しか埋め込まれておらず、redirectToken は
+     *   別呼び出しで生成されるため実際のクライアントには渡らないバグがあった)。
      */
     async createCheckoutSession(
       userId: string,
       targetTier: PlanTier,
       channel: "stripe_web" | "storekit_external",
       customerEmail?: string,
+      redirectToken?: string,
     ): Promise<Result<CheckoutSessionViewModel>> {
       if (targetTier === "free") {
         return err({
@@ -79,11 +86,21 @@ export function createStripeWebCheckoutAdapter(config: StripeWebCheckoutConfig) 
       }
 
       try {
+        // [#44] redirectToken が指定されている場合 (storekit_external フロー) は、
+        // success_url / returnUrl のクエリパラメータに redirect_token として埋め込む。
+        // これは Stripe Checkout Session 作成 **前** に redirectToken を生成しておく必要がある
+        // (ExternalPurchaseAdapter.generateRedirectToken() を参照) —
+        // success_url は Session 作成時にしか設定できず、事後に token を追記する方法はないため。
+        const successUrlQuery =
+          redirectToken !== undefined
+            ? `?session_id={CHECKOUT_SESSION_ID}&redirect_token=${redirectToken}`
+            : `?session_id={CHECKOUT_SESSION_ID}`;
+
         const sessionParams: Stripe.Checkout.SessionCreateParams = {
           mode: "subscription",
           line_items: [{ price: priceId, quantity: 1 }],
-          // success_url は session_id を含める (deep link 戻り先)
-          success_url: `${config.successUrl}?session_id={CHECKOUT_SESSION_ID}`,
+          // success_url は session_id (+ #44: redirectToken 指定時は redirect_token) を含める (deep link 戻り先)
+          success_url: `${config.successUrl}${successUrlQuery}`,
           cancel_url: config.cancelUrl,
           metadata: {
             userId,
@@ -110,12 +127,17 @@ export function createStripeWebCheckoutAdapter(config: StripeWebCheckoutConfig) 
           Date.now() + 24 * 60 * 60 * 1000,
         ).toISOString();
 
+        const returnUrlQuery =
+          redirectToken !== undefined
+            ? `?session_id=${session.id}&redirect_token=${redirectToken}`
+            : `?session_id=${session.id}`;
+
         const viewModel: CheckoutSessionViewModel = {
           checkoutUrl: session.url,
           sessionId: session.id,
           expiresAt,
           targetTier,
-          returnUrl: `${config.successUrl}?session_id=${session.id}`,
+          returnUrl: `${config.successUrl}${returnUrlQuery}`,
         };
 
         return ok(viewModel);

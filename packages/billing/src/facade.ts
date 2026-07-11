@@ -805,26 +805,35 @@ export function createBillingFacade(deps: BillingFacadeDeps): BillingFacade {
       userId: UserId,
       targetTier: PlanTier,
     ): Promise<Result<{ redirectUrl: string }>> {
-      // 1. Stripe Checkout Session 作成 (stripe_web ではなく storekit_external チャネル)
+      // 1. [#44] redirectToken を Stripe Checkout Session 作成前に生成する。
+      // success_url は Session 作成時にしか設定できないため、redirectToken を
+      // success_url に埋め込むには生成の順序が重要 (DB への保存は sessionId 確定後に行う)。
+      const redirectToken = externalPurchaseAdapter.generateRedirectToken();
+
+      // 2. Stripe Checkout Session 作成 (stripe_web ではなく storekit_external チャネル)。
+      // [#44] redirectToken を渡すことで success_url に埋め込まれる。
       const checkoutResult = await stripeWebCheckoutAdapter.createCheckoutSession(
         userId,
         targetTier,
         "storekit_external",
+        undefined,
+        redirectToken,
       );
       if (!checkoutResult.ok) return checkoutResult;
 
       const { checkoutUrl, sessionId } = checkoutResult.data;
 
-      // 2. ExternalPurchaseAdapter で redirectToken 生成 + DB 保存 + Apple API 報告
-      const startResult = await externalPurchaseAdapter.startExternalPurchase(
+      // 3. ExternalPurchaseAdapter で redirectToken を DB 保存 + Apple API 報告
+      const persistResult = await externalPurchaseAdapter.persistRedirectToken(
         userId,
         targetTier,
         checkoutUrl,
         sessionId,
+        redirectToken,
       );
-      if (!startResult.ok) return startResult;
+      if (!persistResult.ok) return persistResult;
 
-      return ok({ redirectUrl: startResult.data.redirectUrl });
+      return ok({ redirectUrl: persistResult.data.redirectUrl });
     },
 
     // =========================================================================

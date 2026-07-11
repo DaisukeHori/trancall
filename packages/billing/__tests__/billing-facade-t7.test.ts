@@ -296,11 +296,15 @@ function makeMockIapAdapter(overrides: {
 }
 
 function makeMockExternalPurchaseAdapter(overrides: {
-  startExternalPurchase?: unknown;
+  generateRedirectToken?: unknown;
+  persistRedirectToken?: unknown;
   validateAndConsumeRedirectToken?: unknown;
 } = {}): ExternalPurchaseAdapter {
   return {
-    startExternalPurchase: overrides.startExternalPurchase ?? vi.fn().mockResolvedValue({
+    // [#44] Stripe Checkout Session 作成前に呼ばれる同期メソッド
+    generateRedirectToken: overrides.generateRedirectToken ?? vi.fn().mockReturnValue("a".repeat(64)),
+    // [#44] Stripe Checkout Session 作成後 (sessionId 確定後) に呼ばれる
+    persistRedirectToken: overrides.persistRedirectToken ?? vi.fn().mockResolvedValue({
       ok: true,
       data: {
         redirectUrl: "https://checkout.stripe.com/test_ext",
@@ -701,6 +705,65 @@ describe("BillingFacade.startExternalPurchase", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.redirectUrl).toContain("checkout.stripe.com");
+  });
+
+  it("#44 正常系: redirectToken が Stripe Checkout Session 作成前に生成され、success_url 埋め込み用に渡される", async () => {
+    const userId = makeUserId();
+    const generateRedirectTokenMock = vi.fn().mockReturnValue("f".repeat(64));
+    const createCheckoutSessionMock = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        checkoutUrl: "https://checkout.stripe.com/test_ext",
+        sessionId: "cs_ext_002",
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        targetTier: "standard",
+        returnUrl: "trancall://billing/external-success?session_id=cs_ext_002&redirect_token=" + "f".repeat(64),
+      },
+    });
+    const persistRedirectTokenMock = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { redirectUrl: "https://checkout.stripe.com/test_ext", redirectToken: "f".repeat(64) },
+    });
+    const deps = makeDeps({
+      externalPurchaseAdapter: makeMockExternalPurchaseAdapter({
+        generateRedirectToken: generateRedirectTokenMock,
+        persistRedirectToken: persistRedirectTokenMock,
+      }),
+      stripeWebCheckoutAdapter: makeMockStripeWebCheckoutAdapter({
+        createCheckoutSession: createCheckoutSessionMock,
+      }),
+    });
+    const facade = createBillingFacade(deps);
+
+    const result = await facade.startExternalPurchase(userId, "standard");
+
+    expect(result.ok).toBe(true);
+    // 生成 → Stripe Checkout Session 作成 (redirectToken を渡す) → 永続化、の順序で呼ばれること
+    // (vitest の mock.invocationCallOrder で呼び出し順序を検証する)
+    const genOrder = generateRedirectTokenMock.mock.invocationCallOrder[0];
+    const createOrder = createCheckoutSessionMock.mock.invocationCallOrder[0];
+    const persistOrder = persistRedirectTokenMock.mock.invocationCallOrder[0];
+    expect(genOrder).toBeDefined();
+    expect(createOrder).toBeDefined();
+    expect(persistOrder).toBeDefined();
+    expect(genOrder as number).toBeLessThan(createOrder as number);
+    expect(createOrder as number).toBeLessThan(persistOrder as number);
+
+    expect(createCheckoutSessionMock).toHaveBeenCalledWith(
+      userId,
+      "standard",
+      "storekit_external",
+      undefined,
+      "f".repeat(64),
+    );
+    // 作成後に確定した sessionId と、事前生成済みトークンが persistRedirectToken に渡されること
+    expect(persistRedirectTokenMock).toHaveBeenCalledWith(
+      userId,
+      "standard",
+      "https://checkout.stripe.com/test_ext",
+      "cs_ext_002",
+      "f".repeat(64),
+    );
   });
 
   it("異常系: Stripe API 失敗で BILLING_PAYMENT_FAILED", async () => {
