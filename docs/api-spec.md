@@ -113,6 +113,16 @@ Rate limit: 10 req/min
 Response: { "ok": true, "data": { "url": "https://trancall.app/invite/abc123", "expiresAt": "..." } }
 ```
 
+### POST /api/contacts/invites/:token/consume
+
+Issue #72.4 で追加。招待リンクのトークンを消費し、リンク発行者を呼び出しユーザーの連絡先に追加する（`ContactFacade.consumeInviteLink` を呼ぶ）。
+
+```
+Path params: token (招待トークン、必須)
+Response 200: { "ok": true, "data": ContactEntry }
+Error: VALIDATION_ERROR (token 欠落), CONTACT_NOT_FOUND (トークン無効/期限切れ), CONTACT_ALREADY_EXISTS
+```
+
 ### POST /api/contacts/block
 
 ```
