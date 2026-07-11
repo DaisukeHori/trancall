@@ -7,15 +7,22 @@ export type {
   ProfileRepository,
   ConsentRepository,
   LegalDocumentVersionRepository,
+  ProfileWriteRepository,
+  ProfileUpdateFields,
+  LegacyConsentRepository,
+  ProfileDeletionRepository,
+  ProfileDeletionStatus,
   AuthEventBus,
   CreateAuthFacadeOptions,
 } from "./facade.ts";
 
 export {
+  AuthUserRegisteredEventSchema,
   AuthConsentRecordedEventSchema,
   AuthConsentRevokedEventSchema,
 } from "./events.ts";
 export type {
+  AuthUserRegisteredEvent,
   AuthConsentRecordedEvent,
   AuthConsentRevokedEvent,
   AuthDomainEvent,

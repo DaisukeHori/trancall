@@ -3,12 +3,17 @@
  *
  * POST /api/account/delete  — soft delete + grace period
  * POST /api/account/restore — 30日以内なら復元 / 期限切れは 410
+ *
+ * Issue #72.1: account-routes.ts は AuthFacade.getProfileDeletionStatus /
+ * setProfileDeletedAt 経由で trancall_auth.profiles.deleted_at を読み書きするように
+ * 変更されたため、直接 supabase をモックするのではなく auth facade をモックする。
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildTestApp } from "./helpers/test-app.js";
 import { createMockContainer } from "./helpers/mock-container.js";
+import { ok } from "@trancall/shared-kernel";
 
 const AUTH_HEADER = { authorization: "Bearer mock-valid-token" };
 
@@ -18,41 +23,11 @@ const AUTH_HEADER = { authorization: "Bearer mock-valid-token" };
 
 describe("POST /api/account/delete", () => {
   let app: FastifyInstance;
-  let mockSchema: ReturnType<typeof vi.fn>;
-  let mockFrom: ReturnType<typeof vi.fn>;
 
   beforeAll(async () => {
     const container = createMockContainer();
-
-    // maybeSingle で deleted_at = null を返す (未退会)
-    const mockQueryChain = {
-      select: vi.fn(),
-      insert: vi.fn(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn(),
-      upsert: vi.fn(),
-      eq: vi.fn().mockReturnThis(),
-      is: vi.fn().mockReturnThis(),
-      not: vi.fn().mockReturnThis(),
-      lt: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-      maybeSingle: vi.fn().mockResolvedValue({ data: { deleted_at: null }, error: null }),
-    };
-    for (const key of Object.keys(mockQueryChain)) {
-      if (!["single", "maybeSingle"].includes(key)) {
-        const chain = mockQueryChain as Record<string, ReturnType<typeof vi.fn>>;
-        if (typeof chain[key]?.mockReturnValue === "function") {
-          chain[key]?.mockReturnValue(mockQueryChain);
-        }
-      }
-    }
-    mockFrom = vi.fn().mockReturnValue(mockQueryChain);
-    mockSchema = vi.fn().mockReturnValue({ from: mockFrom });
-
-    // supabase を上書き
-    const anyContainer = container as unknown as Record<string, unknown>;
-    const supabase = anyContainer["supabase"] as Record<string, unknown>;
-    supabase["schema"] = mockSchema;
+    // 未退会 (deleted_at = null)
+    container.auth.getProfileDeletionStatus = vi.fn().mockResolvedValue(ok({ deletedAt: null }));
 
     app = await buildTestApp(container);
   });
@@ -116,35 +91,9 @@ describe("POST /api/account/restore (grace period 内)", () => {
 
     // deleted_at を5日前に設定 (grace period 内)
     const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
-    const mockQueryChain = {
-      select: vi.fn(),
-      insert: vi.fn(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn(),
-      upsert: vi.fn(),
-      eq: vi.fn().mockReturnThis(),
-      is: vi.fn().mockReturnThis(),
-      not: vi.fn().mockReturnThis(),
-      lt: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-      maybeSingle: vi.fn().mockResolvedValue({
-        data: { deleted_at: fiveDaysAgo },
-        error: null,
-      }),
-    };
-    for (const key of Object.keys(mockQueryChain)) {
-      if (!["single", "maybeSingle"].includes(key)) {
-        const chain = mockQueryChain as Record<string, ReturnType<typeof vi.fn>>;
-        if (typeof chain[key]?.mockReturnValue === "function") {
-          chain[key]?.mockReturnValue(mockQueryChain);
-        }
-      }
-    }
-    const mockFrom = vi.fn().mockReturnValue(mockQueryChain);
-    const mockSchema = vi.fn().mockReturnValue({ from: mockFrom });
-    const anyContainer = container as unknown as Record<string, unknown>;
-    const supabase = anyContainer["supabase"] as Record<string, unknown>;
-    supabase["schema"] = mockSchema;
+    container.auth.getProfileDeletionStatus = vi
+      .fn()
+      .mockResolvedValue(ok({ deletedAt: fiveDaysAgo }));
 
     app = await buildTestApp(container);
   });
@@ -174,35 +123,9 @@ describe("POST /api/account/restore (grace period 超過)", () => {
 
     // deleted_at を 31 日前に設定 (grace period 超過)
     const thirtyOneDaysAgo = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
-    const mockQueryChain = {
-      select: vi.fn(),
-      insert: vi.fn(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn(),
-      upsert: vi.fn(),
-      eq: vi.fn().mockReturnThis(),
-      is: vi.fn().mockReturnThis(),
-      not: vi.fn().mockReturnThis(),
-      lt: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-      maybeSingle: vi.fn().mockResolvedValue({
-        data: { deleted_at: thirtyOneDaysAgo },
-        error: null,
-      }),
-    };
-    for (const key of Object.keys(mockQueryChain)) {
-      if (!["single", "maybeSingle"].includes(key)) {
-        const chain = mockQueryChain as Record<string, ReturnType<typeof vi.fn>>;
-        if (typeof chain[key]?.mockReturnValue === "function") {
-          chain[key]?.mockReturnValue(mockQueryChain);
-        }
-      }
-    }
-    const mockFrom = vi.fn().mockReturnValue(mockQueryChain);
-    const mockSchema = vi.fn().mockReturnValue({ from: mockFrom });
-    const anyContainer = container as unknown as Record<string, unknown>;
-    const supabase = anyContainer["supabase"] as Record<string, unknown>;
-    supabase["schema"] = mockSchema;
+    container.auth.getProfileDeletionStatus = vi
+      .fn()
+      .mockResolvedValue(ok({ deletedAt: thirtyOneDaysAgo }));
 
     app = await buildTestApp(container);
   });
@@ -231,32 +154,7 @@ describe("POST /api/account/restore (退会リクエストなし)", () => {
     const container = createMockContainer();
 
     // deleted_at = null (未退会)
-    const mockQueryChain = {
-      select: vi.fn(),
-      insert: vi.fn(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn(),
-      upsert: vi.fn(),
-      eq: vi.fn().mockReturnThis(),
-      is: vi.fn().mockReturnThis(),
-      not: vi.fn().mockReturnThis(),
-      lt: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-      maybeSingle: vi.fn().mockResolvedValue({ data: { deleted_at: null }, error: null }),
-    };
-    for (const key of Object.keys(mockQueryChain)) {
-      if (!["single", "maybeSingle"].includes(key)) {
-        const chain = mockQueryChain as Record<string, ReturnType<typeof vi.fn>>;
-        if (typeof chain[key]?.mockReturnValue === "function") {
-          chain[key]?.mockReturnValue(mockQueryChain);
-        }
-      }
-    }
-    const mockFrom = vi.fn().mockReturnValue(mockQueryChain);
-    const mockSchema = vi.fn().mockReturnValue({ from: mockFrom });
-    const anyContainer = container as unknown as Record<string, unknown>;
-    const supabase = anyContainer["supabase"] as Record<string, unknown>;
-    supabase["schema"] = mockSchema;
+    container.auth.getProfileDeletionStatus = vi.fn().mockResolvedValue(ok({ deletedAt: null }));
 
     app = await buildTestApp(container);
   });

@@ -109,7 +109,7 @@ export async function buildApp(
   registerNotificationRoutes(fastify, { notification: container.notification });
   registerSupportRoutes(fastify, { auth: container.auth });
   registerAccountRoutes(fastify, {
-    supabase: container.supabase,
+    auth: container.auth,
     billing: container.billing,
     eventBus: container.eventBus,
     subscriptionRepo: container.subscriptionRepo,

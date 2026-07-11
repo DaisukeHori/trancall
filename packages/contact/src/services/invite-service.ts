@@ -20,8 +20,16 @@ const TOKEN_LENGTH = 30;
 /** 招待リンク有効期限（7 日） */
 const INVITE_EXPIRES_DAYS = 7;
 
-/** 招待リンクベース URL */
-const INVITE_BASE_URL = "https://trancall.app/invite";
+/**
+ * 招待リンクベース URL のフォールバック値。
+ *
+ * Issue #72.3: 従来はこの値がハードコードされ、環境 (本番/ステージング/開発) に
+ * 関わらず常に同じ URL が生成されていた。呼び出し元 (apps/server/src/container.ts) が
+ * `config.ts` の `INVITE_BASE_URL` (環境変数、デフォルトは同じ値) を
+ * `createInviteService` の第 3 引数として渡すようにし、環境ごとに差し替え可能にする。
+ * 引数省略時はこのフォールバック値を使う (後方互換)。
+ */
+const DEFAULT_INVITE_BASE_URL = "https://trancall.app/invite";
 
 export interface InviteService {
   /**
@@ -52,7 +60,10 @@ export interface InviteService {
 export function createInviteService(
   inviteRepo: InviteRepository,
   contactRepo: ContactRepository,
+  options?: { baseUrl?: string },
 ): InviteService {
+  const baseUrl = options?.baseUrl ?? DEFAULT_INVITE_BASE_URL;
+
   return {
     createInviteLink: async (
       userId: UserId,
@@ -68,7 +79,7 @@ export function createInviteService(
       }
 
       return ok({
-        url: `${INVITE_BASE_URL}/${token}`,
+        url: `${baseUrl}/${token}`,
         token,
         expiresAt: expiresAt.toISOString(),
       });

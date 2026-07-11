@@ -13,6 +13,7 @@ import { createAuthFacade } from "@trancall/auth";
 import type {
   AuthFacade,
   AuthEventBus,
+  AuthUserRegisteredEvent,
   AuthConsentRecordedEvent,
   AuthConsentRevokedEvent,
 } from "@trancall/auth";
@@ -49,6 +50,9 @@ import type { RoomFacade } from "@trancall/room";
 
 // Repositories — auth
 import { createProfileRepository } from "./adapters/repositories/auth/profile-repository.supabase.js";
+import { createProfileWriteRepository } from "./adapters/repositories/auth/profile-write-repository.supabase.js";
+import { createLegacyConsentRepository } from "./adapters/repositories/auth/legacy-consent-repository.supabase.js";
+import { createProfileDeletionRepository } from "./adapters/repositories/auth/profile-deletion-repository.supabase.js";
 import { createConsentRepository } from "./adapters/repositories/auth/consent-repository.supabase.js";
 import { createLegalDocVersionRepository } from "./adapters/repositories/auth/legal-doc-version-repository.supabase.js";
 // Repositories — billing
@@ -134,6 +138,11 @@ export function buildContainer(config: Config): AppContainer {
   // ── Repositories ──────────────────────────────────────────────────────────
   // auth
   const profileRepo = createProfileRepository(supabase);
+  // Issue #72.1: PATCH /api/auth/profile / POST /api/auth/consent (レガシー) の
+  // facade バイパスを解消するための書き込み用リポジトリ
+  const profileWriteRepo = createProfileWriteRepository(supabase);
+  const legacyConsentRepo = createLegacyConsentRepository(supabase);
+  const profileDeletionRepo = createProfileDeletionRepository(supabase);
   const consentRepo = createConsentRepository(supabase);
   const legalDocRepo = createLegalDocVersionRepository(supabase);
   // billing
@@ -169,7 +178,7 @@ export function buildContainer(config: Config): AppContainer {
   // AuthEventBus は EventBus の narrowed wrapper として注入する
   const authEventBus: AuthEventBus = {
     async publish(
-      event: AuthConsentRecordedEvent | AuthConsentRevokedEvent,
+      event: AuthUserRegisteredEvent | AuthConsentRecordedEvent | AuthConsentRevokedEvent,
     ): Promise<void> {
       // DomainEvent union に auth イベントを追加済みのため publish 可能
       await eventBus.publish(event);
@@ -180,6 +189,9 @@ export function buildContainer(config: Config): AppContainer {
     consentRepo,
     legalDocRepo,
     eventBus: authEventBus,
+    profileWriteRepo,
+    legacyConsentRepo,
+    profileDeletionRepo,
   });
 
   // media (auth に依存)
@@ -258,7 +270,11 @@ export function buildContainer(config: Config): AppContainer {
   const blockService = createBlockService(blockRepo);
   const searchService = createSearchService(profileSearchRepo, blockRepo);
   const reportService = createReportService(reportRepo);
-  const inviteService = createInviteService(inviteRepo, contactRepo);
+  // Issue #72.3: 招待リンクのベース URL をハードコードせず config.ts (環境変数
+  // INVITE_BASE_URL) から注入する
+  const inviteService = createInviteService(inviteRepo, contactRepo, {
+    baseUrl: config.INVITE_BASE_URL,
+  });
   const contact = createContactFacade(
     contactService,
     blockService,

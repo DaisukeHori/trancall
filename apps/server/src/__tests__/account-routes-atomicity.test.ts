@@ -9,6 +9,11 @@
  *    復元不能になっていた)。
  * 3. 復元時、cancel_at_period_end フラグを false に戻し、サブスクの表示状態を
  *    復元すること (旧実装は profiles.deleted_at のクリアのみでサブスク復元なし)。
+ *
+ * Issue #72.1: account-routes.ts は AuthFacade.getProfileDeletionStatus /
+ * setProfileDeletedAt 経由で trancall_auth.profiles.deleted_at を読み書きするように
+ * 変更されたため、直接 supabase をモックするのではなく auth facade をモックし、
+ * setProfileDeletedAt への呼び出し回数・引数で原子性を検証する。
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -20,51 +25,26 @@ import type { AppContainer } from "../container.js";
 
 const AUTH_HEADER = { authorization: "Bearer mock-valid-token" };
 
-function makeProfilesMockChain(initialDeletedAt: string | null) {
-  const updateCalls: Array<{ deleted_at: string | null }> = [];
-
-  const mockQueryChain = {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn((arg: { deleted_at: string | null }) => {
-      updateCalls.push(arg);
-      return mockQueryChain;
-    }),
-    delete: vi.fn(),
-    upsert: vi.fn(),
-    eq: vi.fn(),
-    is: vi.fn(),
-    not: vi.fn(),
-    lt: vi.fn(),
-    single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    maybeSingle: vi.fn().mockResolvedValue({ data: { deleted_at: initialDeletedAt }, error: null }),
-  };
-  for (const key of Object.keys(mockQueryChain)) {
-    if (!["single", "maybeSingle"].includes(key)) {
-      const chain = mockQueryChain as Record<string, ReturnType<typeof vi.fn>>;
-      if (typeof chain[key]?.mockReturnValue === "function" && key !== "update") {
-        chain[key]?.mockReturnValue(mockQueryChain);
-      }
-    }
-  }
-
-  const mockFrom = vi.fn().mockReturnValue(mockQueryChain);
-  const mockSchema = vi.fn().mockReturnValue({ from: mockFrom });
-
-  return { mockQueryChain, mockSchema, updateCalls };
-}
-
 async function buildAppWithOverrides(overrides: {
   initialDeletedAt: string | null;
   cancelSubscriptionImpl?: (...args: unknown[]) => unknown;
   subscriptionRepoOverrides?: Partial<AppContainer["subscriptionRepo"]>;
-}): Promise<{ app: FastifyInstance; updateCalls: Array<{ deleted_at: string | null }>; container: AppContainer }> {
+}): Promise<{
+  app: FastifyInstance;
+  setDeletedAtCalls: Array<{ userId: string; deletedAt: string | null }>;
+  container: AppContainer;
+}> {
   const container = createMockContainer();
-  const { mockSchema, updateCalls } = makeProfilesMockChain(overrides.initialDeletedAt);
 
-  const anyContainer = container as unknown as Record<string, unknown>;
-  const supabase = anyContainer["supabase"] as Record<string, unknown>;
-  supabase["schema"] = mockSchema;
+  container.auth.getProfileDeletionStatus = vi
+    .fn()
+    .mockResolvedValue(ok({ deletedAt: overrides.initialDeletedAt }));
+
+  const setDeletedAtCalls: Array<{ userId: string; deletedAt: string | null }> = [];
+  container.auth.setProfileDeletedAt = vi.fn(async (userId: unknown, deletedAt: unknown) => {
+    setDeletedAtCalls.push({ userId: String(userId), deletedAt: deletedAt as string | null });
+    return ok(true as const);
+  });
 
   if (overrides.cancelSubscriptionImpl) {
     (container.billing as unknown as Record<string, unknown>)["cancelSubscription"] = vi.fn(
@@ -76,12 +56,12 @@ async function buildAppWithOverrides(overrides: {
   }
 
   const app = await buildTestApp(container);
-  return { app, updateCalls, container };
+  return { app, setDeletedAtCalls, container };
 }
 
 describe("POST /api/account/delete — 原子性 (#27)", () => {
   it("サブスクキャンセルが失敗したら soft delete をロールバックし 500 を返す", async () => {
-    const { app, updateCalls } = await buildAppWithOverrides({
+    const { app, setDeletedAtCalls } = await buildAppWithOverrides({
       initialDeletedAt: null,
       cancelSubscriptionImpl: () =>
         Promise.resolve(
@@ -99,10 +79,10 @@ describe("POST /api/account/delete — 原子性 (#27)", () => {
 
       expect(response.statusCode).toBe(500);
 
-      // 1 回目: soft delete (deleted_at = ISO 文字列), 2 回目: ロールバック (deleted_at = null)
-      expect(updateCalls).toHaveLength(2);
-      expect(updateCalls[0]?.deleted_at).not.toBeNull();
-      expect(updateCalls[1]?.deleted_at).toBeNull();
+      // 1 回目: soft delete (deletedAt = ISO 文字列), 2 回目: ロールバック (deletedAt = null)
+      expect(setDeletedAtCalls).toHaveLength(2);
+      expect(setDeletedAtCalls[0]?.deletedAt).not.toBeNull();
+      expect(setDeletedAtCalls[1]?.deletedAt).toBeNull();
     } finally {
       await app.close();
     }
@@ -148,8 +128,8 @@ describe("POST /api/account/delete — 原子性 (#27)", () => {
     }
   });
 
-  it("正常系: soft delete が先に成功し、その後サブスクキャンセルが成功して 200 を返す (2 回 update は呼ばれない)", async () => {
-    const { app, updateCalls } = await buildAppWithOverrides({ initialDeletedAt: null });
+  it("正常系: soft delete が先に成功し、その後サブスクキャンセルが成功して 200 を返す (2 回 setProfileDeletedAt は呼ばれない)", async () => {
+    const { app, setDeletedAtCalls } = await buildAppWithOverrides({ initialDeletedAt: null });
 
     try {
       const response = await app.inject({
@@ -160,8 +140,8 @@ describe("POST /api/account/delete — 原子性 (#27)", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      expect(updateCalls).toHaveLength(1);
-      expect(updateCalls[0]?.deleted_at).not.toBeNull();
+      expect(setDeletedAtCalls).toHaveLength(1);
+      expect(setDeletedAtCalls[0]?.deletedAt).not.toBeNull();
     } finally {
       await app.close();
     }
@@ -247,7 +227,7 @@ describe("POST /api/account/restore — サブスク復元 (#27)", () => {
   it("サブスク復元 (updatePlan) が失敗したら profiles の deleted_at は復元されず 500 を返す", async () => {
     const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { app, updateCalls } = await buildAppWithOverrides({
+    const { app, setDeletedAtCalls } = await buildAppWithOverrides({
       initialDeletedAt: fiveDaysAgo,
       subscriptionRepoOverrides: {
         findByUserId: vi.fn().mockResolvedValue(
@@ -285,8 +265,8 @@ describe("POST /api/account/restore — サブスク復元 (#27)", () => {
       });
 
       expect(response.statusCode).toBe(500);
-      // profiles.deleted_at の update (restore) は呼ばれていないこと
-      expect(updateCalls).toHaveLength(0);
+      // profiles.deleted_at の restore (setProfileDeletedAt) は呼ばれていないこと
+      expect(setDeletedAtCalls).toHaveLength(0);
     } finally {
       await app.close();
     }

@@ -66,7 +66,7 @@ export function createContactRepository(supabase: SupabaseClient): ContactReposi
       return ok(true);
     },
 
-    async list(userId: UserId): Promise<ContactEntry[]> {
+    async list(userId: UserId): Promise<Result<ContactEntry[]>> {
       const { data, error } = await supabase
         .schema("trancall_contact")
         .from("contacts")
@@ -74,14 +74,18 @@ export function createContactRepository(supabase: SupabaseClient): ContactReposi
         .eq("user_id", userId)
         .order("added_at", { ascending: false });
 
-      if (error) return [];
+      // Issue #72.2: DB エラー時に空配列を返すと呼び出し元がエラーを検知できない
+      // (「連絡先 0 件」と「取得失敗」が区別できなくなる) ため、Result 型で伝播する。
+      if (error) {
+        return err({ code: "INTERNAL_ERROR", message: error.message, retryable: true });
+      }
 
       const entries: ContactEntry[] = [];
       for (const row of data as Record<string, unknown>[]) {
         const result = parseContactRow(row);
         if (result.ok) entries.push(result.data);
       }
-      return entries;
+      return ok(entries);
     },
 
     async exists(userId: UserId, contactUserId: UserId): Promise<boolean> {

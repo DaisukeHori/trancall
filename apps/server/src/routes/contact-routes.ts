@@ -6,6 +6,7 @@
  * DELETE /api/contacts/:id
  * GET    /api/contacts/search?q=
  * POST   /api/contacts/invite-link
+ * POST   /api/contacts/invites/:token/consume — Issue #72.4
  * POST   /api/contacts/block
  * POST   /api/contacts/report
  */
@@ -54,8 +55,13 @@ export function registerContactRoutes(
 
   // GET /api/contacts
   fastify.get("/api/contacts", async (request: FastifyRequest, reply: FastifyReply) => {
-    const entries = await contact.listContacts(request.userId);
-    return reply.send({ ok: true, data: entries });
+    // Issue #72.2: listContacts が Result<ContactEntry[]> を返すようになったため、
+    // DB エラーを検知して 500 を返せるようにする (旧実装は空配列と誤認していた)。
+    const result = await contact.listContacts(request.userId);
+    if (!result.ok) {
+      return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
+    }
+    return reply.send({ ok: true, data: result.data });
   });
 
   // POST /api/contacts
@@ -144,6 +150,25 @@ export function registerContactRoutes(
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }
     return reply.status(201).send({ ok: true, data: { url: result.data.url, expiresAt: result.data.expiresAt } });
+  });
+
+  // POST /api/contacts/invites/:token/consume — Issue #72.4
+  // ContactFacade.consumeInviteLink (packages/contact/src/facade.ts) を呼び出す
+  // HTTP ルートがこれまで存在しなかった (facade メソッドは実装済みだが未接続)。
+  fastify.post("/api/contacts/invites/:token/consume", async (request: FastifyRequest, reply: FastifyReply) => {
+    const parsedParams = z.object({ token: z.string().min(1) }).safeParse(request.params);
+    if (!parsedParams.success) {
+      return reply.status(400).send({
+        ok: false,
+        error: { code: "VALIDATION_ERROR", message: "token は必須です", retryable: false },
+      });
+    }
+
+    const result = await contact.consumeInviteLink(parsedParams.data.token, request.userId);
+    if (!result.ok) {
+      return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
+    }
+    return reply.status(200).send({ ok: true, data: result.data });
   });
 
   // POST /api/contacts/block

@@ -78,6 +78,8 @@ const ERROR_CODE_TO_STATUS: Record<string, number> = {
   "media.token.jwt_sign_failed": 500,
   // #34: consentRepo/legalDocRepo が DI されていない場合 (packages/auth/src/facade.ts)
   AUTH_CONSENT_NOT_CONFIGURED: 500,
+  // Issue #72.1: profileWriteRepo が DI されていない場合 (packages/auth/src/facade.ts)
+  AUTH_PROFILE_WRITE_NOT_CONFIGURED: 500,
   // #34: プロフィールデータが DB から取得後の再バリデーションに失敗 (packages/auth/src/facade.ts:244)
   // 命名規則 (SCREAMING_SNAKE_CASE) 違反だが既存コードとの後方互換のため据え置き、map 登録のみ行う
   "auth.profile.invalid_schema": 500,

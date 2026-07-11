@@ -17,7 +17,8 @@ import type { InviteService } from "./services/invite-service.ts";
 export interface ContactFacade {
   addContact(cmd: AddContactCommand): Promise<Result<ContactEntry>>;
   removeContact(userId: UserId, contactId: string): Promise<Result<true>>;
-  listContacts(userId: UserId): Promise<ContactEntry[]>;
+  /** Issue #72.2: DB エラー時は Result.err で伝播する (呼び出し元も合わせて対応)。 */
+  listContacts(userId: UserId): Promise<Result<ContactEntry[]>>;
   searchUsers(query: string, callerId: UserId): Promise<PublicProfile[]>;
   blockUser(cmd: BlockUserCommand): Promise<Result<true>>;
   unblockUser(userId: UserId, blockedUserId: UserId): Promise<Result<true>>;
