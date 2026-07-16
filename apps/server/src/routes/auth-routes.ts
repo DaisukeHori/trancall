@@ -5,10 +5,14 @@
  * POST /api/auth/signin
  * GET  /api/auth/profile
  * PATCH /api/auth/profile
- * POST /api/auth/consent
  * POST /api/auth/consents      — 同意記録 (Sprint 3, T-10)
  * GET  /api/auth/consents      — 同意状態取得 (Sprint 3, T-10)
  * DELETE /api/auth/consents/:scope — 同意取消 (Sprint 3, T-10)
+ *
+ * Issue #78: レガシー `POST /api/auth/consent` (単数形) は三重の契約不一致
+ * (mobile ペイロード不一致 → 常時 400 / consent_versions スキーマ不整合 → 500 /
+ * レスポンス形状不一致) のため到達不能だった。scope 単位の正規フロー
+ * (`/api/auth/consents` 複数形、上記) に一本化し、レガシー route は削除した。
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
@@ -36,10 +40,6 @@ const UpdateProfileSchema = z.object({
   displayName: z.string().min(1).max(100).optional(),
   nativeLanguage: z.string().optional(),
   avatarUrl: z.url().optional(),
-});
-
-const ConsentSchema = z.object({
-  consentVersion: z.string().min(1),
 });
 
 // Sprint 3 T-10: 同意管理スキーマ (legal-and-consent.md §3)
@@ -293,26 +293,6 @@ export function registerAuthRoutes(
       return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
     }
     return reply.send({ ok: true, data: result.data });
-  });
-
-  // POST /api/auth/consent
-  fastify.post("/api/auth/consent", async (request: FastifyRequest, reply: FastifyReply) => {
-    const parsed = ConsentSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.status(400).send({
-        ok: false,
-        error: { code: "VALIDATION_ERROR", message: "consentVersion は必須です", retryable: false },
-      });
-    }
-
-    // Issue #72.1: facade バイパス是正 — 直接 supabase 呼び出しをやめ、
-    // AuthFacade.recordLegacyConsentVersion 経由で書き込む。
-    const result = await auth.recordLegacyConsentVersion(request.userId, parsed.data.consentVersion);
-    if (!result.ok) {
-      return reply.status(getHttpStatus(result.error.code)).send({ ok: false, error: result.error });
-    }
-
-    return reply.send({ ok: true, data: true });
   });
 
   // POST /api/auth/consents — 同意記録 (Sprint 3 T-10)

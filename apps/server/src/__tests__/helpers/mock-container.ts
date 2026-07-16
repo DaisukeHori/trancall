@@ -118,7 +118,6 @@ export function createMockContainer(): AppContainer {
       trancallId: "testuser",
       updatedAt: new Date().toISOString(),
     })),
-    recordLegacyConsentVersion: vi.fn().mockResolvedValue(ok(true)),
     // デフォルトは「未退会」。account-routes(-atomicity).test.ts は個別に上書きする。
     getProfileDeletionStatus: vi.fn().mockResolvedValue(ok(null)),
     setProfileDeletedAt: vi.fn().mockResolvedValue(ok(true)),

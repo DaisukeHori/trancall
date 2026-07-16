@@ -26,7 +26,6 @@ import {
   getProfile,
   updateProfile,
   deleteAccount,
-  revokeConsent,
 } from "../src/api/auth-api.js";
 
 function makeJsonResponse(body: unknown, status = 200): Response {
@@ -211,44 +210,6 @@ describe("auth-api (extended)", () => {
       if (!result.ok) {
         expect(result.error.code).toBe("AUTH_TOKEN_EXPIRED");
         expect(result.error.httpStatus).toBe(401);
-      }
-    });
-  });
-
-  describe("revokeConsent()", () => {
-    it("sends POST to /api/auth/consent with revoke: true", async () => {
-      mockFetch.mockResolvedValueOnce(makeJsonResponse({ success: true }));
-
-      await revokeConsent("access-token");
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:3000/api/auth/consent",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ revoke: true }),
-        }),
-      );
-    });
-
-    it("returns success true on 200", async () => {
-      mockFetch.mockResolvedValueOnce(makeJsonResponse({ success: true }));
-
-      const result = await revokeConsent("access-token");
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.data.success).toBe(true);
-      }
-    });
-
-    it("returns NETWORK_ERROR on failure", async () => {
-      mockFetch.mockRejectedValueOnce(new Error("Network down"));
-
-      const result = await revokeConsent("token");
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error.code).toBe("NETWORK_ERROR");
       }
     });
   });
