@@ -27,10 +27,6 @@ const UpdateProfileBodySchema = z.object({
   avatarUrl: z.string().optional(),
 });
 
-const ConsentBodySchema = z.object({
-  consentVersion: z.string().optional(),
-});
-
 function extractBearerToken(req: Request): string | null {
   const auth = req.headers["authorization"];
   if (!auth || !auth.startsWith("Bearer ")) return null;
@@ -258,37 +254,12 @@ export function registerAuthRoutes(router: Router): void {
     res.status(200).json({ ok: true, data: { success: true } });
   });
 
-  router.post("/auth/consent", (req: Request, res: Response) => {
-    const token = extractBearerToken(req);
-    if (!token) {
-      res.status(401).json({
-        ok: false,
-        error: { code: "UNAUTHORIZED", message: "Missing token", retryable: false },
-      });
-      return;
-    }
-
-    const session = getSessionByToken(token);
-    if (!session) {
-      res.status(401).json({
-        ok: false,
-        error: {
-          code: "AUTH_TOKEN_EXPIRED",
-          message: "Token expired or invalid",
-          retryable: false,
-        },
-      });
-      return;
-    }
-
-    const parsedBody = ConsentBodySchema.safeParse(req.body);
-    const { consentVersion } = parsedBody.success ? parsedBody.data : {};
-    const state = getState();
-    const user = state.users.find((u) => u.userId === session.userId);
-    if (user && consentVersion) {
-      user.consentVersion = consentVersion;
-    }
-
-    res.status(200).json({ ok: true, data: true });
-  });
+  // NOTE (Issue #78): a mock POST /auth/consent (legacy singular) route used to
+  // live here. It accepted any body (including malformed payloads) and always
+  // returned 200, which hid the real server's three-way contract mismatch
+  // (mobile payload vs ConsentSchema vs consent_versions table schema) from
+  // E2E. The legacy route has been removed on apps/server, so this mock route
+  // was removed too rather than made stricter. E2E flows that need consent
+  // state should exercise the canonical /auth/consents (plural) endpoints
+  // instead, once those are mocked here.
 }

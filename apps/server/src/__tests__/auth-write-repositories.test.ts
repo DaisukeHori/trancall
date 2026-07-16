@@ -2,15 +2,17 @@
  * Issue #72.1: facade バイパス是正で追加した auth 書き込み用リポジトリの
  * Supabase 実装テスト。
  * - ProfileWriteRepository (profile-write-repository.supabase.ts)
- * - LegacyConsentRepository (legacy-consent-repository.supabase.ts)
  * - ProfileDeletionRepository (profile-deletion-repository.supabase.ts)
+ *
+ * Issue #78: LegacyConsentRepository (legacy-consent-repository.supabase.ts) は
+ * consent_versions への誤書き込み (user_id 列が存在せず必ず 500) が発覚し、
+ * レガシー route ごと削除した。関連テストも削除済み。
  */
 
 import { describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { brandUserId } from "@trancall/shared-kernel";
 import { createProfileWriteRepository } from "../adapters/repositories/auth/profile-write-repository.supabase.js";
-import { createLegacyConsentRepository } from "../adapters/repositories/auth/legacy-consent-repository.supabase.js";
 import { createProfileDeletionRepository } from "../adapters/repositories/auth/profile-deletion-repository.supabase.js";
 
 const USER_ID_RESULT = brandUserId("11111111-1111-4111-8111-111111111111");
@@ -44,34 +46,6 @@ describe("ProfileWriteRepository (Supabase実装).update", () => {
     const repo = createProfileWriteRepository(supabase);
 
     const result = await repo.update(USER_ID, { displayName: "x" });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("INTERNAL_ERROR");
-      expect(result.error.retryable).toBe(true);
-    }
-  });
-});
-
-describe("LegacyConsentRepository (Supabase実装).recordConsentVersion", () => {
-  it("正常系: consent_versions へ upsert する", async () => {
-    const { supabase, upsertMock, fromMock } = makeChainSupabaseMock({ error: null });
-    const repo = createLegacyConsentRepository(supabase);
-
-    const result = await repo.recordConsentVersion(USER_ID, "v1.0");
-
-    expect(result.ok).toBe(true);
-    expect(fromMock).toHaveBeenCalledWith("consent_versions");
-    const [payload, opts] = upsertMock.mock.calls[0] ?? [];
-    expect(payload).toMatchObject({ user_id: USER_ID, consent_version: "v1.0" });
-    expect(opts).toEqual({ onConflict: "user_id" });
-  });
-
-  it("DB エラー時は INTERNAL_ERROR (retryable) を返す", async () => {
-    const { supabase } = makeChainSupabaseMock({ error: { message: "DB 障害" } });
-    const repo = createLegacyConsentRepository(supabase);
-
-    const result = await repo.recordConsentVersion(USER_ID, "v1.0");
 
     expect(result.ok).toBe(false);
     if (!result.ok) {

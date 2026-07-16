@@ -4,10 +4,18 @@
  * @parse/node-apn をラップし、.p8 JWT 認証で APNs に HTTP/2 リクエストを送る。
  *
  * adapters/ 配下のため型アサーション (as) が許可されている。
+ *
+ * Issue #77: @parse/node-apn は CommonJS 専用パッケージであり、本パッケージ
+ * (および apps/server) は "type": "module" (ESM) で実行される。モジュール
+ * トップレベルで `require()` を使うと実 Node ESM ランタイムでは
+ * `ReferenceError: require is not defined in ES module scope` になる
+ * (vitest は CJS 変換を挟むため検出されない)。
+ * packages/transcript/src/services/export-service.ts の pdfkit 読み込みと
+ * 同じパターンで、関数内 `createRequire(import.meta.url)` により CJS
+ * インターオップする。
  */
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const apn = require("@parse/node-apn") as typeof import("@parse/node-apn");
+import { createRequire } from "node:module";
 
 import type { Result, AppError } from "@trancall/shared-kernel";
 import { ok, err } from "@trancall/shared-kernel";
@@ -72,6 +80,12 @@ function mapApnsError(
 }
 
 export function createApnsAdapter(config: ApnsAdapterConfig): ApnsAdapter {
+  // Issue #77: @parse/node-apn (CJS 専用) を ESM context から読み込むため
+  // createRequire を使用。
+  const require = createRequire(import.meta.url);
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- @parse/node-apn (CJS 専用) の外部 SDK 境界。require() の any を型復元するために必要。
+  const apn = require("@parse/node-apn") as typeof import("@parse/node-apn");
+
   // node-apn の Provider を初期化
   const provider = new apn.Provider({
     token: {

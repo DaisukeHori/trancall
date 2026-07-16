@@ -2,8 +2,13 @@
  * AuthFacade 新規書き込みメソッドのテスト
  *
  * - publishUserRegistered (Issue #67)
- * - updateProfile / recordLegacyConsentVersion / getProfileDeletionStatus /
+ * - updateProfile / getProfileDeletionStatus /
  *   setProfileDeletedAt (Issue #72.1: facade バイパス是正)
+ *
+ * Issue #78: recordLegacyConsentVersion (LegacyConsentRepository) はレガシー
+ * `POST /api/auth/consent` の三重の契約不一致 (mobile ペイロード不一致 → 400 /
+ * consent_versions スキーマ不整合 → 500 / レスポンス形状不一致) を受けて
+ * レガシー route ごと削除した。関連テストも削除済み。
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -13,7 +18,6 @@ import { brandUserId, type UserId } from "@trancall/shared-kernel";
 import { createAuthFacade, type AuthEventBus } from "../src/facade.js";
 import { type ProfileRepository } from "../src/facade.js";
 import { type ProfileWriteRepository } from "../src/repositories/profile-write-repository.js";
-import { type LegacyConsentRepository } from "../src/repositories/legacy-consent-repository.js";
 import { type ProfileDeletionRepository } from "../src/repositories/profile-deletion-repository.js";
 import { type Profile } from "../src/schemas.js";
 
@@ -149,36 +153,6 @@ describe("AuthFacade.updateProfile", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("INTERNAL_ERROR");
-  });
-});
-
-// ============================================================
-// recordLegacyConsentVersion (Issue #72.1)
-// ============================================================
-
-describe("AuthFacade.recordLegacyConsentVersion", () => {
-  it("正常系: LegacyConsentRepository.recordConsentVersion を呼ぶ", async () => {
-    const userId = makeUserId();
-    const legacyConsentRepo: LegacyConsentRepository = {
-      recordConsentVersion: vi.fn().mockResolvedValue({ ok: true, data: true }),
-    };
-    const facade = createAuthFacade({ profileRepo: makeProfileRepo(), legacyConsentRepo });
-
-    const result = await facade.recordLegacyConsentVersion(userId, "v1.0");
-
-    expect(result.ok).toBe(true);
-    expect(legacyConsentRepo.recordConsentVersion).toHaveBeenCalledWith(userId, "v1.0");
-  });
-
-  it("legacyConsentRepo 未設定時は AUTH_CONSENT_NOT_CONFIGURED を返す", async () => {
-    const userId = makeUserId();
-    const facade = createAuthFacade({ profileRepo: makeProfileRepo() });
-
-    const result = await facade.recordLegacyConsentVersion(userId, "v1.0");
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("AUTH_CONSENT_NOT_CONFIGURED");
   });
 });
 

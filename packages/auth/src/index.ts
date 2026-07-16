@@ -9,7 +9,6 @@ export type {
   LegalDocumentVersionRepository,
   ProfileWriteRepository,
   ProfileUpdateFields,
-  LegacyConsentRepository,
   ProfileDeletionRepository,
   ProfileDeletionStatus,
   AuthEventBus,
