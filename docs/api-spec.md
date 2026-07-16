@@ -70,12 +70,59 @@ Request: { "displayName"?: "...", "nativeLanguage"?: "ja", "avatarUrl"?: "..." }
 Response: { "ok": true, "data": UserProfile }
 ```
 
-### POST /api/auth/consent
+### POST /api/auth/consents
+
+同意を記録する (scope 単位、冪等 upsert)。canonical: `docs/legal-and-consent.md` §4 / `docs/module-contracts.md` §2.1 (`AuthFacade.recordConsent`)。
 
 ```
-Request: { "consentVersion": "v1.0" }
-Response: { "ok": true, "data": true }
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "scope": "voice_to_openai",
+  "version": "2026-05-12",
+  "source": "onboarding"
+}
+(scope: legal_terms | privacy_policy | voice_to_openai | transcript_retention |
+        data_deletion_request | push_notification | marketing_email)
+(source: onboarding | incoming_call_first_time | settings_screen | terms_revision_prompt)
+
+Response 200: { "ok": true, "data": true }
+Response 400: VALIDATION_ERROR (scope/version/source が不正)
 ```
+
+### GET /api/auth/consents
+
+現在のユーザーが同意すべき scope 一覧と同意状態を返す (`AuthFacade.getRequiredConsents`)。
+
+```
+Headers: Authorization: Bearer <token>
+Response 200:
+{
+  "ok": true,
+  "data": [
+    { "scope": "voice_to_openai", "currentVersion": "2026-05-12", "userVersion": null,
+      "isRequired": true, "isUpToDate": false, "documentUrl": "https://trancall.app/terms" }
+  ]
+}
+```
+
+### DELETE /api/auth/consents/:scope
+
+指定 scope の同意を取り消す (`AuthFacade.revokeConsent`)。
+
+```
+Headers: Authorization: Bearer <token>
+Response 200: { "ok": true, "data": true }
+Response 422: { "ok": false, "error": { "code": "AUTH_CONSENT_IRREVOCABLE", "message": "...", "retryable": false } }
+  (scope が legal_terms / privacy_policy の場合。docs/account-deletion.md のアカウント削除フロー経由が必須)
+```
+
+**Issue #78 (削除済み)**: レガシー `POST /api/auth/consent` (単数形) は上記の scope 単位フローに一本化するため削除した。
+mobile ペイロード (`{revoke: true}`) とサーバー側スキーマ (`{consentVersion}`) の不一致で常時 400、書き込み先
+`trancall_auth.consent_versions` (同意文書バージョンのマスタテーブル、`user_id` 列なし) への誤書き込みで 500、
+成功レスポンス形状も mobile 側 parse スキーマと不一致という三重の契約不一致があり、到達不能だった。
+mobile 側は `apps/mobile/src/api/consent-api.ts` の `recordConsent` / `getRequiredConsents` / `revokeConsentByScope`
+のみを使用する。
 
 ## 連絡先（contact）
 

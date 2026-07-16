@@ -145,8 +145,16 @@ describe("PATCH /api/auth/profile", () => {
   });
 });
 
-describe("POST /api/auth/consent", () => {
-  it("同意バージョンを記録できる", async () => {
+// Issue #78: レガシー `POST /api/auth/consent` (単数形) は
+// - mobile ペイロード `{ revoke: true }` と ConsentSchema `{ consentVersion }` の不一致 (常時 400)
+// - 書き込み先 `trancall_auth.consent_versions` のスキーマ不整合 (500)
+// - レスポンス形状 (`{ok,data:true}`) と mobile 側 parse (`{success}`) の不一致
+// という三重の契約不一致で到達不能だったため削除した。正規の同意フローは
+// `POST/GET /api/auth/consents` + `DELETE /api/auth/consents/:scope`
+// (apps/server/src/__tests__/auth-consents-routes.test.ts で検証) に一本化した。
+// このテストはレガシー route が再導入されないことを保証する回帰テスト。
+describe("POST /api/auth/consent (レガシー、削除済み)", () => {
+  it("404 を返す (route が存在しない)", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/consent",
@@ -158,22 +166,6 @@ describe("POST /api/auth/consent", () => {
       },
     });
 
-    expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body) as { ok: boolean; data: boolean };
-    expect(body.ok).toBe(true);
-    expect(body.data).toBe(true);
-  });
-
-  it("consentVersion なしで 400 を返す", async () => {
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/consent",
-      headers: {
-        authorization: "Bearer mock-valid-token",
-      },
-      payload: {},
-    });
-
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(404);
   });
 });

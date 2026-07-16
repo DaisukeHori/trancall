@@ -36,7 +36,6 @@ import {
   type ProfileWriteRepository,
   type ProfileUpdateFields,
 } from "./repositories/profile-write-repository.ts";
-import { type LegacyConsentRepository } from "./repositories/legacy-consent-repository.ts";
 import {
   type ProfileDeletionRepository,
   type ProfileDeletionStatus,
@@ -65,7 +64,6 @@ export type {
   ProfileWriteRepository,
   ProfileUpdateFields,
 } from "./repositories/profile-write-repository.ts";
-export type { LegacyConsentRepository } from "./repositories/legacy-consent-repository.ts";
 export type {
   ProfileDeletionRepository,
   ProfileDeletionStatus,
@@ -174,21 +172,6 @@ export interface AuthFacade {
     userId: UserId,
     updates: ProfileUpdateFields,
   ): Promise<Result<Profile>>;
-
-  /**
-   * レガシー同意記録 (POST /api/auth/consent、単数形の旧 API)。
-   *
-   * Sprint 2 D7 の `recordConsent` (scope 単位、`user_consents` テーブル) とは別の、
-   * Sprint 1 由来のレガシー経路。既存の書き込み対象・挙動を変更せず facade 経由に
-   * 移設したもの (詳細は LegacyConsentRepository の JSDoc 参照)。
-   *
-   * **未設定時**: `LegacyConsentRepository` が未注入の場合は
-   *   `AUTH_CONSENT_NOT_CONFIGURED` を返す。
-   */
-  recordLegacyConsentVersion(
-    userId: UserId,
-    consentVersion: string,
-  ): Promise<Result<true>>;
 
   /**
    * 退会 (soft delete) 状態を取得する (POST /api/account/delete / restore が使う)。
@@ -321,8 +304,6 @@ export interface CreateAuthFacadeOptions {
   eventBus?: AuthEventBus;
   /** [Issue #72.1] PATCH /api/auth/profile 用の書き込みリポジトリ (省略可) */
   profileWriteRepo?: ProfileWriteRepository;
-  /** [Issue #72.1] POST /api/auth/consent (レガシー) 用の書き込みリポジトリ (省略可) */
-  legacyConsentRepo?: LegacyConsentRepository;
   /** [Issue #72.1] POST /api/account/delete・restore 用の退会状態リポジトリ (省略可) */
   profileDeletionRepo?: ProfileDeletionRepository;
 }
@@ -333,8 +314,7 @@ export interface CreateAuthFacadeOptions {
  * consentRepo / legalDocRepo / eventBus を省略すると、
  * 同意管理メソッドは AUTH_CONSENT_NOT_CONFIGURED エラーを返す。
  * (後方互換のため: Sprint 1 まで consentRepo 不要だった)
- * 同様に profileWriteRepo / legacyConsentRepo を省略すると、
- * updateProfile / recordLegacyConsentVersion はそれぞれ未設定エラーを返す。
+ * 同様に profileWriteRepo を省略すると、updateProfile は未設定エラーを返す。
  */
 export function createAuthFacade(
   repoOrOptions: ProfileRepository | CreateAuthFacadeOptions,
@@ -351,7 +331,6 @@ export function createAuthFacade(
     legalDocRepo,
     eventBus,
     profileWriteRepo,
-    legacyConsentRepo,
     profileDeletionRepo,
   } = options;
 
@@ -452,23 +431,6 @@ export function createAuthFacade(
         });
       }
       return ok(parsed.data);
-    },
-
-    // ─────────────────────────────────────────────────────
-    // recordLegacyConsentVersion (Issue #72.1)
-    // ─────────────────────────────────────────────────────
-    async recordLegacyConsentVersion(
-      userId: UserId,
-      consentVersion: string,
-    ): Promise<Result<true>> {
-      if (!legacyConsentRepo) {
-        return err({
-          code: "AUTH_CONSENT_NOT_CONFIGURED",
-          message: "LegacyConsentRepository が設定されていません",
-          retryable: false,
-        });
-      }
-      return legacyConsentRepo.recordConsentVersion(userId, consentVersion);
     },
 
     // ─────────────────────────────────────────────────────

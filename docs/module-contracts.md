@@ -3,9 +3,9 @@
 | 項目 | 内容 |
 |---|---|
 | ドキュメント ID | CONTRACT-001 |
-| バージョン | 1.6.1 |
+| バージョン | 1.6.2 |
 | 作成日 | 2026-05-12 |
-| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、Issue #69 でリアルタイム品質トラッキング残課題 4 項目を実装済に同期、Issue #67/#72 で auth/contact facade 拡張・新規 HTTP ルートを実装済に同期、M-1/M-9/P-2 実装完了に同期、P-1 (2026-07) で §9 Phase1→2 契約変更 5 件の設計メモ追記・iap チャネル実装済への訂正) |
+| ステータス | canonical (Sprint 2 D5/D7/D8 設計拡張統合済、Issue #69 でリアルタイム品質トラッキング残課題 4 項目を実装済に同期、Issue #67/#72 で auth/contact facade 拡張・新規 HTTP ルートを実装済に同期、M-1/M-9/P-2 実装完了に同期、P-1 (2026-07) で §9 Phase1→2 契約変更 5 件の設計メモ追記・iap チャネル実装済への訂正、Issue #78 でレガシー `recordLegacyConsentVersion`/`LegacyConsentRepository`/`POST /api/auth/consent` を削除し scope 単位の同意フローに一本化) |
 | 対象 | Sprint 0 + Layer 1 完了モジュール + Sprint 2 D5/D7/D8 設計フェーズで拡張する billing / auth / shared-kernel 契約 |
 | 将来追加対象 | Sprint 3 で `packages/billing/src/facade.ts` (拡張 7 メソッド) / `packages/auth/src/facade.ts` (拡張 4 メソッド) / `packages/shared-kernel/src/schemas/native-call.ts` (新規) を実装、実装完了状態に同期 |
 
@@ -97,11 +97,6 @@ export interface AuthFacade {
     updates: ProfileUpdateFields,
   ): Promise<Result<Profile, AppError>>;
 
-  recordLegacyConsentVersion(
-    userId: UserId,
-    consentVersion: string,
-  ): Promise<Result<true, AppError>>;
-
   getProfileDeletionStatus(
     userId: UserId,
   ): Promise<Result<ProfileDeletionStatus | null, AppError>>;
@@ -168,11 +163,6 @@ export interface ProfileWriteRepository {
   update(userId: UserId, updates: ProfileUpdateFields): Promise<Result<void, AppError>>;
 }
 
-export interface LegacyConsentRepository {
-  // レガシー `POST /api/auth/consent` (単数形) 用。Sprint 2 D7 の user_consents とは別経路
-  recordConsentVersion(userId: UserId, consentVersion: string): Promise<Result<true, AppError>>;
-}
-
 export interface ProfileDeletionStatus {
   deletedAt: string | null;
 }
@@ -197,9 +187,15 @@ export interface ProfileDeletionRepository {
 **契約注釈** (Issue #67 / #72.1 由来):
 - `publishUserRegistered` は「登録が完了したこと」を受け取り `auth.user_registered` DomainEvent を発行する副作用のみを担う (サインアップ処理本体は `apps/server` の signup ハンドラ側)。eventBus 未設定時・発行失敗時・`nativeLanguage` が `OutputLanguage` として不正な場合はサイレントに無視し、常に `ok(true)` を返す (`recordConsent` と同方針、呼び出し側のサインアップを止めない)
 - `updateProfile` は `ProfileWriteRepository.update` (差分書き込み) 後に `ProfileRepository.findByUserId` で最新値を再取得して返す。`profileWriteRepo` 未注入時は `AUTH_PROFILE_WRITE_NOT_CONFIGURED`
-- `recordLegacyConsentVersion` は Sprint 1 由来のレガシー `POST /api/auth/consent` (単数形) の書き込み経路を facade 経由に移設したもの (D7 の scope 単位 `recordConsent` とは別物)。`legacyConsentRepo` 未注入時は `AUTH_CONSENT_NOT_CONFIGURED`
 - `getProfileDeletionStatus` / `setProfileDeletedAt` は退会 (soft delete) 状態の read/write。`getProfileDeletionStatus` は行が無くても `ok(null)` を返す (`ProfileRepository` の「行無し = エラー」セマンティクスと異なるため別 Repository)。`profileDeletionRepo` 未注入時は `AUTH_PROFILE_WRITE_NOT_CONFIGURED`
-- これら 5 メソッドはいずれも Issue #67 (`auth.user_registered` 発行) / Issue #72.1 (直接 supabase 呼び出しの facade 経由化) で追加。`AuthEventBus` の narrowed interface は `AuthUserRegisteredEvent | AuthConsentRecordedEvent | AuthConsentRevokedEvent` を publish 対象とする
+- これら 4 メソッドはいずれも Issue #67 (`auth.user_registered` 発行) / Issue #72.1 (直接 supabase 呼び出しの facade 経由化) で追加。`AuthEventBus` の narrowed interface は `AuthUserRegisteredEvent | AuthConsentRecordedEvent | AuthConsentRevokedEvent` を publish 対象とする
+
+**[Issue #78] レガシー `recordLegacyConsentVersion` / `LegacyConsentRepository` は削除済み**:
+Sprint 1 由来のレガシー `POST /api/auth/consent` (単数形) が使っていた書き込み経路。以下の三重の契約不一致が判明したため、facade メソッド・repository・route ごと削除した:
+1. mobile `revokeConsent()` は `{revoke: true}` を送るが、サーバーの `ConsentSchema` は `{consentVersion: string}` を要求 (常時 400)
+2. 書き込み先 `trancall_auth.consent_versions` は `(version, scope)` を PK とする同意文書バージョンのマスタテーブルで、`user_id` 列を持たない (仮に body を直しても 500)
+3. 成功レスポンス `{ok: true, data: true}` と mobile 側の parse スキーマ `{success: boolean}` も不一致
+ユーザー単位の同意記録は scope 単位の `recordConsent` / `user_consents` テーブル (D7) に一本化されており、mobile は `apps/mobile/src/api/consent-api.ts` の `recordConsent` / `revokeConsentByScope` / `getRequiredConsents` (`POST/GET /api/auth/consents`, `DELETE /api/auth/consents/:scope`) のみを使う。
 
 ### 2.2 MediaFacade
 `packages/media/src/facade.ts`
@@ -590,9 +586,9 @@ mobile 側 (`apps/mobile/src/lib/livekit/subtitles.ts`) は同 schema で **Zod 
 ### 4.1 auth が要求する Repository
 - `ProfileRepository.findByUserId(userId): Promise<Result<Profile, AppError>>`
 - **[Issue #72.1 追加, 省略可]** `ProfileWriteRepository.update(userId, updates)` — `updateProfile` 用の差分書き込み (読み取り専用の `ProfileRepository` とは別 interface に分離)
-- **[Issue #72.1 追加, 省略可]** `LegacyConsentRepository.recordConsentVersion(userId, consentVersion)` — レガシー `POST /api/auth/consent` (単数形) 用
 - **[Issue #72.1 追加, 省略可]** `ProfileDeletionRepository.findStatus(userId)` / `setDeletedAt(userId, deletedAt)` — 退会 (soft delete) 状態の read/write (行無し = `ok(null)` セマンティクス)
-- 上記 3 つはいずれも `CreateAuthFacadeOptions` の optional 依存。未注入時は該当メソッドが `AUTH_PROFILE_WRITE_NOT_CONFIGURED` / `AUTH_CONSENT_NOT_CONFIGURED` を返す (§2.1 契約注釈参照)。本番実装は `apps/server/src/adapters/repositories/auth/*.supabase.ts`
+- 上記 2 つはいずれも `CreateAuthFacadeOptions` の optional 依存。未注入時は該当メソッドが `AUTH_PROFILE_WRITE_NOT_CONFIGURED` を返す (§2.1 契約注釈参照)。本番実装は `apps/server/src/adapters/repositories/auth/*.supabase.ts`
+- **[Issue #78 で削除]** `LegacyConsentRepository.recordConsentVersion(userId, consentVersion)` — レガシー `POST /api/auth/consent` (単数形) 用だったが、三重の契約不一致 (§2.1 参照) のため route ごと削除した
 
 ### 4.2 media が要求する依存
 - `LiveKitAdapter` (LiveKit Server SDK ラッパー、HTTP/WSS URL + API key/secret + AuthFacade)

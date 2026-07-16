@@ -370,16 +370,14 @@ export async function deleteAccount(
   });
 }
 
-/**
- * POST /api/auth/consent
- * Revoke the user's AI translation consent.
- */
-export async function revokeConsent(
-  accessToken: string,
-): Promise<Result<{ success: boolean }>> {
-  return apiFetch("/api/auth/consent", DeleteSuccessSchema, {
-    method: "POST",
-    body: { revoke: true },
-    accessToken,
-  });
-}
+// NOTE (Issue #78): a `revokeConsent()` used to live here, POSTing
+// `{ revoke: true }` to the legacy singular `POST /api/auth/consent` route.
+// That route/payload never matched the server's `ConsentSchema` ({consentVersion})
+// and the underlying table (`trancall_auth.consent_versions`) is a document
+// version master, not a per-user consent record — so the call could never
+// succeed (400, then 500 once the payload was "fixed"). The legacy route has
+// been removed. Callers revoking a specific consent scope (e.g. the
+// "voice_to_openai" AI translation consent, see docs/legal-and-consent.md
+// §6.4) must use `revokeConsentByScope()` from "./consent-api" instead, which
+// targets the canonical `DELETE /api/auth/consents/:scope` endpoint backed by
+// `trancall_auth.user_consents` (AuthFacade.revokeConsent).
