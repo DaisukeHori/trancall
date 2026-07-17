@@ -3,9 +3,9 @@
 | 項目 | 値 |
 |---|---|
 | ドキュメント ID | `DESIGN-GROUP-CALL` |
-| バージョン | 1.1.0 |
+| バージョン | 1.1.1 |
 | 作成日 | 2026-07-17 |
-| 最終改訂 | 2026-07-17 (v1.1.0: 2 モデル敵対的レビュー指摘反映) |
+| 最終改訂 | 2026-07-17 (v1.1.1: D14 仮計上を「モデル B (翻訳セッション単位)」で再仕様化 + settle-provisional-first + decline 経路明文化) |
 | ステータス | **canonical** |
 | 対象 | Phase 2 グループ通話 (最大 49 名招待 + host = 50 名)。room / media / billing / translation(-agent) / notification / mobile 横断 |
 | 置き換え対象 | `docs/module-contracts.md` §9.1a (グループ通話 49 名対応の設計メモ) — 本書が確定版として置き換える (§15 参照) |
@@ -35,7 +35,7 @@
 | D11 | translation_sessions スキーマ是正 | `target_participant_id` を deprecated (nullable 維持、新規書き込みは null)、`output_language` を正とする | §6.3 |
 | D12 | leave / end 意味論の分離 (**v1.1.0 新設、F-C1**) | `leaveCall`(個別退出)を新設し `left_at` を個別更新。残存 joined 2 名未満で自動終了。`endCall` は host 専用 (`ROOM_END_FORBIDDEN`)。1 対 1 は自動終了で後方互換 | §4.4, §6.6 |
 | D13 | LiveKit 定員 = 人数上限 + Agent 席 1 (**v1.1.0 訂正、F-C2**) | Agent が participant として join するため `maxParticipants = maxGroupParticipants + TRANSLATION_AGENT_SLOTS(=1)`。D4 を精緻化 (free/light の 1 対 1 翻訳全滅を回避) | §6.1 |
-| D14 | 通話中の分数仮計上 (**v1.1.0 新設、F-C3**) | heartbeat で `usage_windows` に仮計上行を upsert → `translation.ended` の `recordUsage` が確定値で置換。通話中の残量枯渇カットオフを実際に発火させる。D2 を補完 | §6.2.3 |
+| D14 | 通話中の分数仮計上 (**v1.1.0 新設、F-C3。v1.1.1 でモデル B に再仕様化**) | 各翻訳セッションの heartbeat が **自セッション**の累計課金秒を送り、サーバが `provisional:${翻訳sessionId}` で仮計上行を upsert → `translation.ended` が **settle-provisional-first** で確定置換。通話中の残量枯渇カットオフを実際に発火させる。D2 を補完 | §6.2.3 |
 
 ---
 
@@ -91,7 +91,7 @@
 `docs/translation-pipeline-design.md` §2.1 の 1 対 1 構成を N 名に一般化する。
 
 ```
-Room: "room-{roomId}"  (LiveKit maxParticipants = host プランの maxGroupParticipants, D4)
+Room: "room-{roomId}"  (LiveKit maxParticipants = host プランの maxGroupParticipants + TRANSLATION_AGENT_SLOTS(=1), D13)
 ├── Participant A (native=ja) → publish raw-{A}
 ├── Participant B (native=en) → publish raw-{B}
 ├── Participant C (native=en) → publish raw-{C}
@@ -156,6 +156,13 @@ Room: "room-{roomId}"  (LiveKit maxParticipants = host プランの maxGroupPart
 - **全員退出検知はポーリング/webhook 不要**。各 `leaveCall` 時の残存カウントで完結する。
 - **既知の制約 (スコープ外)**: LiveKit 切断のみで HTTP `/leave` が来ないケース (アプリ kill・ネットワーク断など) は本設計のスコープ外。この場合 `left_at` が更新されず自動終了が遅延しうる (LiveKit の `emptyTimeout=600s` が最終的な保険)。将来 LiveKit webhook で補完する (§13)。
 
+##### [v1.1.1 W-1] 未 join invitee の decline (着信拒否) 経路 — 既知の 403、現状維持
+
+- **現状の挙動 (実コード確定)**: 未 join の invitee が `POST /api/rooms/:id/leave` を呼んでも、`getState` が返す `RoomState.participants` は **joined 済み (`joined_at≠null`) のみ**を含む (`state-builder.ts:59` が `joined_at === null` の行を除外 — 確定#2 の認可バイパス防止のための意図的除外)。したがって `/leave` ルートの `isRoomParticipant` 判定 (`room-routes.ts:326-331`) が false になり **403 (`FORBIDDEN`) で無言失敗**する。
+- **既存バグとしての帰結**: invitee の「拒否 (decline)」はサーバに一切届かない。発信者 (host) は invitee が拒否しても気付けず、**タイムアウトまで呼び出し続ける**。これは 1 対 1 でも現存する既知バグであり、グループ化で新規に発生するものではない。
+- **本設計での確定**: 未 join invitee の `/leave` = **既知の 403 (現状維持)**。`leaveCall` (D12) は joined 済み参加者のみを対象とし、未 join invitee には到達させない。decline 専用 API (例: `POST /api/rooms/:id/decline` で per-invitee の招待取り消し + host への拒否通知) は **§13 非スコープ** (別設計)。
+- **グループでの安全性**: この 403 ガードにより、未 join invitee の decline 操作が `leaveCall` / `endCall` に到達することは構造的にない。つまり「**1 人の拒否が通話全体を終了させる**」事故は (D12 の leave/end 分離とは独立に) この既存ガードの時点で起きない。
+
 ---
 
 ## 5. 認可マトリクス (必須章)
@@ -165,7 +172,7 @@ Room: "room-{roomId}"  (LiveKit maxParticipants = host プランの maxGroupPart
 | ロール \ 操作 | create call | join | leave (自分) | end call | 自分宛字幕閲覧 | 他者宛字幕閲覧 | billing.status (残量) 受信 | 着信 push 受信 |
 |---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
 | **host** (creator/payer) | ◯ △1 | ◯ △2 | ◯ △7 | ◯ | ◯ | × △5 | ◯ △6 | — |
-| **invitee** (事前登録・未 join) | × | ◯ △2 | — | × | — | — | × | ◯ |
+| **invitee** (事前登録・未 join) | × | ◯ △2 | × △8 | × | — | — | × | ◯ |
 | **participant** (join 済み・非 host) | × | ◯ (冪等) | ◯ △7 | × △4 | ◯ | × △5 | × △6 | — |
 | **非参加者** (room 外の第三者) | — | × △3 | × | × | × | × | × | × |
 | **translation-agent** (bot) | — | — (Job 参加) | — | — | — (publish 側) | — | — | — |
@@ -176,6 +183,7 @@ Room: "room-{roomId}"  (LiveKit maxParticipants = host プランの maxGroupPart
 - △3: 招待されていない第三者は `participants` 行が無いため join 不可 (認可バイパス防止、`call-lifecycle-service.ts` の invitee 事前登録が根拠)。
 - △4: **非 host は `endCall` (通話全体終了) 不可 (D12)**。呼び出すと `ROOM_END_FORBIDDEN` (403)。非 host が通話を離れるのは `leaveCall` (自分のみ退出) を使う。
 - △7: **`leaveCall` (自分の退出、D12)** は host / 非 host いずれも可。leave 後に joined 残存が 2 名未満なら room は自動的に `ended` になる (§4.4)。host の leave も「自分の退出」であり、残 2 名以上なら通話全体は終了しない。
+- △8: **[v1.1.1 W-1] 未 join invitee の `/leave` は既知の 403 (現状維持)**。`getState` の participants は joined 済みのみ (`state-builder.ts:59` の除外) のため `isRoomParticipant`=false → 403 (`room-routes.ts:326-331`)。decline (着信拒否) がサーバに届かない既存バグを含め §4.4 参照。decline 専用設計は §13 非スコープ。この 403 ガードにより「1 人の拒否が通話全体を終了させる」事故は起きない。
 - △5: 字幕は「自分の nativeLanguage 宛」のみクライアントで表示 (targetLang 不一致は破棄、`subtitles.ts`)。他者宛字幕は物理的には broadcast されるが (D6 で当面維持)、UI では表示しない。
 - △6: `billing.status` (host 残量) データチャネルは **`destinationIdentities=[host]` に限定**する (D6)。他参加者に host の残量を見せない。
 
@@ -374,40 +382,96 @@ async canStartGroupCall(userId, participantCount) {
    - **[F-C3 v1.1.0 訂正・重要] 旧 v1.0.0 の「変更不要 (実装済み)」記述を撤回する**。実コードを突合した結果、`usage_windows` への書き込みは `translation.ended` 時のみ (`usage-metering-subscriber.ts` が唯一の writer、`recordUsage` を呼ぶ)。heartbeat ハンドラ (`agent-routes.ts:487-573`) は `agent_heartbeats` に INSERT するだけで `usage_windows` には書かない。`shouldContinue` は `billing.canStartCall`(=`getUsedSecondsInPeriod` を参照) で算出されるが、その参照元 `usage_windows` が **通話中は一切更新されない**ため、`canStartCall` は通話開始時点の残量を返し続け、**通話中に `shouldContinue=false` は一度も発火しない**。つまり「残量が通話の途中で尽きても、その通話が終わるまでカットオフされない」バグがある。
    - この一括カットオフを実際に機能させるため、**通話中の分数仮計上 (§6.2.3, D14)** を新設する。
 
-#### 6.2.3 D14: 通話中の分数仮計上 (mid-call metering、F-C3、v1.1.0 新設)
+#### 6.2.3 D14: 通話中の分数仮計上 (mid-call metering、F-C3、v1.1.0 新設 / **v1.1.1 でモデル B に再仕様化**)
 
 ##### 目的
 
 `canStartCall`(=`getUsedSecondsInPeriod`)が **通話中の消費**を反映するようにし、host の含有分数が通話の途中で枯渇した時点で全ペアの `shouldContinue=false` が実際に発火するようにする。
 
+##### [v1.1.1 Critical-1] sessionId キー空間の確定 — モデル B (翻訳セッション単位) に統一
+
+旧 v1.1.0 の記述は「予約 sessionId (room 単位)」と「翻訳 sessionId (セッション単位)」を `provisional:${sessionId}` の `sessionId` として混在させており、読み方次第で **N 重計上** (Agent が全セッション合計を送り、各セッションの heartbeat が同じ値を別行/同行に upsert) または **恒久二重計上** (仮計上キーと確定キーが別 UUID を指し、確定時に置換されない) になる欠陥があった。**この 2 つの sessionId は無関係の別 UUID** である (`usage-metering-subscriber.ts:9-27` の設計判断コメントに明記)。v1.1.1 で以下の **モデル B (翻訳セッション単位)** に確定する。
+
+- **キー空間の定義 (実コード突合済み)**:
+  - **予約 sessionId** (room 単位): `room-routes.ts:225` の `reserveMinutes` 時に server が独自採番し、`room_reservation_sessions` (roomId ↔ (host userId, 予約 sessionId)) に保存。`usage_windows.session_id` **列**と reconcile はこの ID を使う (確定行も同じ)。
+  - **翻訳 sessionId** (翻訳セッション単位): `translation.session_started` 受信時に server が採番する `trancall_event.translation_sessions.id` (`translation-session-repository.supabase.ts:42` の `randomUUID()`)。`translation.ended` の `payload.sessionId` はこれ (`agent-routes.ts:276-319` の `publishTranslationEndedEvent` が `getUsage(agentJobId)` で解決して publish)。Agent 側 per-session の `agentJobId` (`translation-session.ts:152`、インスタンス毎に採番) と `agent_job_id` UNIQUE (migration `00006`) で 1:1 対応。
+- **モデル B の骨子**:
+  1. 各 `TranslationSession` は自分専用の heartbeat タイマーを持ち 30 秒毎に送信している (送信実体は `translation-session.ts:842-883` の `sendHeartbeat`、タイマーは `:885-889`)。この payload に **自セッションの** 累計課金秒 `elapsedBillableSeconds` を載せる。**room 合計の Agent 側集計は不要** — サーバ側の `getUsedSecondsInPeriod` SUM がセッション行の合算として自然に host 合計になる。
+  2. サーバは **`provisional:${翻訳sessionId}`** を idempotency_key として仮計上行を upsert する。**1 翻訳セッション = 高々 1 行**、値は自セッション累計。行がセッション毎に分散するため、**単一行への upsert 競合も発生しない**。
+  3. `translation.ended` の確定キー **`translation-ended:${payload.sessionId}`** (`usage-metering-subscriber.ts:148`) は **同じ翻訳 sessionId** を指すため、確定時に置換すべき仮計上行が一意に定まる。
+
 ##### 設計
 
-1. **Agent → heartbeat payload に累計課金秒を追加**:
-   - `HeartbeatBodySchema` (`agent-routes.ts:46-61`) に `elapsedBillableSeconds: z.number().int().nonnegative()` を追加 (optional、旧 Agent 互換)。
-   - Agent はセッション開始からの **累計課金対象秒 (全 active セッションの billableSeconds 合計)** を 30 秒ごとの heartbeat に載せる。
+1. **Agent → heartbeat payload に自セッションの累計課金秒を追加**:
+   - `HeartbeatBodySchema` (`agent-routes.ts:46-61`) に `elapsedBillableSeconds: z.number().int().nonnegative().optional()` と `languagePair: z.string().max(10).optional()` を追加 (いずれも optional、旧 Agent 互換)。
+   - 各 `TranslationSession` が **自セッションの** billableSeconds 累計を 30 秒毎の heartbeat に載せる。`languagePair` は `${config.sourceLang}-${config.outputLanguage}` (Agent が既知、下記 3 の language_pair 列に使用)。
+   - **[v1.1.1 訂正] Agent 側の変更ファイルは `apps/translation-agent/src/translation-session.ts`** (`sendHeartbeat`、`:842-883`)。旧 v1.1.0 の「Agent は全 active セッションの billableSeconds 合計を載せる」記述と PR2 ファイルリストの `agent.ts` (heartbeat elapsed) は **誤り** — heartbeat は agent.ts ではなく TranslationSession 毎に送信されており、合計でなく自セッション値を送る (§12 PR2 を訂正)。
 
-2. **サーバ側 heartbeat ハンドラが仮計上行を upsert**:
-   - roomId → 予約 (host userId, sessionId) を `roomReservationSessionRepo.findByRoomId` で解決 (既存の `resolveHeartbeatBillingStatus` と同経路)。
-   - `usage_windows` に **session 単位の仮計上行**を upsert する。冪等キーは既存 `idempotency_key` (UNIQUE VARCHAR(200)、`00001_initial_schema.sql:169-181`) を流用し、仮計上行は **`provisional:${sessionId}`** を key とする (確定行 `translation-ended:${sessionId}` とは別 key)。`duration_seconds` は毎 heartbeat の `elapsedBillableSeconds` で上書き (累計値なので加算でなく置換)。
-   - **既存スキーマで表現できるか確認した結果**: `usage_windows` に仮計上/確定を区別する列は無い。可観測性と孤児行掃除のため **migration で `is_provisional boolean NOT NULL DEFAULT false` を追加**する (`00021_add_usage_windows_provisional.sql` 想定)。仮計上行は `is_provisional=true`、確定行は `false`。
-   - upsert は `idempotency_key` の UNIQUE を利用した `ON CONFLICT (idempotency_key) DO UPDATE SET duration_seconds=EXCLUDED.duration_seconds` で実装 (heartbeat 毎に最新累計へ更新)。
+2. **サーバ側 heartbeat ハンドラ (`agent-routes.ts:487-573`) が翻訳セッション単位の仮計上行を upsert**:
+   - **翻訳 sessionId の解決**: heartbeat 単体は翻訳 sessionId を運ばない — `HeartbeatBody.sessionId` は現行 `config.sessionId ?? agentJobId` のフォールバックで **agentJobId と同値** (`translation-session.ts:52-53, 843`。`config.sessionId` は agent.ts から未設定)。そこで heartbeat の `agentJobId` から `translation_sessions.agent_job_id` (UNIQUE) を引いて `translation_sessions.id` を解決する。translation facade に read-only の解決メソッド (`resolveSessionIdByAgentJobId` 相当、既存 `sessionRepo.findByAgentJobId` の薄い公開) を追加する。`session_started` 未達等で行が無い場合は仮計上をスキップ (best-effort、30 秒後の次 heartbeat で再試行)。UNIQUE index 参照 × 30 秒間隔のため負荷は軽微。
+   - roomId → 予約 (host userId, 予約 sessionId) を `roomReservationSessionRepo.findByRoomId` で解決 (既存 `resolveHeartbeatBillingStatus` と同経路)。仮計上行の `user_id` / `session_id` 列にはこの **host userId / 予約 sessionId** を入れる (確定行と同じ値域。`findBySessionId` / reconcile の集計と整合)。
+   - `usage_windows` へ **`provisional:${翻訳sessionId}`** を idempotency_key (UNIQUE VARCHAR(200)、`00001_initial_schema.sql:179`) として upsert。`duration_seconds` は毎 heartbeat の `elapsedBillableSeconds` で置換 (累計値なので加算でなく置換)。
+   - **[W-2] 単調性ガード**: upsert は `ON CONFLICT (idempotency_key) DO UPDATE SET duration_seconds = GREATEST(usage_windows.duration_seconds, EXCLUDED.duration_seconds), window_end = GREATEST(usage_windows.window_end, EXCLUDED.window_end)` とする。モデル B では 1 行の書き手が単一セッションのためほぼ発生しないが、in-flight heartbeat の順序逆転 (リトライ遅延着) でも累計値が巻き戻らない保険。
+   - **既存スキーマで表現できるか確認した結果**: `usage_windows` に仮計上/確定を区別する列は無い。可観測性と掃除のため **migration で `is_provisional boolean NOT NULL DEFAULT false` を追加**する (`00021` 帯は消費済みのため実番号は採番時に確定。以下「provisional migration」)。仮計上行は `is_provisional=true`、確定行は `false`。
 
-3. **`translation.ended` の `recordUsage` が仮計上行を確定値で置換 (二重計上防止)**:
-   - `usage-metering-subscriber.ts` の `recordUsage` は従来通り確定行 (`translation-ended:${sessionId}`、`is_provisional=false`) を挿入する。
-   - **同一トランザクション内で仮計上行 (`provisional:${sessionId}`) を DELETE** する。これにより 1 セッションにつき任意時点で `usage_windows` に高々 1 行しか存在せず (通話中=仮計上、終了後=確定)、`getUsedSecondsInPeriod` の SUM が **二重計上しない**。
-   - 冪等性: 確定行の挿入は `idempotency_key` UNIQUE の 23505 を吸収 (既存 `insertWindowIdempotent` 実装)。`translation.ended` の重複配信でも二重計上は起きない。仮計上行の DELETE も冪等 (無ければ no-op)。
+3. **[W-4] 仮計上行の NOT NULL 列の値規定** (`usage_windows` は全列 NOT NULL、`00001_initial_schema.sql:169-181`):
 
-4. **`getUsedSecondsInPeriod` は仮計上行も合算**する (`is_provisional` に関わらず period 内の全 `usage_windows` を SUM)。これにより通話中の消費が残量計算に反映され、host 枯渇時に `resolveHeartbeatBillingStatus` → `shouldContinue=false` が全ペアで発火する。
+   | 列 | 仮計上行の値 |
+   |---|---|
+   | `user_id` | host userId (roomId → 予約解決、上記 2) |
+   | `session_id` | 予約 sessionId (確定行と同じ) |
+   | `room_id` | heartbeat の roomId |
+   | `window_start` | **セッション開始時刻**。初回 INSERT で固定し `DO UPDATE` では更新しない (値は初回 heartbeat 受信時刻 − `elapsedBillableSeconds` の近似で可。確定行が `translation.ended` の正確な `startedAt` で置換するため誤差は一時的) |
+   | `window_end` | **最新 heartbeat 時刻** (upsert 毎に更新、GREATEST ガード付き) |
+   | `duration_seconds` | `elapsedBillableSeconds` (累計置換) |
+   | `language_pair` | **当該セッションの実言語ペア** (heartbeat payload の `languagePair`)。**注意: 列は `VARCHAR(10)` (`00001_initial_schema.sql:177`) のため `"provisional"` (11 文字) のようなマーカー文字列は格納不可** — 仮計上の識別はあくまで `is_provisional` 列で行う。実ペアは全て 5 文字 (`OutputLanguage` は 2 文字コード 13 値) で収まる |
+   | `amount_yen` | **0** (仮計上中は超過額を計上しない。超過額は確定時に settle-provisional-first で算出、下記 4) |
+   | `idempotency_key` | `provisional:${翻訳sessionId}` |
+   | `recorded_at` | upsert 時刻 |
 
-##### 孤児仮計上行の扱い (既知の制約)
+   - **period フィルタとの関係**: `getUsedSecondsInPeriod` は `window_start >= period_start AND window_end <= period_end` で絞る (`subscription-repository.supabase.ts:134-145` の gte/lte)。仮計上行は当期内に開始し `window_end` = 直近 heartbeat < now < period_end のため、当期の SUM に自然に含まれる。当期を跨ぐ通話の window が SUM から外れる制約は既存確定行と同一 (本設計で挙動を変えない)。
 
-- LiveKit 切断のみで `translation.ended` が届かないケース (アプリ kill 等、§4.4 と同じ制約) では仮計上行が `is_provisional=true` のまま残りうる。`translation.ended` は Agent の `handleParticipantDisconnected` / shutdown でも発行される想定 (`translation` CLAUDE.md「異常終了時も translation.ended を発行」) のため通常は確定置換されるが、保険として **仮計上行の TTL 掃除** (例: `recorded_at` が一定時間より古い `is_provisional=true` 行を定期削除) を運用タスクとして §13 に記載する。
+4. **[v1.1.1 Critical-2] 確定置換は settle-provisional-first — amount_yen 過大計上の防止**:
+   - **問題 (実コード確定)**: `recordUsage` (`usage-metering.ts:49-124`) は確定行 INSERT (`:85-89`) の **前**に `getUsedSecondsInPeriod` を読み (`:67-71`)、残量から超過額 `amount_yen` を算出する (`:75-82`)。同一セッションの仮計上行が SUM に残ったまま確定計算すると、当該セッションの消費が「仮計上行 + これから挿入する確定対象」の **二重で差し引かれて見え**、実際は含有分数内でも `amount_yen > 0` が確定行に刻まれる (過大計上)。`amount_yen` は通話履歴の costYen 表示に直結する実害がある (`room-history-enrichment-repository.supabase.ts:56-72` の `getCostYen` が room×user で `amount_yen` を SUM)。
+   - **修正 (順序の確定)**: 「**当該セッションの仮計上行を残量集計から除外してから** `recordUsage` の残量計算を行う」。実装は **billing facade 内** (settle-provisional-first):
+     - `RecordUsageCommand` に optional **`settleProvisionalKey?: string`** を追加し、subscriber (`usage-metering-subscriber.ts:140-149`) が `provisional:${payload.sessionId}` を渡す。
+     - `recordUsage` の手順: (a) `settleProvisionalKey` の仮計上行を読み、その `duration_seconds` を `getUsedSecondsInPeriod` の結果から **差し引いて**残量を算出 (集計から除外) → (b) `calcAmountYen` → (c) 確定行 INSERT + 仮計上行 DELETE を **RPC で原子的に**実行 (下記 5)。
+     - **subscriber 側で recordUsage の前に仮計上行を先 DELETE する方式は採らない**: DELETE と確定 INSERT の間でプロセスがクラッシュすると、当該セッションの消費が **どこにも残らない計上漏れ窓**が開く。集計除外 + 原子置換なら、クラッシュしても仮計上行が残るだけ (安全側 = 過大方向に倒れ、room ended 一括 DELETE (下記 6) で回収) で計上漏れは起きない。
+   - 置換後は 1 セッションにつき任意時点で `usage_windows` に高々 1 行 (通話中=仮計上、終了後=確定) となり、`getUsedSecondsInPeriod` の SUM は二重計上しない。
+
+5. **[W-3] 確定置換の原子性 — RPC (ストアド関数) の migration が必要**:
+   - 既存 `insertWindowIdempotent` は **非トランザクション実装** (`usage-repository.supabase.ts:16-72`: INSERT → SELECT の 2 往復で、トランザクション境界を持たない)。「確定行 INSERT + 仮計上行 DELETE」を独立した 2 クエリで行うと、間のクラッシュで仮計上行が確定行と併存し二重計上する。
+   - **migration で Postgres ストアド関数 `settle_usage_window(...)`** を追加し、確定行 INSERT (ON CONFLICT (idempotency_key) DO NOTHING) と `DELETE FROM trancall_billing.usage_windows WHERE idempotency_key = $provisional_key` を **単一トランザクション (関数呼び出し = 暗黙 1 トランザクション)** で実行する。
+   - `UsageRepository` interface (`packages/billing/src/repositories/usage-repository.ts`) に以下を追加し、Supabase 実装 (`apps/server/src/adapters/repositories/billing/usage-repository.supabase.ts`) は `supabase.rpc(...)` で呼ぶ:
+     - `settleWindowIdempotent(cmd, amountYen, settleProvisionalKey)` — RPC 経由の原子置換 (settleProvisionalKey 無指定時は従来の `insertWindowIdempotent` 相当)
+     - `findWindowByIdempotencyKey(key)` — settle-provisional-first の除外計算用 (上記 4-(a))
+     - `upsertProvisionalWindow(...)` — heartbeat 仮計上 upsert (GREATEST ガード付き)
+     - `deleteProvisionalByRoomId(roomId)` — room ended 一括 DELETE (下記 6)
+   - 冪等性: 確定行 INSERT の重複は ON CONFLICT DO NOTHING で吸収。`translation.ended` 重複配信の 2 回目は確定 INSERT が no-op、仮計上 DELETE も no-op (既に無い) で二重計上しない。
+
+6. **[W-2] 仮計上行の「復活」防止 — room ended 時の一括 DELETE (PR1 スコープ)**:
+   - **復活シナリオ**: 最終 `translation.ended` の確定置換 (DELETE) 後に、**in-flight の heartbeat** (置換前に送信済みで処理が遅延したもの) が仮計上行を再 INSERT すると、確定行と仮計上行が併存したまま以後の heartbeat が来ない (セッション終了済み) ため、**恒久過大計上**として固定化する。
+   - **対策**: room が `ended` へ遷移した時 (endCall / leave 自動終了 — reconcile と同じトリガーポイント、§6.4.3) に `deleteProvisionalByRoomId(roomId)` (`DELETE FROM usage_windows WHERE room_id = $1 AND is_provisional = true`) を実行する。**PR1 スコープ内の必須処理** — 旧 v1.1.0 が §13 の「TTL 掃除 (運用タスク)」へ送っていた掃除の一次責務を**撤回**し、設計内処理に格上げする。
+   - 単調性ガード (上記 2 の GREATEST) は upsert 順序逆転による巻き戻りへの保険、room ended 一括 DELETE が復活への最終防壁。
+
+7. **`getUsedSecondsInPeriod` は仮計上行も合算**する (`is_provisional` に関わらず period 内の全 `usage_windows` を SUM。唯一の例外は上記 4 の settle-provisional-first における当該セッション行の除外)。これにより通話中の消費が残量計算に反映され、host 枯渇時に `resolveHeartbeatBillingStatus` → `shouldContinue=false` が全ペアで発火する。
+
+##### DB 書き込み負荷への言及 (v1.1.1 追加)
+
+- 仮計上 upsert により DB 書き込みは「active 翻訳セッション数 × 30 秒毎」に 1 回増える。モデル B では書き込み先が **セッション毎の別行に分散**する (単一行のホットスポット無し) ため行ロック競合は起きず、P5 最悪 (600 セッション) でも 20 upsert/秒程度。既存 `agent_heartbeats` INSERT (同一頻度、`agent-routes.ts:522-533`) と同オーダーで軽微。
+
+##### 孤児仮計上行の扱い (v1.1.1 改訂)
+
+- **一次の掃除は room ended 時の一括 DELETE (上記 6、PR1)**。仮計上行が残るのは「room が `ended` に到達しない」異常系 (server が終了を検知できないケース、§4.4 の既知の制約と同根) のみに縮小される。この残余に対する保険として TTL 掃除 (例: `recorded_at` が一定時間より古い `is_provisional=true` 行の定期削除) を §13 に **残余リスク対応 (一次責務ではない)** として記載する。`translation.ended` は Agent の `handleParticipantDisconnected` / shutdown でも発行される想定 (`translation` CLAUDE.md「異常終了時も translation.ended を発行」) のため、通常経路では確定置換で消える。
 
 ##### F-H3 (退出 host の可視性) の整理
 
 - host が leave / 切断しても課金は継続する (D2) が、**このカットオフ (D14) により被害が有界**になる: host 残量が尽きた時点で全ペアが停止するため、退出 host が気付かないまま無制限に課金され続けることはない。
 - host の残量確認は **アプリの契約画面 (既存 `GET /api/billing/subscription`、`billing-routes.ts:153`)** で可能。
 - **低残量の push 通知は非スコープ** (将来検討)。本設計はカットオフの正確性のみを担保する。
+
+> **注 (v1.1.1)**: 以下の 3. / 4. は **§6.2.2「変更後 (仕様の明文化 + reconcile の是正)」の項番の続き**である (§6.2.3 D14 は同リスト 2. の直後に挿入された独立節。§6.2.3 内「設計」の 1〜7 とは別系列)。
+
 3. **reconcile を常に host userId で行う (是正、必須)**:
    - **現状バグ**: `room-routes.ts:353` は `billing.reconcile(request.userId, sessionIdResult.data)` — `request.userId` は **/leave を呼んだ参加者** (host とは限らない)。一方 sessionId は `roomReservationSessionRepo.findByRoomId(roomId)` から解決している (`room-routes.ts:347-348`)。この mapping 行は host の (userId, sessionId) を保持する。
    - **変更後**: reconcile の userId 引数を **mapping 行の userId (=host)** に差し替える。
@@ -1001,6 +1065,7 @@ if (firstErr && !firstErr.ok) return firstErr;
 
 - **現状**: `recent-calls-store.ts:71-72` `entry.participants.find(p => !p.isHost) ?? entry.participants[0]` で「host 以外ちょうど 1 人」を相手として抽出。
 - **変更後**: グループ通話は **代表 1 人 + 他 N 名** 表示 (`◯◯さん 他 N 名`)。participants 配列長で 1 対 1 / グループを判定。CallCard の表示のみの変更。
+- **[v1.1.1 表示仕様] `durationSeconds` は room 全体の通話時間**: 履歴の `durationSeconds` は `ended_at - created_at` で算出される room 全体の値であり (`packages/room/src/services/history-service.ts:168-173`)、**途中退出者の在室時間 (自分の joined_at〜left_at) は反映されない**。D12 で途中退出が可能になるグループ通話でも、途中退出者の履歴には room 全体の通話時間が表示される仕様とする (per-user 在室時間の表示は非スコープ。必要になれば participants の joined_at/left_at から導出可能)。
 
 #### 非スコープ (mobile)
 
@@ -1150,13 +1215,13 @@ return reply.send({ ok: true, data: result.data });
 | # | イベント | room.status | 翻訳セッション | 課金 (host) | 備考 |
 |---|---|---|---|---|---|
 | L1 | host が create | waiting | 0 (誰も未 join) | **`translationEnabled=true` 時のみ** reserveMinutes(host) 1 回 (F-L4、`room-routes.ts:224`) | invitee 事前登録 + push fanout (per-invitee, D7)。translationEnabled=false は reserve せず |
-| L2 | 最初の非 host が join | waiting→**active** | 発話者×他言語で生成開始 | heartbeat 開始 + **通話中の仮計上 (D14)**: heartbeat が `usage_windows` に `provisional:` 行を upsert | host は InCall へ遷移 (D9) |
+| L2 | 最初の非 host が join | waiting→**active** | 発話者×他言語で生成開始 | heartbeat 開始 + **通話中の仮計上 (D14)**: 各翻訳セッションの heartbeat が `usage_windows` に `provisional:${翻訳sessionId}` 行 (セッション毎 1 行) を upsert | host は InCall へ遷移 (D9) |
 | L3 | 2 人目以降が join | active | 新規参加者 source/target のセッション追加 (`handleParticipantConnected`) | 加算継続 | 参加者リスト live 更新 |
 | L4 | 参加者 (非 host) が **leaveCall** | active (残存≧2 で継続) | 離脱者 source のセッション end + 離脱者言語のリスナー 0 なら `*-lang` end (D5-2) | 加算継続 | `setLeftAt` 個別更新 (D12)。残存 2 名以上なら通話は続く |
 | L5 | **host が leaveCall / 切断** | active (残存≧2 で継続) | host source のセッション end のみ | **加算継続 (host に)** | host=支払者、在室不要 (D2)。host の leave も「自分の退出」(D12)、残存<2 なら自動終了 |
 | L6 | host 残量枯渇 (通話中) | active (継続) | **全ペア一括停止** (heartbeat shouldContinue:false) | 消費停止 | **D14 の仮計上により通話の途中で実際に発火する** (旧: ended まで発火しなかった)。ambient 100%、翻訳なしで通話継続 (D2) |
-| L7 | **host が endCall (host 専用)** | active→**ended** | 全セッション end | reconcile(host) | 非 host の endCall は `ROOM_END_FORBIDDEN` (D12)。media.deleteRoom (best-effort) |
-| L8 | **leaveCall で joined 残存 < 2** | active→**ended** (自動終了) | 全セッション end (Agent shutdown, `remoteParticipants<=1`) | reconcile(host) | 最後から 2 人目の leave で自動終了 (D12)。1 対 1 は片方 leave で即該当 (後方互換) |
+| L7 | **host が endCall (host 専用)** | active→**ended** | 全セッション end | reconcile(host) + **仮計上行の room 一括 DELETE (D14/W-2)** | 非 host の endCall は `ROOM_END_FORBIDDEN` (D12)。media.deleteRoom (best-effort) |
+| L8 | **leaveCall で joined 残存 < 2** | active→**ended** (自動終了) | 全セッション end (Agent shutdown, `remoteParticipants<=1`) | reconcile(host) + **仮計上行の room 一括 DELETE (D14/W-2)** | 最後から 2 人目の leave で自動終了 (D12)。1 対 1 は片方 leave で即該当 (後方互換) |
 | L9 | 0 人応答 (誰も join せず) | waiting のまま | 0 | 予約は保持 (reserve のまま) | missed call 通知は未配線 (§13)、host のキャンセル/タイムアウトで終了 |
 | L10 | 部分応答 (一部のみ join) | active | join 済みぶんのみ生成 | 加算 | 未応答 invitee は待機中扱い |
 | L11 | セッション上限到達 (D5-3) | active | 新規セッション拒否 + degraded 通知 | 既存ペアは継続 | プラン定員が一次防壁 |
@@ -1228,7 +1293,7 @@ return reply.send({ ok: true, data: result.data });
 | **media (D4/D13)** | `createRoom` に `maxParticipants` を渡すと LiveKit へ `+TRANSLATION_AGENT_SLOTS` して反映 (mock RoomServiceClient で引数検証: 渡し 8 → LiveKit 9) | createCall → media.createRoom に host プラン上限 (人間) が伝播 | 50 名 + Agent 1 = 51 で全員 join、free/light 1 対 1 で Agent が入れる (Gate Check §10.3) | `maxParticipants` 未指定時の安全弁 (実効 51)。`ROOM_MAX_PARTICIPANTS` を import しない (依存方向) |
 | **billing (D3/D2)** | `canStartGroupCall`: `sub.data.plan.maxGroupParticipants` 境界 (2/8/50)、超過で `BILLING_GROUP_LIMIT_EXCEEDED`、残量不足で `BILLING_INSUFFICIENT_BALANCE` | createCall が `canStartGroupCall` を呼び定員超過を弾く | — | 境界: count = limit (許可) / limit+1 (拒否)。1 対 1 (count=2) が free/light で成功 (後方互換)。`SubscriptionState.plan` 経由 (tier 直参照しない、F-M2) |
 | **billing reconcile (D2)** | reconcile が host userId で呼ばれる (mapping.userId 使用) | room ended 時 (leave 自動終了 / endCall) に host の予約が host userId で reconcile | — | 誤 userId でも金銭誤帰属は起きない (session_id スコープ、S-M2) が host userId で呼ぶ回帰防止 |
-| **billing mid-call metering (D14/F-C3)** | heartbeat ハンドラが `elapsedBillableSeconds` で `provisional:${sessionId}` 行を upsert (累計置換) | `translation.ended` の recordUsage が確定行挿入 + 仮計上行 DELETE で **二重計上しない** (SUM が確定値のみ) | 通話中に host 残量が尽きると `shouldContinue=false` が **通話の途中で発火** | 仮計上→確定の冪等 (重複 ended で二重計上なし)、孤児仮計上行の TTL 掃除 |
+| **billing mid-call metering (D14/F-C3、v1.1.1 モデル B)** | heartbeat ハンドラが `elapsedBillableSeconds` で `provisional:${翻訳sessionId}` 行 (**セッション毎 1 行**) を upsert (累計置換 + GREATEST ガード)。**settle-provisional-first**: 仮計上行が残った状態の recordUsage でも含有分数内なら確定行の `amount_yen=0` (過大計上なし、Critical-2) | `translation.ended` の確定置換が **RPC (確定 INSERT + 仮計上 DELETE) で原子的**に行われ **二重計上しない** (SUM が確定値のみ)。N セッション並行でも各行が独立に置換される | 通話中に host 残量が尽きると `shouldContinue=false` が **通話の途中で発火**。room ended で当該 room の仮計上行が一括 DELETE (in-flight heartbeat による復活なし、W-2) | 仮計上→確定の冪等 (重複 ended で二重計上なし)、順序逆転 heartbeat で累計が巻き戻らない (GREATEST)、翻訳 sessionId 未解決時のスキップ→次 heartbeat 再試行 |
 | **room leave/end (D12/F-C1)** | `leaveCall`: `setLeftAt` 個別更新 / joined 残存<2 で自動 `endCall`。`endCall` host 判定 | `/leave` (非 host) → 残存≧2 で継続 (ended にならない) / 最後から 2 人目 leave で ended。`/end` 非 host → `ROOM_END_FORBIDDEN` (403) | 3 名グループで 1 名 leave → 2 名継続、さらに 1 名 leave → ended | 1 対 1 で片方 leave → 即 ended (後方互換)。host leave でも残存≧2 なら継続 |
 | **translation-agent (D5-1)** | `attachSourceTrack` 冪等: 同一 track SID 2 回で pushAudioFrame は 1 回 | N=3, en リスナー 2 人で `A-en` セッションに二重 pipe されない | 3 名 (ja/en/en) 実 Room で翻訳音声が二重化しない | 同一 track の startSession pipe と trackSubscribed pipe の race |
 | **translation-agent (D5-2)** | 言語 L の最後のリスナー離脱で `*-L` セッション end | participant_left で参照カウント 0 → OpenAI 接続クローズ | — | source 離脱 + listener 離脱の同時、L のリスナー再参加でセッション再生成 |
@@ -1263,8 +1328,9 @@ return reply.send({ ok: true, data: result.data });
 | `ParticipantMetadata.isHost` (D6/S-C3) | optional 追加 + schemaVersion v1→v2 | `schemaVersion` を `z.union([literal(1),literal(2)])` に緩和し発行済み v1 token も parse 成功 |
 | `groupSize` (通知 payload) | optional 追加 | 省略/2 は 1 対 1。受信側は `z.coerce.number()` で FCM の文字列化に対応 (F-H2) |
 | `target_participant_id` deprecated | nullable 化 (agent 送信 + server schema 両方) + 新規 null | 旧非 null 値も read 可。**server 先行デプロイ必須** (下記 §11.4)。列削除は別 PR |
-| `usage_windows.is_provisional` (D14) | 列追加 migration | `DEFAULT false` で既存行は確定扱い。仮計上→確定置換は冪等 (§6.2.3) |
-| `HeartbeatBodySchema.elapsedBillableSeconds` (D14) | optional 追加 | 旧 Agent (欠落) は仮計上をスキップ、shouldContinue は従来通り |
+| `usage_windows.is_provisional` + RPC `settle_usage_window` (D14) | 列追加 + ストアド関数 migration | `DEFAULT false` で既存行は確定扱い。仮計上→確定置換は RPC で原子・冪等 (§6.2.3、W-3) |
+| `HeartbeatBodySchema.elapsedBillableSeconds` / `languagePair` (D14) | optional 追加 | 旧 Agent (欠落) は仮計上をスキップ、shouldContinue は従来通り |
+| `RecordUsageCommand.settleProvisionalKey` (D14/Critical-2) | optional 追加 | 未指定時は従来の recordUsage と同一挙動 (仮計上が無い 1 対 1 旧経路は不変) |
 | `leaveCall` 新設 / `endCall` host 限定 (D12) | facade メソッド追加 + endCall 認可強化 | `/leave` の API 形状不変。1 対 1 は片方 leave で自動終了 (旧挙動と同結果) |
 | `ROOM_END_FORBIDDEN` (D12) | 新規エラーコード | `/end` (新ルート) のみで発生。既存 `/leave` は出さない |
 | `CreateCallOptions.inviteeIds` (mobile) | 単数→配列 | 1 要素配列で 1 対 1。サーバ契約 (配列) は元々複数対応 |
@@ -1301,7 +1367,7 @@ schema を跨ぐ nullable 化 / enum 追加は **受信側 (server) を先にデ
 
 1. **`target_participant_id` の null 化 (D11/F-H1)**: 先に `packages/translation/src/schemas.ts:78,126` を `.nullable()` にした server をデプロイ → その後に Agent (`translation-session.ts` / `internal-api-client.ts`) を null 送信するようデプロイ。逆順だと Agent の null 送信が `SessionStartedPayloadSchema` で 400。
 2. **reason enum 追加 (`session_limit_reached` / `no_remaining_listener`)**: 同様に server 側の受理 enum (translation/schemas.ts) を先にデプロイ → Agent (internal-api-client.ts) が新 reason を送るのは後。
-3. **`is_provisional` migration (D14)**: `usage_windows` の列追加 migration を先に適用 → その後 heartbeat ハンドラ (仮計上 upsert) をデプロイ。
+3. **D14 の migration (`is_provisional` 列 + RPC `settle_usage_window`)**: migration を先に適用 → その後 server (heartbeat 仮計上 upsert / settle-provisional-first の recordUsage / room ended 一括 DELETE) をデプロイ → 最後に Agent (`translation-session.ts` の `elapsedBillableSeconds`・`languagePair` 送信)。旧 Agent は当該フィールド欠落のため仮計上がスキップされるだけで安全 (漸進有効化)。
 4. これらは 1 PR 内でもデプロイ手順として「migration/server 先行 → Agent 後追い」を明記する (§12 の PR2/PR4 リリースノート)。
 
 ---
@@ -1313,13 +1379,13 @@ schema を跨ぐ nullable 化 / enum 追加は **受信側 (server) を先にデ
 | PR | 内容 (判断) | 主な変更ファイル | 概算行数 | テスト戦略 |
 |---|---|---|---|---|
 | **PR0** (新設・F-C1) | **leave / end 意味論の分離 (D12)** | `room/facade.ts` (leaveCall) / `room/services/call-lifecycle-service.ts` (leaveCall + 残存<2 自動終了) / `room/repositories/participant-repository.ts` + supabase 実装 (setLeftAt) / `server/routes/room-routes.ts` (/leave→leaveCall, /end 新設 + host 判定) / `server/middleware/error-handler.ts` (ROOM_END_FORBIDDEN) | 実装 ~140 / テスト ~130 | leaveCall 自動終了 (残存<2)、endCall host 限定 (非 host→403)、1 対 1 後方互換 (片方 leave→ended) |
-| **PR1** | media 定員連動 (D4/**D13 Agent 席**) + billing プラン定員 (D3) + host 課金・reconcile (D2) + **通話中仮計上 (D14/F-C3)** | `billing/schemas.ts` (PlanConfig+PLAN_CONFIGS) / `billing/facade.ts` (canStartGroupCall) / `media/adapters/livekit.ts` (定員+Agent席, ローカル定数) / `room/services/call-lifecycle-service.ts` / `server/routes/room-routes.ts` (reconcile host化 + ended 時) / `server/middleware/error-handler.ts` (BILLING_GROUP_LIMIT) / `server/routes/agent-routes.ts` (heartbeat 仮計上 upsert) / `server/adapters/usage-metering-subscriber.ts` (確定置換) / `supabase/migrations/00021_add_usage_windows_provisional.sql` / `server/__tests__/helpers/mock-container.ts` (S-M1) | 実装 ~300 / テスト ~260 | billing 単体 (境界, plan 参照)、mid-call 仮計上→確定の二重計上なし、Agent 席 Gate Check、reconcile 回帰 |
-| **PR2** | 翻訳 Agent 3 点修正 (D5) + schema 是正 (D11) + **elapsedBillableSeconds 送信 (D14 Agent 側)** + reason enum (2 系統) | `translation-agent/agent.ts` (trackSubscribed + **startSession 直 pipe 経路 S-C2**, disconnect, session cap, heartbeat elapsed) / `translation-agent/translation-session.ts` (attachSourceTrack + F-L2 fail-closed + targetParticipantId null) / `translation-agent/config.ts` (MAX env) / `translation/schemas.ts` (degraded reason ×3 + session_ended reason + targetParticipantId nullable :78,:126) / `translation-agent/internal-api-client.ts` (:36 nullable, :55-62 / :107 reason) | 実装 ~230 / テスト ~200 | Agent 単体 (冪等 2 経路/参照カウント/上限)、N=3 結合、reason enum 4+2 箇所同期 |
+| **PR1** | media 定員連動 (D4/**D13 Agent 席**) + billing プラン定員 (D3) + host 課金・reconcile (D2) + **通話中仮計上 (D14/F-C3、v1.1.1 モデル B + settle-provisional-first)** | `billing/schemas.ts` (PlanConfig+PLAN_CONFIGS + **RecordUsageCommand.settleProvisionalKey**) / `billing/facade.ts` (canStartGroupCall) / `billing/services/usage-metering.ts` (**settle-provisional-first、Critical-2**) / **`packages/billing/src/repositories/usage-repository.ts`** (interface 追加: settleWindowIdempotent / findWindowByIdempotencyKey / upsertProvisionalWindow / deleteProvisionalByRoomId、**W-3**) / **`apps/server/src/adapters/repositories/billing/usage-repository.supabase.ts`** (RPC 呼び出し実装、W-3) / `media/adapters/livekit.ts` (定員+Agent席, ローカル定数) / `room/services/call-lifecycle-service.ts` / `server/routes/room-routes.ts` (reconcile host化 + ended 時 + **仮計上 room 一括 DELETE (W-2)**) / `server/middleware/error-handler.ts` (BILLING_GROUP_LIMIT) / `server/routes/agent-routes.ts` (heartbeat 仮計上 upsert + 翻訳 sessionId 解決) / `translation/facade.ts` (resolveSessionIdByAgentJobId read-only 追加) / `server/adapters/usage-metering-subscriber.ts` (settleProvisionalKey 受け渡し) / **新規 migration** (`usage_windows.is_provisional` 列 + **RPC `settle_usage_window`**、番号は採番時確定 — 00024 の次番) / `server/__tests__/helpers/mock-container.ts` (S-M1) | 実装 ~360 / テスト ~310 | billing 単体 (境界, plan 参照)、**settle-provisional-first (含有分数内で amount_yen=0)**、mid-call 仮計上→確定の二重計上なし (RPC 原子置換)、room ended 一括 DELETE (復活なし)、Agent 席 Gate Check、reconcile 回帰 |
+| **PR2** | 翻訳 Agent 3 点修正 (D5) + schema 是正 (D11) + **elapsedBillableSeconds/languagePair 送信 (D14 Agent 側、v1.1.1 訂正: 変更ファイルは translation-session.ts)** + reason enum (2 系統) | `translation-agent/agent.ts` (trackSubscribed + **startSession 直 pipe 経路 S-C2**, disconnect, session cap) / `translation-agent/translation-session.ts` (attachSourceTrack + F-L2 fail-closed + targetParticipantId null + **sendHeartbeat に elapsedBillableSeconds/languagePair 追加 (:842-883、D14)**) / `translation-agent/config.ts` (MAX env) / `translation/schemas.ts` (degraded reason ×3 + session_ended reason + targetParticipantId nullable :78,:126) / `translation-agent/internal-api-client.ts` (:36 nullable, :55-62 / :107 reason, HeartbeatPayload 拡張) | 実装 ~230 / テスト ~200 | Agent 単体 (冪等 2 経路/参照カウント/上限/heartbeat payload 拡張)、N=3 結合、reason enum 4+2 箇所同期 |
 | **PR3** | notification per-invitee (D7) + **groupSize 配線 (F-H2)** + concurrency cap + join 並列 (D8/**F-M6**) | `server/routes/room-routes.ts` (resolveCreateCallOptions N並列) / `room/services/call-lifecycle-service.ts` (per-invitee fanout + cap) / `room/services/join-service.ts` (Promise.all + F-M6 優先順位) / `notification/schemas.ts` (groupSize) / `notification/services/payload-builder.ts` (APNs+FCM groupSize) / `notification/adapters/fcm-adapter.ts` (stringData groupSize) / `shared-kernel/schemas/native-call.ts` (groupSize coerce) | 実装 ~190 / テスト ~160 | per-invitee 結合、mixed success/failure (新規)、groupSize coerce、blocked 優先 (F-M6) |
 | **PR4** | 字幕話者識別 (D6) + **host 識別 (S-C3)** + billing.status host 限定 | `translation/schemas.ts` (subtitle.delta.speakerIdentity) / `translation-agent/agent.ts` (speakerIdentity 埋め込み + billing.status destinationIdentities + host 解決) / `media/schemas.ts` (**isHost + schemaVersion v2**) / `media/adapters/livekit.ts` (**isHost 焼き込み**) / `server/routes/room-routes.ts` (token ルート) / `mobile/stores/subtitle-store.ts` / `mobile/lib/livekit/subtitles.ts` (S-M4 fallback) / `ui-kit/components/SubtitleOverlay.tsx` / `mobile/components/subtitle-overlay-live.tsx` | 実装 ~220 / テスト ~140 | payload 後方互換、話者色分け、billing.status が host のみ (fail-closed)、v1 token parse |
 | **PR5** | mobile UI (D10, D9) + **billing mirror (F-M4)** + **connect.ts trackName 修正 (F-L3)** | `mobile/api/room-api.ts` (inviteeIds[]) / `mobile/api/billing-api.ts` + `mobile/stores/billing-store.ts` (maxGroupParticipants) / `mobile/screens/pre-call-screen.tsx` (複数選択) / `mobile/screens/calling-screen.tsx` (D9) / `mobile/screens/in-call-screen.tsx` (RoomState 購読・グリッド/リスト + leave/end ボタン) / `mobile/stores/call-store.ts` (addParticipant 配線) / `mobile/stores/recent-calls-store.ts` / `mobile/lib/livekit/connect.ts` (F-L3 trackName) | 実装 ~400 / テスト ~170 | 複数選択 E2E、in-call live 更新、trackName 判定、キーボード操作全 PASS |
 
-**合計概算: 実装 ~1,480 行 / テスト ~1,060 行 / 総計 ~2,540 行** (v1.0.0 の ~1,860 から、F-C1 leave/end 分離 (PR0 ~270) と F-C3 通話中仮計上 (PR1 に ~200) の追加設計ぶんを反映して再計算)。
+**合計概算: 実装 ~1,540 行 / テスト ~1,110 行 / 総計 ~2,650 行** (v1.1.0 の ~2,540 から、v1.1.1 の D14 再仕様化ぶん — settle-provisional-first / UsageRepository interface+RPC 実装 / room ended 一括 DELETE / 翻訳 sessionId 解決 — を PR1 に +110 行反映して再計算)。
 
 - **並列可能性・依存**:
   - **PR0 (leave/end)** は独立 (room/server の endCall 認可 + repo)。1 対 1 は自動終了で無破壊のため **単独で先行デプロイ可**。PR1 の reconcile-on-ended トリガー移設が PR0 の leaveCall に依存するため、**PR0 → PR1 の順**。
@@ -1340,7 +1406,8 @@ schema を跨ぐ nullable 化 / enum 追加は **受信側 (server) を先にデ
 | WebRTC pipeline (§9.1c) / TRTC・SIP (§9.1e) | 非スコープ | 別設計 |
 | クライアント直接 Supabase 書き込み経路 | 現状なし (service role で RLS バイパス) | 将来追加時は `participants_self_insert` RLS 見直しが必要 (`00001_initial_schema.sql:329-330`) |
 | **[D12] LiveKit 切断のみで HTTP `/leave` が来ないケース** | スコープ外 (アプリ kill・ネットワーク断等) | `left_at` が更新されず自動終了が遅延しうる。LiveKit `emptyTimeout=600s` が最終保険。将来 **LiveKit webhook** (participant_left) で `leaveCall` を server 側から駆動して補完する |
-| **[D14] 孤児仮計上行の掃除** | 未実装 (運用タスク) | `translation.ended` が来ず `is_provisional=true` のまま残る行の TTL 掃除 (`recorded_at` 古い行の定期削除)。通常は Agent 異常終了でも translation.ended が発行される想定 |
+| **[D14] 孤児仮計上行の TTL 掃除 (残余リスク対応のみ)** | **[v1.1.1 改訂] 一次の掃除は §6.2.3-6 の room ended 一括 DELETE (PR1 スコープ) に格上げ済み** — 旧 v1.1.0 の「TTL 掃除 (運用タスク) 送り」を撤回 | ここに残るのは「room が `ended` に到達しない」異常系のみ。保険として `recorded_at` が古い `is_provisional=true` 行の定期削除を運用タスクとする。通常は Agent 異常終了でも translation.ended が発行される想定 |
+| **[W-1] decline (着信拒否) 専用経路** | 未設計 (既存バグ: 未 join invitee の `/leave` は 403 で無言失敗、decline がサーバに届かず発信者はタイムアウトまで鳴る、§4.4) | decline 専用 API (per-invitee の招待取り消し + host への拒否通知) は別設計。本書は「既知の 403 (現状維持)」と確定 (§4.4/§5 △8) |
 | **[S-L1] `session_limit_reached` の DB 永続化** | Data Channel + Agent ログのみ (DB に残さない) | **意図的判断**。degraded reason は client 通知が目的で、監査証跡は Agent ログで足りるため `translation_sessions` 等への永続化はしない |
 | **[F-C3/F-H3] 低残量の push 通知** | 非スコープ | host 枯渇時のカットオフ (D14) で被害は有界。残量確認は契約画面 (`GET /api/billing/subscription`)。事前の低残量 push は将来検討 |
 
@@ -1371,7 +1438,7 @@ schema を跨ぐ nullable 化 / enum 追加は **受信側 (server) を先にデ
 以下を §2.8 の契約注釈に追記する:
 
 ```md
-- **[グループ通話 (group-call-design.md v1.1.0)]** `createCall` は billing.canStartCall に代えて
+- **[グループ通話 (group-call-design.md v1.1.1)]** `createCall` は billing.canStartCall に代えて
   `billing.canStartGroupCall(creatorId, inviteeIds.length + 1)` を呼び、残量不足
   (`BILLING_INSUFFICIENT_BALANCE`) / プラン定員超過 (`BILLING_GROUP_LIMIT_EXCEEDED`) を DB 書き込み前に
   pass-through する。OK 時に得た `maxGroupParticipants` (人間上限) を `media.createRoom(roomId, { maxParticipants })`
@@ -1383,14 +1450,18 @@ schema を跨ぐ nullable 化 / enum 追加は **受信側 (server) を先にデ
 - **[グループ通話]** 課金は host (room 作成者) 単位 (D2)。`reconcile` は常に予約を持つ host の userId
   (`room_reservation_sessions` の userId) で行い、トリガーは room が `ended` へ遷移した時に一本化する。
   host の leave/切断は (残存≧2 なら) 通話終了トリガーではない。
-- **[グループ通話 v1.1.0]** 通話中の分数仮計上 (D14): heartbeat が `usage_windows` に仮計上行を upsert し、
-  `translation.ended` の `recordUsage` が確定値で置換する (二重計上防止)。これにより host 残量の通話中枯渇で
-  全ペアの `shouldContinue=false` が実際に発火する。
+- **[グループ通話 v1.1.1]** 通話中の分数仮計上 (D14、モデル B): 各翻訳セッションの heartbeat が **自セッション**の
+  累計課金秒を送り、サーバが `provisional:${翻訳sessionId}` (= `translation_sessions.id`) で仮計上行を
+  `usage_windows` に upsert する (1 翻訳セッション = 高々 1 行)。`translation.ended` の `recordUsage` は
+  **settle-provisional-first** (当該仮計上行を残量集計から除外して超過額算出) の上、RPC `settle_usage_window` で
+  確定行 INSERT + 仮計上行 DELETE を原子的に行う (二重計上・amount_yen 過大計上の防止)。room が `ended` に
+  遷移した時に当該 room の仮計上行を一括 DELETE する (in-flight heartbeat による復活防止)。これにより host
+  残量の通話中枯渇で全ペアの `shouldContinue=false` が実際に発火する。
 - **[グループ通話]** 着信通知は invitee 毎に languagePair を個別解決し `groupSize` を付す (D7)。
   fanout は concurrency cap 付き best-effort。
 ```
 
-- billing facade 契約 (§2.3) に `canStartGroupCall` / `GroupCallPolicy` / `PlanConfig.maxGroupParticipants` を追記。`usage_windows.is_provisional` (D14) と通話中仮計上の意味論を注記。
+- billing facade 契約 (§2.3) に `canStartGroupCall` / `GroupCallPolicy` / `PlanConfig.maxGroupParticipants` を追記。`usage_windows.is_provisional` / RPC `settle_usage_window` / `RecordUsageCommand.settleProvisionalKey` (D14) と通話中仮計上 (モデル B、settle-provisional-first) の意味論を注記。
 - room 契約 (§2.8) に `leaveCall` / `endCall` host 限定 / `ROOM_END_FORBIDDEN` を追記。
 - media 契約に `ParticipantMetadata.isHost` (schemaVersion v2) と Agent 席加算を注記。
 - translation 契約 (§7 系) に `subtitle.delta.speakerIdentity` optional、`session_ended.reason` への `no_remaining_listener` (6→7 値)、degraded reason への `session_limit_reached` (4 箇所) を追記。`translation_sessions.target_participant_id` の deprecated 化 (nullable、server/agent 両側) を注記。
@@ -1402,4 +1473,5 @@ schema を跨ぐ nullable 化 / enum 追加は **受信側 (server) を先にデ
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
 | 2026-07-17 | 1.0.0 | 初版 (canonical)。D1〜D11 を確定し、`module-contracts.md` §9.1a を置き換え。現状→変更後の対比、認可マトリクス/テスト戦略/エラーコード/ライフサイクル/全データパターン/移行・受入/規模見積り/状態意味論を規定。trackSubscribed 多重 pipe (D5-1)・リスナー参照カウント (D5-2)・セッション上限 (D5-3) の修正方針を擬似コードで確定。 |
+| 2026-07-17 | 1.1.1 | **v1.1.0 再レビュー (修正後 GO) の残指摘を反映 — D14 の再仕様化 + decline 経路明文化**。**Critical-1**: D14 の sessionId キー空間を **モデル B (翻訳セッション単位)** に確定 (§6.2.3) — 予約 sessionId (room 単位、`room-routes.ts:225`) と翻訳 sessionId (`translation_sessions.id`、`translation-session-repository.supabase.ts:42` で server 採番) は無関係の別 UUID (`usage-metering-subscriber.ts:9-27`)。各 `TranslationSession` が自セッションの `elapsedBillableSeconds` を heartbeat に載せ (送信実体 `translation-session.ts:842-883`、**PR2 変更ファイルを agent.ts → translation-session.ts に訂正**)、サーバは `provisional:${翻訳sessionId}` で仮計上行を upsert (1 セッション = 高々 1 行)、確定キー `translation-ended:${payload.sessionId}` と同一キー空間で置換。room 合計の Agent 側集計・単一行 upsert 競合を排除。**Critical-2**: settle-provisional-first を確定 — `recordUsage` (`usage-metering.ts:67-89`) が確定 INSERT 前に読む残量から当該セッションの仮計上行を除外して `amount_yen` を算出 (含有分数内での過大計上と通話履歴 costYen (`room-history-enrichment-repository.supabase.ts:56-72`) の実害を防止)。subscriber 側先 DELETE は計上漏れ窓が開くため不採用。**W-1**: 未 join invitee の `/leave` = 既知の 403 (`state-builder.ts:59` の除外 → `isRoomParticipant`=false、現状維持) を §4.4/§5 (△8) に明文化、decline 専用設計は §13 非スコープ、403 ガードにより「1 人の拒否が通話全体を終了」は起きない。**W-2**: room ended 時の仮計上行一括 DELETE を PR1 スコープに計上 (§13 の TTL 掃除送りを撤回)、upsert に GREATEST 単調性ガード。**W-3**: `insertWindowIdempotent` は非トランザクション (`usage-repository.supabase.ts:16-72`) のため確定置換の原子性に RPC `settle_usage_window` の migration が必要、`usage-repository.ts` (interface) + `usage-repository.supabase.ts` (実装) を PR1 ファイルリストに追加。**W-4**: 仮計上行の NOT NULL 列値を規定 — `language_pair`=実言語ペア (**VARCHAR(10) のため "provisional" 11 文字は不可**、`00001_initial_schema.sql:177`)、`amount_yen`=0、`window_start`=セッション開始時刻、`window_end`=最新 heartbeat 時刻、`getUsedSecondsInPeriod` の gte/lte period フィルタ (`subscription-repository.supabase.ts:134-145`) との関係を注記。**Suggestion**: §3.1 図注釈を D13 (+TRANSLATION_AGENT_SLOTS) に更新、仮計上 upsert の DB 負荷言及 (モデル B で行分散・軽微)、§6.5.4 に `durationSeconds`=room 全体 (`history-service.ts:168-173`、途中退出者の在室時間は非反映) の表示仕様を明記。§12 PR1 を ~360/~310 行に、総計を ~2,540 → ~2,650 行に再計算。 |
 | 2026-07-17 | 1.1.0 | **2 モデル敵対的レビュー (Fable=NO-GO / Sonnet=修正後 GO) の全指摘を反映**。実コードで file:line を全件突合。**CRITICAL 6 件**: F-C1 leave/end 意味論の分離を新章 §4.4/§6.6 として設計 (D12: `leaveCall` 新設・残存<2 で自動終了・`endCall` host 専用 + `ROOM_END_FORBIDDEN`)、F-C2/D13 LiveKit 定員に翻訳 Agent 席 (+1) を含め free/light の 1 対 1 翻訳全滅を回避、F-C3/D14 通話中の分数仮計上 (heartbeat→usage_windows 仮計上→translation.ended で確定置換) を新設し「変更不要 (実装済み)」記述を撤回、S-C1 media→room 依存違反 (ROOM_MAX_PARTICIPANTS import) をローカル定数化、S-C2 startSession 直 pipe 経路 (agent.ts:474-481) の冪等化漏れを補完、S-C3 host 識別を `ParticipantMetadata.isHost` (schemaVersion v2) で設計。**HIGH**: F-H1/S-H3 targetParticipantId nullable を agent 送信 + server schema (:78/:126) 両側 + デプロイ順序、F-H2 groupSize を payload-builder/fcm-adapter に配線 + coerce、S-H1 error-handler へ 403 登録、S-H2/F-M7 degraded reason 4 箇所・session_ended 6 値の訂正。**MEDIUM/LOW**: F-M2 (plan 参照)、F-M5 (billing.status host 限定=意図的変更)、F-M6 (blocked 優先)、S-M2 (reconcile 影響訂正)、S-M3 (定員は作成時 fix・非遡及)、S-M4 (旧 Agent fallback)、F-L2 (fail-closed)、F-L3 (connect.ts trackName バグ)、F-L4 (reserveMinutes translationEnabled 時のみ)、S-L1 (session_limit_reached DB 非永続=意図) 他を反映。§12 に PR0 (leave/end) を新設し規模を ~1,860 → ~2,540 行に再計算。 |
