@@ -28,7 +28,7 @@
     "fastify": "^4.28.1",
     "google-auth-library": "^10.9.0",
     "resend": "^4.0.1",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

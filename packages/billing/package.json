@@ -26,7 +26,7 @@
   "dependencies": {
     "@trancall/shared-kernel": "workspace:*",
     "stripe": "^17.7.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "vitest": "^3.2.0"

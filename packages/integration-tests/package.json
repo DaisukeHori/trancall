@@ -16,7 +16,7 @@
     "@trancall/notification": "workspace:*",
     "@trancall/transcript": "workspace:*",
     "@trancall/translation": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "vitest": "^3.2.0",
