@@ -18,7 +18,7 @@
     "@trancall/shared-kernel": "workspace:*",
     "livekit-server-sdk": "^2.13.0",
     "ws": "^8.18.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

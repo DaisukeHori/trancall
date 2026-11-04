@@ -23,7 +23,7 @@
     "@trancall/auth": "workspace:*",
     "@trancall/shared-kernel": "workspace:*",
     "livekit-server-sdk": "^2.13.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "jose": "^5.9.6",

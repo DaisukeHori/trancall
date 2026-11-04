@@ -16,7 +16,7 @@
     "@supabase/supabase-js": "^2.43.4",
     "livekit-server-sdk": "^2.13.0",
     "js-yaml": "^4.1.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
