@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@trancall/shared-kernel": "workspace:*",
-    "i18next": "^23.16.8",
+    "i18next": "^26.3.4",
     "react-i18next": "^15.5.1"
   },
   "peerDependencies": {
